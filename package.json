@@ -1,0 +1,19 @@
+{
+  "name": "humbler",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A local Electron client for your Humble Bundle library: collect keys, reveal them, and bulk-download your files, using your real logged-in session.",
+  "main": "main.js",
+  "scripts": {
+    "start": "node scripts/start.js"
+  },
+  "dependencies": {
+    "dotenv": "16.4.5"
+  },
+  "devDependencies": {
+    "electron": "44.10.0"
+  },
+  "allowScripts": {
+    "electron@44.10.0": true
+  }
+}

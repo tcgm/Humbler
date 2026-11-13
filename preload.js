@@ -1,0 +1,34 @@
+const { contextBridge, ipcRenderer } = require("electron");
+
+const on = (channel) => (cb) => ipcRenderer.on(channel, (_e, payload) => cb(payload));
+
+contextBridge.exposeInMainWorld("humbler", {
+  getLibrary: () => ipcRenderer.invoke("library:get"),
+  getLogHistory: () => ipcRenderer.invoke("log:history"),
+  scoutPage: (reload) => ipcRenderer.invoke("scout:page", { reload }),
+  openReconFolder: () => ipcRenderer.invoke("scout:open-folder"),
+  requestStatus: () => ipcRenderer.invoke("status:get"),
+  sync: (full) => ipcRenderer.invoke("library:sync", { full }),
+  revealKeys: (ids) => ipcRenderer.invoke("keys:reveal", ids),
+  exportKeys: (ids) => ipcRenderer.invoke("keys:export", ids),
+  enqueueDownloads: (ids) => ipcRenderer.invoke("downloads:enqueue", ids),
+  cancelDownloads: () => ipcRenderer.invoke("downloads:cancel"),
+  openDownloadFolder: () => ipcRenderer.invoke("downloads:open-folder"),
+  showFile: (id) => ipcRenderer.invoke("downloads:reveal-file", id),
+  chooseDownloadDir: () => ipcRenderer.invoke("settings:choose-download-dir"),
+  toggleBrowser: () => ipcRenderer.invoke("browser:toggle"),
+  go: (where) => ipcRenderer.invoke("browser:go", where),
+  copy: (text) => ipcRenderer.invoke("clipboard:write", text),
+  openUrl: (url) => ipcRenderer.invoke("browser:open", url),
+  setSettings: (patch) => ipcRenderer.invoke("settings:set", patch),
+  getChoice: () => ipcRenderer.invoke("choice:get"),
+  scanChoice: (all) => ipcRenderer.invoke("choice:scan", { all }),
+  stopChoiceScan: () => ipcRenderer.invoke("choice:stop"),
+  onChoiceUpdated: on("choice-updated"),
+  onChoiceScanProgress: on("choice-scan-progress"),
+  onLog: on("log"),
+  onStatus: on("status"),
+  onLibraryUpdated: on("library-updated"),
+  onKeyUpdated: on("key-updated"),
+  onDownloadProgress: on("download-progress"),
+});
