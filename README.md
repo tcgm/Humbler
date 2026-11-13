@@ -121,8 +121,36 @@ contains:
 - `_embedded.json`: JSON Humble embedded directly in the HTML
 - `_page.html`: the rendered page
 
+### Scrubbing
+
+Scout dumps and raw harvests (`data/harvest/`) are scrubbed before they're
+written (`lib/scrub.js`). They should never contain a real key, so they can
+be shared for debugging:
+
+- **Known keys:** every key value in your synced orders and
+  `revealed-keys.jsonl` is replaced with `[REDACTED]` wherever it appears.
+  That includes HTML, JSON escaped inside scripts, and gift links.
+- **Sensitive fields:** `redeemed_key_val`, the reveal response's `key`, gift
+  links, and CSRF/session/token fields are redacted by name. This covers
+  JSON, JSON inside page scripts (including escaped Next.js data), and HTML
+  `<input>`/`<meta>` tags.
+- **Key-shaped text:** anything shaped like a key (`XXXXX-XXXXX-XXXXX` and
+  similar) is redacted even if Humbler has never seen it.
+- **Gamekeys:** order IDs can open an order via `/downloads?key=`. They're
+  replaced with a stable alias (`gamekey#3792b1b327`), so you can still tell
+  which requests belong to the same order. Signed download URL tokens are
+  redacted.
+- **Final check:** every file is checked for any known key just before it's
+  written. If one is found, the file isn't written and the scout is aborted.
+
+The log shows what each scout removed. To re-scrub dumps made before
+scrubbing existed, or after a sync taught Humbler new keys, run
+`npm run scrub-data`. It's safe to run repeatedly, and it deletes any file
+it can't fully clean.
+
 Request bodies are never recorded, because the login form posts your
-password. Response bodies are recorded, so treat recon dumps as private.
+password. Scrubbing targets secrets; dumps still contain ordinary account
+data such as your email and product names.
 
 Login changed in late 2026: Humble now redirects to an Ory login service at
 `auth.humblebundle.com`. Humbler checks for either the old

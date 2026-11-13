@@ -6,6 +6,7 @@ const { USERDATA_DIR, LOG_PATH, RECON_DIR } = require("./lib/paths");
 const { INJECT_SOURCE } = require("./lib/inject-capture");
 const harvest = require("./lib/harvest");
 const { ownedMarkerSource } = require("./lib/owned-marker");
+const { makeScrubber, alias: gamekeyAlias } = require("./lib/scrub");
 const settingsStore = require("./lib/settings");
 const lib = require("./lib/library");
 const { HumbleApi, NotLoggedInError, BASE, BULK_CHUNK } = require("./lib/humble-api");
@@ -146,7 +147,7 @@ async function syncLibrary({ full }) {
           } catch (err) {
             if (err instanceof NotLoggedInError) throw err;
             failed += 1;
-            log(`  order ${key} failed: ${err.message}`);
+            log(`  order ${gamekeyAlias(key)} failed: ${err.message}`);
           }
           await politeDelay(...API_DELAY);
         }
@@ -467,18 +468,27 @@ async function scoutPage({ reload }) {
     await politeDelay(2500, 3500); // let late XHRs land
   }
 
-  const url = wc.getURL();
-  const { captured, embedded } = await collectPageData(wc);
+  // Everything below is scrubbed before it touches disk: no key values, no
+  // raw gamekeys, no signed-URL tokens (see lib/scrub.js).
+  const scrub = makeScrubber();
+  const url = scrub.scrubText(wc.getURL());
+  const raw = await collectPageData(wc);
+  const captured = scrub.scrubValue(raw.captured);
+  const embedded = scrub.scrubValue(raw.embedded);
   const html = await wc.executeJavaScript("document.documentElement.outerHTML").catch(() => "");
 
   const dir = path.join(RECON_DIR, `${new Date().toISOString().replace(/[:.]/g, "-")}-${slugifyUrl(url)}`);
   fs.mkdirSync(dir, { recursive: true });
-  captured.forEach((entry, i) =>
-    fs.writeFileSync(path.join(dir, `${String(i + 1).padStart(4, "0")}.json`), JSON.stringify(entry, null, 2)),
-  );
-  fs.writeFileSync(path.join(dir, "_network.json"), JSON.stringify(networkLog, null, 2));
-  if (embedded.length) fs.writeFileSync(path.join(dir, "_embedded.json"), JSON.stringify(embedded, null, 2));
-  if (html) fs.writeFileSync(path.join(dir, "_page.html"), html);
+  try {
+    captured.forEach((entry, i) => scrub.writeScrubbed(path.join(dir, `${String(i + 1).padStart(4, "0")}.json`), entry));
+    scrub.writeScrubbed(path.join(dir, "_network.json"), networkLog);
+    if (embedded.length) scrub.writeScrubbed(path.join(dir, "_embedded.json"), embedded);
+    if (html) scrub.writeScrubbed(path.join(dir, "_page.html"), html);
+  } catch (err) {
+    fs.rmSync(dir, { recursive: true, force: true });
+    log(`Scout aborted and its dump deleted: ${err.message}`);
+    return { ok: false, reason: err.message };
+  }
 
   // Summary of what the page talks to, so the interesting endpoints jump out.
   const counts = new Map();
@@ -487,7 +497,12 @@ async function scoutPage({ reload }) {
     counts.set(k, (counts.get(k) || 0) + 1);
   }
   const summary = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  fs.writeFileSync(
+  const s = scrub.stats;
+  log(
+    `  Scrubbed: ${s.keys} known key(s), ${s.fields} secret field(s), ${s.patterns} key-shaped string(s), ` +
+      `${s.gamekeys} gamekey(s) aliased, ${s.tokens} URL token(s)`,
+  );
+  scrub.writeScrubbed(
     path.join(dir, "_summary.txt"),
     `Scouted: ${url}\n\nJSON responses by endpoint:\n` +
       summary.map(([k, n]) => `  ${String(n).padStart(4)}×  ${k}`).join("\n") +
@@ -536,7 +551,11 @@ async function harvestChoicePage(wc) {
   const dom = await wc.executeJavaScript(harvest.DOM_CHOICE_SCRIPT).catch(() => []);
   const roots = [...captured.map((c) => c.body), ...embedded.map((e) => e.json).filter(Boolean)];
   const found = [...harvest.extractChoiceFromJson(roots, url), ...harvest.extractChoiceFromDom(dom, url)];
-  harvest.saveRawHarvest("choice", url, { captured, embedded, dom, extracted: found });
+  try {
+    harvest.saveRawHarvest("choice", url, { captured, embedded, dom, extracted: found }, makeScrubber());
+  } catch (err) {
+    log(`Choice: raw harvest not saved (${err.message})`);
+  }
 
   // Months with an order on your account are ones you were subscribed for.
   const orderMonths = new Map();
