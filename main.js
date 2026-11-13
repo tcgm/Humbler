@@ -10,6 +10,7 @@ const { makeScrubber, alias: gamekeyAlias } = require("./lib/scrub");
 const { LiveScout, LIVE_DIR, endpointOf } = require("./lib/live-scout");
 const { ActionRegistry } = require("./lib/actions");
 const libraryV2 = require("./lib/library-v2");
+const redeemedStore = require("./lib/redeemed");
 const { flightData, PAGE_FLIGHT_SCRIPT } = require("./lib/rsc");
 const settingsStore = require("./lib/settings");
 const lib = require("./lib/library");
@@ -90,6 +91,10 @@ function rebuildIndex() {
   index = v2?.items?.length
     ? libraryV2.buildIndexV2(v2.items, { downloadDir: settings.downloadDir, naming: settings.naming })
     : lib.buildIndex(lib.loadAllOrders(), { downloadDir: settings.downloadDir, naming: settings.naming });
+  // Your own record of which keys you've activated on Steam/GOG/...
+  const redeemedMap = redeemedStore.load();
+  for (const k of index.keys) k.platformRedeemed = redeemedMap[k.id] || null;
+  index.choiceGroups ||= [];
   ownedTitles = null;
   liveScrubber = null; // new keys may be known now (sync / reveal)
   send("library-updated");
@@ -145,6 +150,7 @@ async function pushStatus() {
     naming: settings.naming,
     markOwned: settings.markOwned,
     liveScout: settings.liveScout,
+    theme: settings.theme,
     live: liveScout.summary(),
     busy,
     queue: downloader.summary(),
@@ -921,6 +927,9 @@ function createWindow() {
   humbleView.webContents.on("did-navigate-in-page", () => afterLoad(false));
 
   win.on("resize", layout);
+  // Coming back to Humbler (e.g. from Steam's redeem page in your browser):
+  // the UI uses this to ask whether you redeemed the key.
+  win.on("focus", () => send("app-focus"));
   win.on("closed", () => {
     downloader.cancelAll();
     win = uiView = humbleView = null;
@@ -951,6 +960,7 @@ ipcMain.handle("settings:set", (_e, patch) => {
   const next = { ...settings };
   if (patch && settingsStore.NAMING.includes(patch.naming)) next.naming = patch.naming;
   if (patch && typeof patch.markOwned === "boolean") next.markOwned = patch.markOwned;
+  if (patch && (patch.theme === "dark" || patch.theme === "light")) next.theme = patch.theme;
   if (patch && typeof patch.liveScout === "boolean") {
     next.liveScout = patch.liveScout;
     if (patch.liveScout !== settings.liveScout) log(`Live scouting ${patch.liveScout ? "on" : "off"}.`);
@@ -1018,6 +1028,13 @@ ipcMain.handle("browser:go", (_e, where) => {
   humbleView.webContents.loadURL(BASE + (routes[where] || "/home/library"));
 });
 ipcMain.handle("clipboard:write", (_e, text) => clipboard.writeText(String(text ?? "")));
+ipcMain.handle("redeem:mark", (_e, { id, redeemed, platform } = {}) => {
+  const key = index.keys.find((k) => k.id === id);
+  if (!key) return null;
+  key.platformRedeemed = redeemedStore.mark(id, { redeemed: !!redeemed, platform });
+  log(`${key.name}: ${redeemed ? `marked as redeemed on ${platform || "its platform"}` : "marked as not redeemed"}.`);
+  return key.platformRedeemed;
+});
 
 // Dev mode (scripts/dev.js): DevTools for the UI, and the dev runner asks
 // us to reload the UI or quit cleanly (instead of killing us) when files change.

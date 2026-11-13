@@ -99,7 +99,7 @@ function armable(button, armedText, fire) {
 document.querySelectorAll(".tab").forEach((tab) =>
   tab.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t === tab));
-    for (const name of ["keys", "files", "library", "choice", "log"]) $(`tab-${name}`).hidden = tab.dataset.tab !== name;
+    for (const name of ["keys", "bundles", "choice", "files", "library", "log"]) $(`tab-${name}`).hidden = tab.dataset.tab !== name;
   }),
 );
 document.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => humbler.go(b.dataset.go)));
@@ -118,6 +118,7 @@ humbler.onStatus((s) => {
   $("naming").value = s.naming;
   $("markOwned").checked = !!s.markOwned;
   $("liveScout").checked = !!s.liveScout;
+  applyTheme(s.theme);
   $("liveSummary").textContent = s.live ? `${s.live.endpoints} endpoints · ${s.live.samples} response shapes` : "";
   if (q.active || q.queued) parts.push(`downloading ${q.active} · ${q.queued} queued`);
   $("busy").hidden = !parts.length;
@@ -187,7 +188,7 @@ async function loadLibrary() {
   renderKeys();
   renderFiles();
   renderLibrary();
-  renderChoice();
+  if (typeof renderHbPages === "function") renderHbPages(); // Bundles + Choice pages (pages.js)
 }
 
 humbler.onLibraryUpdated(loadLibrary);
@@ -209,6 +210,8 @@ function filteredKeys({ ignoreState = false } = {}) {
     if (type && k.keyType !== type) return false;
     if (st === "unused" && k.status !== "unused") return false;
     if (st === "revealed" && k.status !== "revealed") return false;
+    if (st === "notredeemed" && !(k.status === "revealed" && !k.platformRedeemed)) return false;
+    if (st === "platformredeemed" && !k.platformRedeemed) return false;
     if (st === "gifted" && !(k.status === "gifted" || k.status === "link")) return false;
     if (st === "expiring" && !isExpiring(k)) return false;
     if (st === "expired" && !(k.status === "expired" || k.status === "sold-out")) return false;
@@ -256,8 +259,12 @@ function keyField(k) {
     case "revealed": {
       row.append(el("div", { class: "keyfield redeemed", title: "Click the key to select it" }, el("span", { class: "keyfield-value", textContent: k.key || "" })));
       if (p.redeem && k.key) {
-        const redeem = el("button", { class: "hb-btn small", textContent: "Redeem", title: `Redeem on ${p.name} (opens in your browser)` });
-        redeem.addEventListener("click", () => humbler.openUrl(p.redeem(k.key)));
+        const redeem = el("button", {
+          class: `hb-btn small${k.platformRedeemed ? " ghost" : ""}`,
+          textContent: k.platformRedeemed ? "Redeem again" : "Redeem",
+          title: `Redeem on ${p.name}: opens in your browser${p.id === "steam" ? " with the key filled in" : ""}`,
+        });
+        redeem.addEventListener("click", () => beginRedeem(k, p.name, p.redeem(k.key)));
         row.append(redeem);
       }
       if (k.key) row.append(copyButton(k.key));
@@ -291,6 +298,25 @@ function keyField(k) {
   }
 
   const meta = el("div", { class: "keymeta" });
+  // Your own redeemed-on-platform record (revealed keys only).
+  if (k.status === "revealed") {
+    if (k.platformRedeemed) {
+      const undo = el("a", { textContent: "undo", title: "Mark as not redeemed" });
+      undo.addEventListener("click", () => setRedeemed(k.id, false));
+      meta.append(
+        el(
+          "span",
+          { class: "redeemed-ok" },
+          `✓ Redeemed${k.platformRedeemed.platform ? ` on ${k.platformRedeemed.platform}` : ""} · ${formatDate(k.platformRedeemed.at)} `,
+          undo,
+        ),
+      );
+    } else {
+      const mark = el("a", { textContent: "Mark as redeemed", title: "Record that you've activated this key yourself" });
+      mark.addEventListener("click", () => setRedeemed(k.id, true, p.name || null));
+      meta.append(el("span", {}, mark));
+    }
+  }
   if (k.status === "unused" && k.expiry) {
     meta.append(
       el("span", {
@@ -635,70 +661,60 @@ function renderLibrary() {
 ["libSearch", "libBundle", "libKind"].forEach((id) => $(id).addEventListener("input", renderLibrary));
 $("markOwned").addEventListener("change", (e) => humbler.setSettings({ markOwned: e.target.checked }));
 
-// ---- choice ---------------------------------------------------------------
+// ---- theme (dark by default) ----------------------------------------------
 
-async function renderChoice() {
-  const months = await humbler.getChoice();
-  const q = $("choiceSearch").value.trim().toLowerCase();
-  const mode = $("choiceStatus").value;
-  const owned = state.owned || new Set();
-  let totalUnclaimed = 0;
-  const frag = document.createDocumentFragment();
+function applyTheme(theme) {
+  const t = theme === "light" ? "light" : "dark";
+  document.documentElement.dataset.theme = t;
+  $("themeBtn").textContent = t === "dark" ? "☀" : "☾";
+  $("themeBtn").title = t === "dark" ? "Switch to light mode" : "Switch to dark mode";
+}
+$("themeBtn").addEventListener("click", () => {
+  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  applyTheme(next); // immediately, then persist
+  humbler.setSettings({ theme: next });
+});
 
-  for (const m of months) {
-    const games = Object.entries(m.games || {}).map(([id, g]) => ({ id, ...g, owned: owned.has(normTitle(g.title)) }));
-    const unclaimed = games.filter((g) => !g.claimed && !g.owned);
-    // Only count months you were (probably) subscribed for: an order exists, or the page said you're a member.
-    const entitled = !!m.gamekey || m.canClaim === true;
-    if (entitled) totalUnclaimed += unclaimed.length;
+// ---- redeem tracking --------------------------------------------------------
+// Humble only knows a key was revealed. Whether you then activated it on
+// Steam/GOG/Epic only you know, so after a Redeem link sends you to your
+// browser, Humbler asks when you come back.
 
-    if (mode === "unclaimed" && !(entitled && unclaimed.length)) continue;
-    const shown = games.filter((g) => !q || g.title.toLowerCase().includes(q));
-    if (q && !shown.length) continue;
+let pendingRedeem = null; // { id, name, platform, at }
 
-    const head = el(
-      "h3",
-      {},
-      m.title || m.month,
-      extLink("open", m.url, m.source === "library" ? "Open your library on Humble (redeem Choice games there)" : "Open this month on Humble"),
-      el("span", {
-        class: `tag ${entitled ? (unclaimed.length ? "warn" : "ok") : ""}`,
-        textContent: entitled ? `${unclaimed.length} not in library / ${games.length}` : `${games.length} games · not subscribed?`,
-        title: "Games count as yours once they show up in your synced library",
-      }),
-    );
-    const grid = el("div", { class: "games" });
-    for (const g of shown) {
-      const card = el(
-        "div",
-        {
-          class: `game${g.claimed ? " claimed" : ""}${g.owned ? " owned" : ""}`,
-          title: `${g.title}${g.type ? `\n${g.type}` : ""}${g.claimed ? "\nclaimed" : ""}${g.owned ? "\nin your library" : ""}`,
-        },
-        g.image ? el("img", { src: g.image, loading: "lazy", alt: "" }) : null,
-        el("span", { class: "t", textContent: g.title }),
-      );
-      // Old-site months linked to per-game pages; the new site only has the library.
-      card.addEventListener("click", () => humbler.openUrl(m.source === "library" ? m.url : `${m.url}/${encodeURIComponent(g.id)}`));
-      grid.append(card);
-    }
-    frag.append(el("div", { class: "month" }, head, games.length ? grid : null));
-  }
-  if (!frag.childNodes.length) {
-    const text = !months.length
-      ? "No Choice months yet. Open your library on the right and Humbler will pick up the current month."
-      : mode === "unclaimed"
-        ? "Every Choice game Humbler has seen is in your library."
-        : "Nothing to show.";
-    frag.append(el("div", { class: "more", textContent: text }));
-  }
-  $("choiceList").replaceChildren(frag);
-  $("choiceCount").textContent = months.length ? `${totalUnclaimed} not in library` : "";
+function beginRedeem(k, platformName, url) {
+  pendingRedeem = { id: k.id, name: k.name, platform: platformName, at: Date.now() };
+  humbler.openUrl(url);
 }
 
-["choiceSearch", "choiceStatus"].forEach((id) => $(id).addEventListener("input", renderChoice));
-$("choiceLibraryBtn").addEventListener("click", () => humbler.go("library"));
-humbler.onChoiceUpdated(renderChoice);
+function askAboutRedeem() {
+  if (!pendingRedeem || Date.now() - pendingRedeem.at < 1500) return; // focus flicker while the browser opens
+  $("redeemAskText").textContent = `Did you redeem "${pendingRedeem.name}" on ${pendingRedeem.platform}?`;
+  $("redeemAsk").hidden = false;
+  $("redeemYes").focus();
+}
+
+async function answerRedeem(redeemed) {
+  const p = pendingRedeem;
+  pendingRedeem = null;
+  $("redeemAsk").hidden = true;
+  if (p && redeemed) await setRedeemed(p.id, true, p.platform);
+}
+
+async function setRedeemed(id, redeemed, platformName) {
+  const rec = await humbler.markRedeemed(id, redeemed, platformName);
+  const k = state.lib.keys.find((x) => x.id === id);
+  if (k) k.platformRedeemed = redeemed ? rec : null;
+  renderKeys();
+  if (typeof renderHbPages === "function") renderHbPages({ keepView: true });
+}
+
+humbler.onAppFocus(askAboutRedeem);
+$("redeemYes").addEventListener("click", () => answerRedeem(true));
+$("redeemNo").addEventListener("click", () => answerRedeem(false));
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !$("redeemAsk").hidden) answerRedeem(false);
+});
 
 // ---- scouting -----------------------------------------------------------
 

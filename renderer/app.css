@@ -145,39 +145,92 @@ a.ext:hover { text-decoration: underline; }
 .keycell { flex-wrap: wrap; row-gap: 3px; }
 .grid td:has(.keycell) { white-space: normal; }
 
-/* ---- Keys tab: modelled on the old humblebundle.com/home/keys page ----
-   Light page, a plain table, bold game titles with the bundle underneath,
-   and grey "keyfield" boxes ("Reveal your Steam key") that turn into the
-   key itself once revealed. No Humble assets: platform marks are simple
-   drawn badges. */
-.hbkeys {
+/* ---- Theme -------------------------------------------------------------------
+   Dark by default. html[data-theme="light"] (the ☀ toggle) swaps the
+   palette for anyone who wants it. */
+html[data-theme="light"] {
+  color-scheme: light;
+  --bg: #eef0f3;
+  --panel: #ffffff;
+  --raised: #f1f2f5;
+  --hover: #e4e6ea;
+  --line: #d9dce1;
+  --text: #24262b;
+  --muted: #646a73;
+  --accent: #c92a2a;
+  --ok: #2f8f46;
+  --warn: #b7791f;
+  --bad: #c92a2a;
+}
+html[data-theme="light"] button:not(.tab):not(.link) { border-color: #c9ccd2; }
+html[data-theme="light"] button.primary { background: #3a3f8f; color: #fff; border-color: #2f3478; }
+html[data-theme="light"] .grid tr:hover td { background: #f6f7f9; }
+html[data-theme="light"] .log { background: #fafbfc; }
+.icon-btn { width: 34px; padding: 6px 0; text-align: center; font-size: 15px; line-height: 1; }
+
+/* ---- Old-HB-style pages (Keys, Bundles, Choice) -------------------------------
+   Modelled on humblebundle.com's pre-2026 pages: plain tables, bold titles
+   over grey subtitles, big "keyfield" boxes. No Humble assets: platform
+   marks are drawn badges, art is placeholder tiles (or Humble's own
+   Choice thumbnails when the library page provides them). */
+.hb {
+  /* dark (default) */
+  --hb-bg: #17181c;
+  --hb-card: #202227;
+  --hb-card-hover: #262931;
+  --hb-line: #30333a;
+  --hb-text: #e4e5e8;
+  --hb-muted: #9a9ea6;
+  --hb-field: #2c2f36;
+  --hb-field-hover: #363a43;
+  --hb-field-border: #3a3e47;
+  --hb-input: #1b1d22;
+  --hb-input-border: #3a3e47;
+  --hb-head: #1c1e23;
+  --hb-red: #d1373a;
+  --hb-red-dark: #ab2629;
+  --hb-red-soft: #3a2224;
+  --hb-green: #4fbf6c;
+  --hb-green-soft: #1f3326;
+  --hb-link: #78aef0;
+  background: var(--hb-bg);
+  color: var(--hb-text);
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+html[data-theme="light"] .hb {
   --hb-bg: #f3f3f3;
   --hb-card: #ffffff;
+  --hb-card-hover: #fafafa;
   --hb-line: #e1e1e1;
   --hb-text: #494949;
   --hb-muted: #8f8f8f;
   --hb-field: #e9e9e9;
   --hb-field-hover: #dcdcdc;
+  --hb-field-border: #d6d6d6;
+  --hb-input: #ffffff;
+  --hb-input-border: #cfcfcf;
+  --hb-head: #fafafa;
   --hb-red: #c92a2a;
   --hb-red-dark: #a51f1f;
+  --hb-red-soft: #fbe9e9;
   --hb-green: #2f8f46;
-  background: var(--hb-bg);
-  color: var(--hb-text);
-  color-scheme: light;
-  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --hb-green-soft: #eef6f0;
+  --hb-link: #3f7fbf;
 }
 .hb-page { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 16px 18px 10px; gap: 10px; }
+.hb-scroll { overflow-y: auto; display: block; }
+.hb-scroll > * + * { margin-top: 12px; }
 .hb-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
-.hb-head h2 { margin: 0; font-size: 22px; font-weight: 600; color: var(--hb-text); letter-spacing: 0.01em; }
-.hb-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
-.hbkeys input[type="search"].hb-search {
-  background: #fff; color: var(--hb-text); border: 1px solid #cfcfcf; border-radius: 3px;
+.hb-head h2, .hb-bundle-head h2 { margin: 0; font-size: 22px; font-weight: 600; color: var(--hb-text); letter-spacing: 0.01em; }
+.hb-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.hb input[type="search"].hb-search {
+  background: var(--hb-input); color: var(--hb-text); border: 1px solid var(--hb-input-border); border-radius: 3px;
   padding: 7px 10px; min-width: 220px; font-size: 13px;
 }
 .hb-check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--hb-text); white-space: nowrap; cursor: pointer; }
 .hb-subbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.hbkeys select {
-  background: #fff; color: var(--hb-text); border: 1px solid #cfcfcf; border-radius: 3px; padding: 5px 8px; font-size: 12px; max-width: 230px;
+.hb select {
+  background: var(--hb-input); color: var(--hb-text); border: 1px solid var(--hb-input-border); border-radius: 3px; padding: 5px 8px; font-size: 12px; max-width: 230px;
 }
 .hb-btn {
   background: var(--hb-red); color: #fff; border: 1px solid var(--hb-red-dark); border-radius: 3px;
@@ -185,81 +238,163 @@ a.ext:hover { text-decoration: underline; }
 }
 .hb-btn:hover:not(:disabled) { background: var(--hb-red-dark); }
 .hb-btn:disabled { opacity: 0.45; cursor: default; }
-.hb-btn.ghost { background: #fff; color: var(--hb-text); border-color: #cfcfcf; font-weight: 500; }
-.hb-btn.ghost:hover:not(:disabled) { background: #f0f0f0; }
+.hb-btn.ghost { background: var(--hb-input); color: var(--hb-text); border-color: var(--hb-input-border); font-weight: 500; }
+.hb-btn.ghost:hover:not(:disabled) { background: var(--hb-field); }
 .hb-btn.armed { background: var(--hb-red-dark); }
 .hb-btn.small { padding: 4px 9px; font-size: 11px; }
-.hb-summary { font-size: 12px; color: var(--hb-muted); }
+.hb-summary { font-size: 12px; color: var(--hb-muted); margin: 0; }
+.hb-links { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; }
+.hb a, .hb a.ext { color: var(--hb-link); cursor: pointer; text-decoration: none; margin-left: 0; font-size: 12px; }
+.hb a:hover { text-decoration: underline; }
+.hb-back { display: inline-block; font-size: 13px !important; }
+.hb-empty { padding: 30px; text-align: center; color: var(--hb-muted); font-size: 13px; }
+.hb-note { margin: 0; font-size: 11px; color: var(--hb-muted); }
 
+/* keys table */
 .hb-tablewrap { flex: 1; overflow: auto; background: var(--hb-card); border: 1px solid var(--hb-line); border-radius: 3px; }
 table.hb-keys { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .hb-keys th {
-  position: sticky; top: 0; z-index: 1; background: #fafafa; color: var(--hb-muted);
+  position: sticky; top: 0; z-index: 1; background: var(--hb-head); color: var(--hb-muted);
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
   text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--hb-line);
 }
 .hb-keys td { padding: 12px; border-bottom: 1px solid var(--hb-line); vertical-align: middle; }
-.hb-keys tr:hover td { background: #fbfbfb; }
+.hb-keys tr:hover td { background: var(--hb-card-hover); }
 .hb-keys .chk { width: 34px; padding-right: 0; }
 .hb-keys .platform { width: 92px; text-align: center; }
-.hb-keys .keycol { width: 46%; }
-.hb-keys .hb-game h4 { margin: 0 0 3px; font-size: 14px; font-weight: 600; color: var(--hb-text); line-height: 1.3; }
-.hb-keys .hb-game p { margin: 0; font-size: 12px; color: var(--hb-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hb-keys .hb-game a { font-size: 11px; color: #3f7fbf; text-decoration: none; cursor: pointer; }
-.hb-keys .hb-game a:hover { text-decoration: underline; }
+.hb-keys .keycol { width: 50%; }
+.hb-keys .hb-game h4, .hb-keyline-title h4 { margin: 0 0 3px; font-size: 14px; font-weight: 600; color: var(--hb-text); line-height: 1.3; }
+.hb-keys .hb-game p, .hb-keyline-title p { margin: 0; font-size: 12px; color: var(--hb-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-keys .hb-game a.ext { display: inline-block; margin-top: 3px; font-size: 11px; }
 
-/* platform badges (drawn, not Humble's icon font) */
+/* platform badges */
 .plat {
-  display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 6px;
-  color: #fff; font-size: 10px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; background: #7b7b7b;
+  display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 6px; flex: none;
+  color: #fff; font-size: 10px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; background: #6b6f78;
 }
-.plat.steam { background: #1b2838; }
-.plat.epic { background: #2a2a2a; }
+.plat.steam { background: #1b2838; box-shadow: inset 0 0 0 1px #2c3e55; }
+.plat.epic { background: #2a2a2a; box-shadow: inset 0 0 0 1px #444; }
 .plat.gog { background: #7c2a8a; }
 .plat.origin { background: #f56c2d; }
 .plat.uplay { background: #1f6fe5; }
 .plat.blizzard { background: #0e86d4; }
 .plat.external { background: #5c6b73; }
 
-/* keyfield: the big grey box */
-.keyrow { display: flex; align-items: center; gap: 8px; }
+/* keyfield: the big box */
+.keyrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .keyfield {
   flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; min-height: 38px; padding: 6px 12px;
-  background: var(--hb-field); color: var(--hb-text); border: 1px solid #d6d6d6; border-radius: 3px;
+  background: var(--hb-field); color: var(--hb-text); border: 1px solid var(--hb-field-border); border-radius: 3px;
   font-size: 13px; font-weight: 600; text-align: center;
 }
 button.keyfield { cursor: pointer; font-family: inherit; }
 button.keyfield:hover:not(:disabled) { background: var(--hb-field-hover); }
 button.keyfield:disabled { opacity: 0.55; cursor: default; }
-.keyfield.armed { background: #fbe9e9; border-color: var(--hb-red); color: var(--hb-red); }
-.keyfield.redeemed { background: #fff; border-style: dashed; border-color: #bdbdbd; font-weight: 500; }
+.keyfield.armed { background: var(--hb-red-soft); border-color: var(--hb-red); color: var(--hb-red); }
+.keyfield.redeemed { flex: 1 1 180px; background: var(--hb-input); border-style: dashed; font-weight: 500; }
 .keyfield-value {
-  font-family: Consolas, "Courier New", monospace; font-size: 14px; letter-spacing: 0.04em; user-select: all;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: Consolas, "Courier New", monospace; font-size: 13px; letter-spacing: 0.02em; user-select: all;
+  white-space: normal; word-break: normal; overflow-wrap: anywhere;
 }
-.keyfield.gifted { background: #eef6f0; border-color: #cfe5d5; color: var(--hb-green); }
-.keyfield.expired { background: #f7f7f7; color: var(--hb-muted); font-weight: 500; }
+.keyfield.gifted { background: var(--hb-green-soft); border-color: var(--hb-green-soft); color: var(--hb-green); }
+.keyfield.expired { background: var(--hb-card); color: var(--hb-muted); font-weight: 500; }
 .keymeta { margin-top: 6px; font-size: 11px; color: var(--hb-muted); display: flex; flex-wrap: wrap; gap: 4px 12px; }
 .keymeta .soon { color: var(--hb-red); font-weight: 600; }
-.keymeta details summary { cursor: pointer; color: #3f7fbf; }
+.keymeta a { font-size: 11px; }
+.keymeta .redeemed-ok { color: var(--hb-green); font-weight: 600; }
+.keymeta details summary { cursor: pointer; color: var(--hb-link); }
 .keymeta details[open] { flex-basis: 100%; }
 .keymeta details p { margin: 4px 0 0; white-space: pre-wrap; color: var(--hb-text); }
 
-.hb-empty { padding: 30px; text-align: center; color: var(--hb-muted); font-size: 13px; }
+/* pager */
 .hb-pager { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
 .hb-pager button {
-  background: #fff; color: var(--hb-text); border: 1px solid #cfcfcf; border-radius: 3px; padding: 4px 10px; font-size: 12px; cursor: pointer; min-width: 32px;
+  background: var(--hb-input); color: var(--hb-text); border: 1px solid var(--hb-input-border); border-radius: 3px; padding: 4px 10px; font-size: 12px; cursor: pointer; min-width: 32px;
 }
-.hb-pager button:hover:not(:disabled) { background: #f0f0f0; }
+.hb-pager button:hover:not(:disabled) { background: var(--hb-field); }
 .hb-pager button.current { background: var(--hb-red); border-color: var(--hb-red-dark); color: #fff; font-weight: 600; }
 .hb-pager button:disabled { opacity: 0.4; cursor: default; }
-.hb-pager .gap { padding: 4px 4px; color: var(--hb-muted); }
-.hb-note { margin: 0; font-size: 11px; color: var(--hb-muted); }
+.hb-pager .gap { padding: 4px; color: var(--hb-muted); }
 
-/* Keys must always be fully readable: wrap long keys instead of truncating,
-   and let the Redeem/Copy buttons drop below on narrow panels. */
-.keyrow { flex-wrap: wrap; }
-.keyfield.redeemed { flex: 1 1 180px; }
-.keyfield-value { white-space: normal; overflow: visible; text-overflow: clip; word-break: normal; overflow-wrap: anywhere; font-size: 13px; letter-spacing: 0.02em; }
-.hb-keys .keycol { width: 50%; }
-.hb-keys .hb-game a.ext { margin-left: 0; display: inline-block; margin-top: 3px; }
+/* placeholder art */
+.tile {
+  flex: none; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: rgba(255, 255, 255, 0.92);
+  font-weight: 700; letter-spacing: 0.04em; object-fit: cover; background: #444; user-select: none;
+}
+.tile.xs { width: 44px; height: 26px; font-size: 10px; }
+.tile.sm { width: 52px; height: 52px; font-size: 15px; }
+.tile.md { width: 64px; height: 64px; font-size: 18px; }
+.tile.lg { width: 96px; height: 96px; font-size: 28px; }
+.tile.art { width: 100%; aspect-ratio: 460 / 215; font-size: 30px; border-radius: 4px 4px 0 0; }
+
+/* bundle / month cards */
+.hb-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.hb-card {
+  display: flex; align-items: center; gap: 12px; text-align: left; padding: 10px; min-width: 0;
+  background: var(--hb-card); color: var(--hb-text); border: 1px solid var(--hb-line); border-radius: 4px; cursor: pointer; font-family: inherit;
+}
+.hb-card:hover:not(:disabled) { background: var(--hb-card-hover); border-color: var(--hb-field-border); }
+.hb-card-body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.hb-card h4 { margin: 0; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-card p { margin: 0; font-size: 12px; color: var(--hb-muted); }
+.hb-flag { align-self: flex-start; font-size: 11px; font-weight: 600; color: var(--hb-red); }
+.hb-flag.amber { color: #d99a2b; }
+.month-card { flex-direction: column; align-items: stretch; }
+.month-strip { display: flex; gap: 4px; }
+
+/* bundle page (old /downloads?key= page) */
+.hb-bundle-head { display: flex; align-items: center; gap: 16px; }
+.hb-section { display: flex; flex-direction: column; gap: 8px; }
+.hb-section h3 { margin: 6px 0 0; font-size: 15px; font-weight: 600; color: var(--hb-text); }
+.hb-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.hb-panel { background: var(--hb-card); border: 1px solid var(--hb-line); border-radius: 3px; }
+.hb-keyline, .hb-dlrow { display: flex; align-items: center; gap: 12px; padding: 12px; border-bottom: 1px solid var(--hb-line); }
+.hb-panel > :last-child { border-bottom: none; }
+.hb-keyline-title, .hb-dlrow-title { flex: 1 1 30%; min-width: 0; }
+.hb-keyline-field { flex: 1 1 50%; min-width: 0; }
+.hb-dlrow-title h4 { margin: 0 0 3px; font-size: 14px; font-weight: 600; }
+.hb-dlrow-title p { margin: 0; font-size: 12px; color: var(--hb-muted); }
+.hb-dlrow-files { flex: 1 1 50%; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.plat-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.plat-tabs button {
+  background: var(--hb-input); color: var(--hb-text); border: 1px solid var(--hb-input-border); border-radius: 3px; padding: 5px 12px; font-size: 12px; cursor: pointer;
+}
+.plat-tabs button.active { background: var(--hb-text); color: var(--hb-bg); border-color: var(--hb-text); font-weight: 600; }
+.file-btn {
+  display: inline-flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 12px; min-width: 120px;
+  background: var(--hb-field); color: var(--hb-text); border: 1px solid var(--hb-field-border); border-radius: 3px; cursor: pointer; font-family: inherit; font-size: 12px; font-weight: 600;
+}
+.file-btn:hover:not(:disabled) { background: var(--hb-field-hover); }
+.file-btn small { font-size: 10px; font-weight: 500; color: var(--hb-muted); }
+.file-btn.done { border-color: var(--hb-green); }
+.file-btn.done small { color: var(--hb-green); }
+.file-btn.failed small { color: var(--hb-red); }
+.file-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* Choice month page (old /membership/<month> grid) */
+.choice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.choice-card { display: flex; flex-direction: column; background: var(--hb-card); border: 1px solid var(--hb-line); border-radius: 4px; overflow: hidden; }
+.choice-card.missing { border-style: dashed; }
+.choice-art { width: 100%; aspect-ratio: 460 / 215; object-fit: cover; display: block; background: var(--hb-field); }
+.choice-body { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.choice-body h4 { margin: 0; font-size: 14px; font-weight: 600; }
+.choice-key .keymeta { margin-top: 4px; }
+.choice-files { display: flex; flex-wrap: wrap; gap: 6px; }
+.choice-files .file-btn { min-width: 0; flex: 1 1 100px; }
+.choice-missing { font-size: 12px; color: #d99a2b; }
+.muted-line { margin: 0; font-size: 12px; color: var(--hb-muted); }
+
+/* "Did you redeem it?" */
+.ask-backdrop { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.55); }
+.ask {
+  width: min(420px, calc(100% - 32px)); padding: 20px; border-radius: 6px;
+  background: var(--hb-card); color: var(--hb-text); border: 1px solid var(--hb-line); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+.ask h3 { margin: 0 0 8px; font-size: 16px; }
+.ask p { margin: 0 0 16px; font-size: 13px; color: var(--hb-text); }
+.ask-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* base button styles set nowrap; HB cards and key fields hold wrapping text */
+.hb-card, button.keyfield, .file-btn { white-space: normal; }
+.hb-flags { display: flex; flex-wrap: wrap; gap: 2px 10px; }
+.hb-flags .hb-flag { align-self: auto; }

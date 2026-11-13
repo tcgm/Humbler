@@ -1,5 +1,5 @@
 <!doctype html>
-<html>
+<html data-theme="dark">
 <head>
 <meta charset="utf-8" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:" />
@@ -14,26 +14,26 @@
       <span id="busy" class="pill busy" hidden></span>
     </div>
     <div class="actions">
-      <button id="syncBtn" class="primary" title="Fetch orders you haven't synced yet">Sync</button>
-      <button id="fullBtn" title="Re-fetch every order (picks up changes to old bundles)">Full refresh</button>
+      <button id="syncBtn" class="primary" title="Fetch items added since your last sync">Sync</button>
+      <button id="fullBtn" title="Re-fetch your whole library">Full refresh</button>
       <button id="browserBtn">Hide browser</button>
+      <button id="themeBtn" class="icon-btn" title="Switch to light mode" aria-label="Toggle light/dark mode">☀</button>
     </div>
   </header>
 
   <nav class="tabs">
     <button class="tab active" data-tab="keys">Keys <span id="keysCount" class="count"></span></button>
+    <button class="tab" data-tab="bundles">Bundles <span id="bundlesCount" class="count"></span></button>
+    <button class="tab" data-tab="choice">Choice <span id="choiceCount" class="count"></span></button>
     <button class="tab" data-tab="files">Downloads <span id="filesCount" class="count"></span></button>
     <button class="tab" data-tab="library">Library <span id="libCount" class="count"></span></button>
-    <button class="tab" data-tab="choice">Choice <span id="choiceCount" class="count"></span></button>
     <button class="tab" data-tab="log">Scout &amp; Log</button>
     <span class="spacer"></span>
-    <button class="link" data-go="keys">Humble keys page</button>
     <button class="link" data-go="library">Humble library</button>
-    <button class="link" data-go="choice">Choice</button>
   </nav>
 
   <!-- KEYS -->
-  <section id="tab-keys" class="panel hbkeys">
+  <section id="tab-keys" class="panel hbkeys hb">
     <div class="hb-page">
       <div class="hb-head">
         <h2>Keys &amp; Entitlements</h2>
@@ -49,6 +49,8 @@
           <option value="all" selected>All keys</option>
           <option value="unused">Unrevealed</option>
           <option value="revealed">Revealed</option>
+          <option value="notredeemed">Revealed, not redeemed</option>
+          <option value="platformredeemed">Redeemed on platform</option>
           <option value="gifted">Gifted / links</option>
           <option value="expiring">Expiring soon</option>
           <option value="expired">Expired / sold out</option>
@@ -141,20 +143,14 @@
     </div>
   </section>
 
-  <!-- CHOICE -->
-  <section id="tab-choice" class="panel" hidden>
-    <div class="toolbar">
-      <button id="choiceLibraryBtn" class="primary" title="Open your Humble library on the right; Humbler picks up the current Choice month from it">Open library to refresh</button>
-    </div>
-    <div class="filters">
-      <input id="choiceSearch" type="search" placeholder="Search games…" />
-      <select id="choiceStatus">
-        <option value="unclaimed" selected>Months with games not in your library</option>
-        <option value="all">All months</option>
-      </select>
-    </div>
-    <p class="muted hint">Humble removed its Choice pages in the 2026 redesign. Choice games now appear in your library, where you redeem them. Humbler reads the current month whenever you open your library on the right, and keeps every month it has seen. A game turns green once it's in your synced library.</p>
-    <div id="choiceList" class="tableWrap list"></div>
+  <!-- BUNDLES: list and per-bundle pages, rendered by pages.js -->
+  <section id="tab-bundles" class="panel hb" hidden>
+    <div class="hb-page hb-scroll" id="bundlesPage"></div>
+  </section>
+
+  <!-- CHOICE: month index and per-month pages, rendered by pages.js -->
+  <section id="tab-choice" class="panel hb" hidden>
+    <div class="hb-page hb-scroll" id="choicePage"></div>
   </section>
 
   <!-- LOG -->
@@ -175,6 +171,19 @@
     <div id="log" class="log"></div>
   </section>
 
+  <!-- Asked when you come back from a Redeem link -->
+  <div id="redeemAsk" class="ask-backdrop hb" hidden>
+    <div class="ask" role="dialog" aria-modal="true" aria-labelledby="redeemAskTitle">
+      <h3 id="redeemAskTitle">Did you redeem it?</h3>
+      <p id="redeemAskText"></p>
+      <div class="ask-actions">
+        <button id="redeemYes" class="hb-btn">Yes, it's redeemed</button>
+        <button id="redeemNo" class="hb-btn ghost">Not yet</button>
+      </div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
+  <script src="pages.js"></script>
 </body>
 </html>

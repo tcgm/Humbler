@@ -49,12 +49,20 @@ Use this while the code is changing:
    stops once it reaches items it already has. **Full refresh** re-fetches
    everything. (See "How it talks to Humble". The first sync of a large
    library takes a minute or two, with polite pauses between pages.)
-3. **Keys tab** lists all keys. It shows every key by default; filter by status to narrow it down.
-   - Each key has a status: unrevealed, revealed, **gifted** (the gift link is
-     shown and can be copied), redeem link, expired, or sold out. Keys that
+3. **Keys tab**, laid out like the old humblebundle.com keys page. It shows
+   every key by default (50 per page, newest first); filter by status to
+   narrow it down.
+   - Each key has a status: unrevealed ("Reveal your Steam key" box),
+     revealed, **gifted**, redeem link, expired, or sold out. Keys that
      expire within 30 days are flagged, and "Expiring soon" filters to them.
-     Keys with special redeem instructions get a **how to redeem** tag; hover
-     over it to read them. Steam keys get a Steam store link.
+     Redemption instructions open under the key.
+   - **Redeem** opens the store in your browser: Steam's activation page
+     with the key already filled in, GOG's redeem page with the key in the
+     link, or Epic's redeem page. When you come back to Humbler it asks
+     **"Did you redeem it?"** and remembers your answer
+     (`data/redeemed.json`). The key then shows "✓ Redeemed on Steam", with
+     undo, and **Revealed, not redeemed** filters to what's left. You can
+     also mark a key yourself.
    - **Reveal** asks for two clicks, and that is deliberate: revealing claims
      the key to your account and removes the option to gift it. Select several
      and use **Reveal selected** to do them in a throttled batch.
@@ -88,19 +96,26 @@ Use this while the code is changing:
      own on Humble's store, bundle and Choice pages in the right-hand pane. It
      matches titles rather than one page layout, so it keeps working through
      redesigns.
-6. **Choice tab** tracks Humble Choice games you haven't got yet, as Librarian
-   did.
-   - Humble's 2026 redesign removed the per-month Choice pages. Choice games
-     now appear in your library, and you redeem them there. Your library page
-     carries the current month's games (`currentChoiceProductInfo`), so
-     Humbler reads them whenever you open your library on the right (at most
-     every 5 minutes). It keeps every month it has seen, so history builds up
-     month by month.
-   - A game counts as yours once it's in your synced library (matched by
-     title). Months where you weren't a member are marked "not subscribed?"
-     and left out of the count.
-   - Click a game to open your library and redeem it there.
-7. Anything else Humbler doesn't handle, such as gifting, still works in the
+6. **Bundles tab**: every bundle you own, as cards (search; sort by most
+   recent, A–Z, or most unrevealed keys; filter to bundles with unrevealed
+   keys, with downloads, Choice months, or everything but Choice). Opening
+   one shows a **bundle page** like the old `/downloads?key=` page: the
+   bundle's keys, then its downloads, with platform tabs (Windows / Mac /
+   Linux / eBook …), a "Download all" button, and a button per format with
+   its size (✓ once downloaded; click to show the file).
+7. **Choice tab**: Humble's 2026 redesign removed the Choice pages, so
+   Humbler rebuilds them.
+   - **Month index**: every Choice month in your library (bundles named
+     "&lt;Month&gt; Humble Choice"), the empty month groups Humble lists, and the
+     current month as shown on your library page.
+   - **Month page**: the old game grid. Each game shows its key (reveal,
+     redeem, redeemed state) and downloads. Games of the current month that
+     aren't in your library yet are marked "Not in your library yet", with a
+     link to claim them. The library page only provides images for the
+     current month; other games get placeholder tiles.
+8. **Dark mode** is the default everywhere. The ☀ button in the top bar
+   switches to light mode (☾ switches back), and the choice is remembered.
+9. Anything else Humbler doesn't handle, such as gifting, still works in the
    right-hand pane. **Hide browser** gives the UI the full window.
 
 ## Harvesting (the scraping half)
