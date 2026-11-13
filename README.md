@@ -49,7 +49,7 @@ Use this while the code is changing:
    stops once it reaches items it already has. **Full refresh** re-fetches
    everything. (See "How it talks to Humble". The first sync of a large
    library takes a minute or two, with polite pauses between pages.)
-3. **Keys tab** lists all keys. The default filter shows only unrevealed keys.
+3. **Keys tab** lists all keys. It shows every key by default; filter by status to narrow it down.
    - Each key has a status: unrevealed, revealed, **gifted** (the gift link is
      shown and can be copied), redeem link, expired, or sold out. Keys that
      expire within 30 days are flagged, and "Expiring soon" filters to them.
