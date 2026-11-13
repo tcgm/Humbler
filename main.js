@@ -12,7 +12,7 @@ const { ActionRegistry } = require("./lib/actions");
 const libraryV2 = require("./lib/library-v2");
 const redeemedStore = require("./lib/redeemed");
 const ordersV2 = require("./lib/orders-v2");
-const { flightData, resolvedFlightData, PAGE_FLIGHT_SCRIPT } = require("./lib/rsc");
+const { flightData, resolvedFlightData, flightFromHtml, PAGE_FLIGHT_SCRIPT } = require("./lib/rsc");
 const settingsStore = require("./lib/settings");
 const lib = require("./lib/library");
 const { HumbleApi, NotLoggedInError, BASE } = require("./lib/humble-api");
@@ -293,6 +293,9 @@ async function syncLibrary({ full }) {
         `Library: ${index.products.length} items, ${index.keys.length} keys, ${index.files.length} files, ${index.bundles.length} bundles.`,
     );
     logDownloadDiagnostics(items);
+    // Purchases (bundle icons, purchase dates, prices, key deadlines). A
+    // failure here doesn't fail the library sync.
+    await syncPurchases().catch((err) => log(`Purchases: ${err.message}`));
     return { ok: true, fetched: fetched.size };
   } catch (err) {
     log(`Sync failed: ${err.message}`);
@@ -1059,6 +1062,72 @@ if (DEV && typeof process.on === "function") {
 }
 
 // ---- purchases (orders) ----------------------------------------------------
+
+// Fetch one Purchases page from inside the logged-in Humble page and pull
+// out its orders. Tries the page's RSC data first, then the full HTML's
+// embedded data.
+async function fetchPurchasesPage(url) {
+  const get = (rsc) =>
+    humbleView.webContents.executeJavaScript(`
+      (async () => {
+        const r = await fetch(${JSON.stringify(url)}, { credentials: "include", headers: ${rsc ? '{ RSC: "1" }' : "{}"} });
+        return { status: r.status, contentType: r.headers.get("content-type") || "", text: await r.text() };
+      })()
+    `);
+  for (const rsc of [true, false]) {
+    const r = await get(rsc);
+    if (r.status >= 400) throw new Error(`${url} gave HTTP ${r.status}`);
+    const flight = /x-component/i.test(r.contentType) ? r.text : flightFromHtml(r.text);
+    const found = ordersV2.extractOrders(resolvedFlightData(flight));
+    if (found.orders.length) return found;
+  }
+  return null;
+}
+
+// All your orders, page by page. The paging parameter isn't known for sure,
+// so candidates are tried and one is accepted only if page 2 really
+// returns different orders.
+async function syncPurchases() {
+  await ensureHumblePageLoaded();
+  if (!humbleView.webContents.getURL().startsWith(`${BASE}/`)) return;
+  const first = await fetchPurchasesPage(`${BASE}/home/purchases`);
+  if (!first) {
+    log("Purchases: couldn't find your order list on the Purchases page. Open Purchases on the right and click to page 2 once, so scouting can learn how it loads.");
+    return;
+  }
+  ordersV2.merge(first);
+  const total = first.totalDocs ?? first.orders.length;
+  const perPage = first.orders.length;
+  const pages = Math.max(1, Math.ceil(total / Math.max(1, perPage)));
+  const seen = new Set(first.orders.map((o) => o.id));
+  if (pages > 1) {
+    let param = null;
+    for (const p of ["page", "p", "pageNumber"]) {
+      await politeDelay(...API_DELAY);
+      const second = await fetchPurchasesPage(`${BASE}/home/purchases?${p}=2`).catch(() => null);
+      if (second?.orders.some((o) => !seen.has(o.id))) {
+        param = p;
+        ordersV2.merge(second);
+        second.orders.forEach((o) => seen.add(o.id));
+        break;
+      }
+    }
+    if (!param) {
+      log(`Purchases: got page 1 of ${pages}, but couldn't work out how Humble pages the list. Open Purchases on the right and click to page 2 once, then Sync again.`);
+    } else {
+      for (let n = 3; n <= pages; n++) {
+        await politeDelay(...API_DELAY);
+        const page = await fetchPurchasesPage(`${BASE}/home/purchases?${param}=${n}`);
+        if (!page) break;
+        ordersV2.merge(page);
+        page.orders.forEach((o) => seen.add(o.id));
+      }
+    }
+  }
+  const known = Object.keys(ordersV2.load().orders).length;
+  log(`Purchases: ${known} of ${total} orders known (icons, purchase dates, prices, key deadlines).`);
+  send("orders-updated");
+}
 // Harvested passively from any page reply that carries your order list
 // (see lib/orders-v2.js; only non-personal fields are kept).
 

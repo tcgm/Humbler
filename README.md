@@ -107,14 +107,16 @@ Use this while the code is changing:
    downloads, with platform tabs (Windows / Mac / Linux / eBook …), a
    "Download all" button, and a button per format with its size (✓ once
    downloaded; click to show the file).
-   - **Icons, purchase dates and prices** come from your orders, which
-     Humble's library pages include a page at a time. Humbler picks them up
-     as you browse (`data/orders-v2.json`, keeping only those fields, never
-     your email, address or payment details). To fill them all in, open
-     **Purchases** on Humble (right) and page through it once. Orders from
-     before Humble's new store may not be listed; those bundles keep
-     placeholder tiles. Key deadlines come from the keys themselves, so
-     they work for every bundle.
+   - **Icons, purchase dates and prices** come from your orders. **Sync**
+     fetches them from Humble's Purchases page after the library, page by
+     page from inside your logged-in session. Humbler also picks them up
+     passively as you browse. Only those fields are kept
+     (`data/orders-v2.json`), never your email, address or payment details.
+     Orders from before Humble's new store may not be listed; those bundles
+     keep placeholder tiles. Key deadlines come from the keys themselves,
+     so they work for every bundle.
+   - You never need to page through the library or Purchases by hand.
+     Sync does both.
 7. **Choice tab**: Humble's 2026 redesign removed the Choice pages, so
    Humbler rebuilds them.
    - **Month index**: every Choice month in your library (bundles named

@@ -285,8 +285,8 @@ function renderBundleList() {
         // icons/purchase dates come from your orders; say how many are known
         (ordersByName.size
           ? ` · purchase details for ${ordersByName.size}${ordersTotal ? ` of ${ordersTotal} orders` : ""}` +
-            (ordersTotal && ordersByName.size < ordersTotal ? " (open Purchases on Humble and page through it to fill in the rest)" : "")
-          : " · open Purchases on Humble once to add bundle icons and purchase dates"),
+            (ordersTotal && ordersByName.size < ordersTotal ? " (Sync fetches the rest)" : "")
+          : " · Sync to add bundle icons and purchase dates"),
     }),
     list.length ? grid : el("div", { class: "hb-empty", textContent: (state.lib.bundles || []).length ? "No bundles match." : "No bundles yet. Click Sync." }),
     pager,
