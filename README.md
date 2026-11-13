@@ -60,7 +60,14 @@ Vite's default 5173 is often inside one.
    - Each key has a status: unrevealed ("Reveal your Steam key" box),
      revealed, **gifted**, redeem link, expired, or sold out. Keys that
      expire within 30 days are flagged, and "Expiring soon" filters to them.
-     Redemption instructions open under the key.
+     Redemption instructions show under the key, and their links (e.g.
+     Humble's support articles) open in your browser, never in Humbler.
+   - **Revealing a new-site key**: "Reveal your … key" opens the item on
+     Humble (right). Reveal it there and **it appears in Humbler within a
+     second or two, no Sync needed**. Humbler watches the responses the
+     site gets for key changes (reveals, gifting), and re-checks an item
+     you opened after the site acts on it. Every key picked up this way is
+     written to `data/revealed-keys.jsonl` straight away.
    - **Redeem** opens the store in your browser: Steam's activation page
      with the key already filled in, GOG's redeem page with the key in the
      link, or Epic's redeem page. When you come back to Humbler it asks

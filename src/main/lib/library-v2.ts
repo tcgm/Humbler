@@ -262,6 +262,7 @@ export function buildIndexV2(items: any[], { downloadDir, naming = "original" }:
         // NOTE(port): the original guarded this with `lib.htmlToText ? ... : null`;
         // htmlToText is always exported, so the guard was always true and is dropped.
         instructions: lib.htmlToText(k.instructionsHtml),
+        instructionLinks: lib.linksIn(k.instructionsHtml), // opened in your browser
         expiry,
         daysLeft: status === "unused" ? daysUntil(expiry) : null,
         notGiftable: !!k.notGiftable,

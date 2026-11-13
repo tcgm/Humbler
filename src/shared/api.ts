@@ -32,6 +32,8 @@ export interface InvokeChannels {
   "browser:toggle": [[], void];
   "browser:go": [[string], void];
   "browser:open": [[string], void];
+  "browser:external": [[string], void];
+  "keys:open-on-humble": [[string], void];
   "clipboard:write": [[string], void];
   "redeem:mark": [[{ id: string; redeemed: boolean; platform?: string | null }], PlatformRedeemed | null];
   "orders:get": [[], { orders: Order[]; totalDocs: number | null }];
@@ -71,7 +73,12 @@ export interface HumblerApi {
   setSettings(patch: SettingsPatch): Promise<void>;
   toggleBrowser(): Promise<void>;
   go(where: string): Promise<void>;
+  /** Humble site pages open in the pane; anything else in your browser. */
   openUrl(url: string): Promise<void>;
+  /** Always your default browser (e.g. redeem instructions). */
+  openExternal(url: string): Promise<void>;
+  /** Open a new-site key on Humble to reveal it there; Humbler watches for the reveal. */
+  revealOnHumble(keyId: string): Promise<void>;
   copy(text: string): Promise<void>;
   markRedeemed(id: string, redeemed: boolean, platform?: string | null): Promise<PlatformRedeemed | null>;
   getOrders(): Promise<InvokeChannels["orders:get"][1]>;

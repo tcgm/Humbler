@@ -73,6 +73,14 @@ export function htmlToText(html: unknown): string | null {
   return text || null;
 }
 
+/** The links in a bit of HTML (e.g. redeem instructions), with their text. */
+export function linksIn(html: unknown): { href: string; text: string }[] {
+  if (!html || typeof html !== "string") return [];
+  return [...html.matchAll(/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)]
+    .filter((m) => /^https?:/i.test(m[1]))
+    .map((m) => ({ href: m[1], text: htmlToText(m[2]) || m[1] }));
+}
+
 function hrefsIn(html: string | null): string[] {
   if (!html || typeof html !== "string") return [];
   return [...html.matchAll(/href\s*=\s*["']([^"']+)["']/gi)].map((m) => m[1]).filter((u) => /^https?:/i.test(u));
@@ -327,7 +335,8 @@ export function buildIndex(orders: any[], { downloadDir, naming = "original" }: 
       const value = tpk.redeemed_key_val || revealed.get(id) || null;
       const name = tpk.human_name || tpk.machine_name;
       const status = keyStatus(tpk, value);
-      const instructions = htmlToText(fieldLike(tpk, /instruction/i));
+      const instructionsHtml = fieldLike(tpk, /instruction/i);
+      const instructions = htmlToText(instructionsHtml);
       const expiry = tpk.expiry_date || tpk.expiration_date || fieldLike(tpk, /expir/i) || null;
       const daysLeft = typeof tpk.num_days_until_expired === "number" ? tpk.num_days_until_expired : null;
       keys.push({
@@ -346,6 +355,7 @@ export function buildIndex(orders: any[], { downloadDir, naming = "original" }: 
         gift: !!tpk.is_gift,
         steamAppId: tpk.steam_app_id || null,
         instructions,
+        instructionLinks: linksIn(instructionsHtml),
         expiry,
         daysLeft,
       });

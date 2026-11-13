@@ -23,6 +23,7 @@ import * as lib from "./lib/library";
 import { HumbleApi, NotLoggedInError, BASE } from "./lib/humble-api";
 import { Downloader, type DownloadItem } from "./lib/downloader";
 import { politeDelay } from "./lib/throttle";
+import { applyKeyUpdates } from "./lib/key-updates";
 
 const env = (name: string, fallback: number) => Number(process.env[name] ?? fallback);
 const API_DELAY: [number, number] = [env("API_DELAY_MIN_MS", 700), env("API_DELAY_MAX_MS", 1800)];
@@ -323,6 +324,7 @@ async function syncLibrary({ full }: { full: boolean }): Promise<InvokeChannels[
     const items = [...fetched.values()];
     if (incremental) for (const [id, it] of known) if (!fetched.has(id)) items.push(it);
     libraryV2.saveCache({ format: V2_CACHE_FORMAT, fetchedAt: new Date().toISOString(), actionId: action.id, totalDocs, items });
+    liveCache = null; // live key updates reload the fresh cache
     rebuildIndex();
     if (!incremental && items.length < totalDocs) log(`  Warning: got ${items.length} of ${totalDocs} items.`);
     log(
@@ -409,8 +411,7 @@ async function revealKeys(ids: string[]): Promise<RevealResult> {
     const v2Targets = index.keys.filter((k) => wanted.has(k.id) && k.status === "unused" && k.v2);
     if (v2Targets.length) {
       log("Revealing new-site keys from Humbler isn't supported yet. Opening the item on Humble so you can reveal it there.");
-      setBrowserVisible(true);
-      if (v2Targets[0].contentUrl) void hv().loadURL(v2Targets[0].contentUrl);
+      openKeyOnHumble(v2Targets[0].id); // watched: picked up as soon as you reveal it
       return { ok: false, reason: "v2-reveal-unsupported", results };
     }
     const targets = index.keys.filter((k) => wanted.has(k.id) && k.status === "unused");
@@ -609,6 +610,8 @@ function attachScout(wc: WebContents) {
       // scouting off. Only names are kept, never values.
       actionRegistry.note(entry, wc.getURL());
       harvestOrders(entry); // purchases: icons, dates, prices, key deadlines
+      applyLiveKeyUpdates(entry); // keys revealed/gifted on the site, right away
+      if (entry.action && watchedItems.size) refreshWatchedSoon(); // a site action (e.g. a reveal) on an item you opened
       if (!settings.liveScout) return;
       try {
         liveScout.record(entry, wc.getURL());
@@ -828,6 +831,79 @@ function choiceView(): InvokeChannels["choice:get"][1] {
     }));
 }
 
+// ---- live key updates (no full Sync needed) -------------------------------
+// Keys you reveal (or gift...) on Humble's site are picked up as they happen:
+// any response carrying a known key object updates the cache (see
+// lib/key-updates). Keys opened from Humbler are also "watched": after the
+// site's next server action on them, Humbler re-fetches just that item, in
+// case the reveal reply itself doesn't carry the key.
+
+let liveCache: ReturnType<typeof libraryV2.loadCache> | null = null; // the library cache, kept in memory
+const getLiveCache = () => (liveCache ||= libraryV2.loadCache());
+
+function commitKeyUpdates(r: ReturnType<typeof applyKeyUpdates>, cache: NonNullable<typeof liveCache>) {
+  if (!r.changed) return;
+  libraryV2.saveCache(cache);
+  for (const k of r.revealed) {
+    // Write it down before anything else can go wrong, like reveals made in Humbler.
+    lib.recordRevealedKey({ id: `v2|${k.keyId}`, gamekey: k.bundleId, name: k.title, bundle: k.bundle, keyType: k.keyType, key: k.key, revealedAt: new Date().toISOString() });
+    log(`Key revealed on Humble: ${k.title} (picked up live, no Sync needed)`);
+    for (const [itemId] of watchedItems) if (itemId === k.itemId) watchedItems.delete(itemId);
+  }
+  rebuildIndex();
+}
+
+function applyLiveKeyUpdates(entry: RawItem) {
+  try {
+    const raw = entry.kind === "rsc" ? entry.text : entry.body;
+    if (!raw || !(typeof raw === "string" ? raw : JSON.stringify(raw)).includes("redemptionData")) return; // cheap pre-check
+    const cache = getLiveCache();
+    if (!cache?.items?.length) return;
+    commitKeyUpdates(applyKeyUpdates(cache.items, entry.kind === "rsc" ? resolvedFlightData(entry.text) : entry.body), cache);
+  } catch (err) {
+    log(`Live key update failed: ${errMsg(err)}`);
+  }
+}
+
+const WATCH_MS = 15 * 60 * 1000;
+const watchedItems = new Map<string, { title: string; until: number }>(); // item id -> what to search for
+let watchTimer: ReturnType<typeof setTimeout> | undefined;
+
+function refreshWatchedSoon() {
+  clearTimeout(watchTimer);
+  watchTimer = setTimeout(() => void refreshWatched(), 1500); // let the site finish its own update first
+}
+
+async function refreshWatched() {
+  const action = actionRegistry.find(libraryV2.LIBRARY_ACTION_ARGS, /^\/home\/library/);
+  const cache = getLiveCache();
+  if (!action || !cache?.items?.length) return;
+  for (const [itemId, w] of [...watchedItems]) {
+    if (Date.now() > w.until) {
+      watchedItems.delete(itemId);
+      continue;
+    }
+    try {
+      const r = await hv().executeJavaScript(
+        libraryV2.actionCallScript(action.id, action.page || "/home/library", libraryV2.libraryFields({ page: 1, limit: 20, requestId: Date.now() % 100000, query: w.title })),
+      );
+      const data = libraryV2.parseLibraryResponse(r.text);
+      if (data) commitKeyUpdates(applyKeyUpdates(cache.items, data), cache);
+    } catch (err) {
+      log(`Couldn't re-check "${w.title}": ${errMsg(err)}`);
+    }
+  }
+}
+
+/** Open a new-site key's item on Humble (to reveal it there) and watch it. */
+function openKeyOnHumble(id: string) {
+  const key = index.keys.find((k) => k.id === id);
+  if (!key?.contentUrl) return;
+  if (key.itemId) watchedItems.set(key.itemId, { title: key.name, until: Date.now() + WATCH_MS });
+  setBrowserVisible(true);
+  void hv().loadURL(key.contentUrl);
+}
+
 // ---- purchases (orders) ----------------------------------------------------
 
 // Fetch one Purchases page from inside the logged-in Humble page and pull
@@ -1018,7 +1094,7 @@ function createWindow() {
 
   // Pop-up links from Humble's site stay in the pane (or go to your real browser).
   humbleView.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https:\/\/([a-z0-9-]+\.)*humblebundle\.com\//.test(url)) void hv().loadURL(url);
+    if (PANE_URL.test(url)) void hv().loadURL(url);
     else if (/^https?:/.test(url)) void shell.openExternal(url);
     return { action: "deny" };
   });
@@ -1093,16 +1169,22 @@ const idList = (ids: unknown): string[] => (Array.isArray(ids) ? ids.map(String)
 handle("library:get", () => index);
 handle("log:history", () => logHistory);
 handle("choice:get", () => choiceView());
+// Only the Humble site itself (www + login) opens in the pane. Everything
+// else, including Humble's support/help pages, goes to your real browser.
+const PANE_URL = /^https:\/\/(www|auth)\.humblebundle\.com\//;
 handle("browser:open", (url) => {
-  // Only Humble pages open in the pane; everything else goes to your real browser.
   if (typeof url !== "string") return;
-  if (/^https:\/\/([a-z0-9-]+\.)*humblebundle\.com\//.test(url)) {
+  if (PANE_URL.test(url)) {
     setBrowserVisible(true);
     void hv().loadURL(url);
   } else if (/^https?:\/\//.test(url)) {
     void shell.openExternal(url);
   }
 });
+handle("browser:external", (url) => {
+  if (typeof url === "string" && /^https?:\/\//.test(url)) void shell.openExternal(url);
+});
+handle("keys:open-on-humble", (id) => openKeyOnHumble(String(id)));
 handle("settings:set", (patch: SettingsPatch) => {
   const next = { ...settings };
   if (patch?.naming && settingsStore.NAMING.includes(patch.naming)) next.naming = patch.naming;

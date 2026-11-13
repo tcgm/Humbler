@@ -49,8 +49,8 @@ export function KeyField({ k }: { k: KeyEntry }) {
     default: {
       const label = `Reveal your ${p.name ? `${p.name} ` : ""}key`;
       field = k.v2 ? (
-        // New-site keys: reveal on Humble's own page until Humbler knows the new reveal action.
-        <button className="keyfield" title="Opens this item on Humble (right) so you can reveal it there" onClick={() => k.contentUrl && api.openUrl(k.contentUrl)}>
+        // New-site keys: reveal on Humble's own page; Humbler watches and picks the key up as soon as you do.
+        <button className="keyfield" title="Opens this item on Humble (right). Reveal it there and it shows up here right away." onClick={() => api.revealOnHumble(k.id)}>
           {label}
         </button>
       ) : (
@@ -88,11 +88,24 @@ export function KeyField({ k }: { k: KeyEntry }) {
       </span>,
     );
   }
-  if (k.instructions) {
+  const links = k.instructionLinks || [];
+  // Instructions that are only a link (e.g. "Epic Game Store Instructions")
+  // show as that link; longer ones expand, with their links underneath.
+  // Links always open in your browser, never in Humbler.
+  const linkEls = links.map((l) => (
+    <a key={l.href} className="ext-out" title={l.href} onClick={() => api.openExternal(l.href)}>
+      {l.text} ↗
+    </a>
+  ));
+  const onlyLinks = links.length > 0 && (k.instructions || "").replace(/\s+/g, " ").trim() === links.map((l) => l.text).join(" ").replace(/\s+/g, " ").trim();
+  if (onlyLinks) {
+    meta.push(<span key="i">{linkEls}</span>);
+  } else if (k.instructions) {
     meta.push(
       <details key="i">
         <summary>Redemption instructions</summary>
         <p>{k.instructions}</p>
+        {linkEls.length > 0 && <p className="instr-links">{linkEls}</p>}
       </details>,
     );
   }

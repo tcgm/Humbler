@@ -25,6 +25,8 @@ export interface KeyEntry {
   gift: boolean;
   steamAppId: string | number | null;
   instructions: string | null;
+  /** links inside the redeem instructions (always opened in your browser) */
+  instructionLinks?: { href: string; text: string }[];
   expiry: string | null;
   daysLeft: number | null;
   platformRedeemed?: PlatformRedeemed | null;
