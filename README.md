@@ -6,39 +6,44 @@ resume and checksum checks. You don't have to fight the website to do any of it.
 
 It's an Electron app laid out the same way as pinterinter. The Humbler UI is
 on the left, and the real humblebundle.com runs on the right, where you log in
-normally. Humbler then uses the same JSON endpoints Humble's own library and
-keys pages use. It runs inside your logged-in session, so it only ever sees
-your own account.
+normally. Humbler then loads your library the way Humble's own pages do,
+from inside your logged-in session, so it only ever sees your own account.
 
 ## Setup
 
 ```
 npm install
 cp .env.example .env   # optional; defaults are fine
-npm start
+npm start              # builds, then runs
 ```
 
-Electron 44. `npm start` runs `scripts/start.js`, which clears
+Electron 44, built with electron-vite (Vite 8), React 19 and TypeScript 7.
+All npm scripts go through `scripts/run.js`, which clears
 `ELECTRON_RUN_AS_NODE` first. Some shells (VS Code integrated terminals, some
 tooling) set that variable, and when it's set Electron quietly runs as plain
 Node and no window opens.
 
-### Dev mode
+| Command | What |
+|---|---|
+| `npm run dev` | Development: **HMR** for the UI (React Fast Refresh, so edits apply while you keep your place, filters and typed text). Changes to the main process or preload restart the app. DevTools opens for the UI. |
+| `npm start` | Build, then run the built app. |
+| `npm run build` | Build to `out/` only. |
+| `npm run typecheck` | Type-check everything (`tsc -b`, strict). |
+| `npm run scrub-data` | Re-scrub existing scout dumps (see Scrubbing). |
 
-```
-npm run dev
-```
+The dev server binds to `127.0.0.1` and picks a free port at startup
+(15173 first). Windows reserves shifting blocks of ports (Hyper-V, WSL), and
+Vite's default 5173 is often inside one.
 
-Use this while the code is changing:
+### Code layout
 
-- **`renderer/` changes** reload only the Humbler panel. The Humble pane,
-  your login and running downloads are untouched.
-- **`main.js`, `preload.js` or `lib/` changes** restart the app. It's a
-  normal quit, so cookies are saved first.
-- DevTools opens for the Humbler UI.
-- Closing the window ends dev mode.
-
-`npm start` is the plain run, with no watching and no DevTools.
+| Path | What |
+|---|---|
+| `src/main/index.ts` | Main process: window, Sync, keys, downloads, scouting/harvesting, IPC handlers |
+| `src/main/lib/` | The pieces: Humble API clients, RSC decoder, scrubber, downloader, library/orders/Choice parsing, settings and data paths |
+| `src/preload/index.ts` | Exposes the IPC API to the UI as `window.humbler` |
+| `src/renderer/` | React UI: `tabs/` (Keys, Bundles, Choice, Downloads, Library, Scout & Log), `components/`, `store.tsx` (app state fed by IPC) |
+| `src/shared/` | Types shared by both sides: the library data and **the whole IPC API** (`api.ts`). Main and UI can't drift apart. |
 
 ## Usage
 
@@ -136,7 +141,7 @@ Use this while the code is changing:
 
 Some data has no API at all, so Humbler collects it from the pages it
 visits. Choice is the main case. Because Humble keeps redesigning, the
-harvester (`lib/harvest.js`) doesn't depend on one page layout. It reads
+harvester (`src/main/lib/harvest.ts`) doesn't depend on one page layout. It reads
 three sources:
 
 1. JSON responses the page fetched, recorded by the scouting script below
@@ -154,7 +159,7 @@ from real data.
 
 This works the same way as pinterinter's recon. A script is injected into
 every Humble page before Humble's own code runs (via CDP
-`Page.addScriptToEvaluateOnNewDocument`; see `lib/inject-capture.js`). It
+`Page.addScriptToEvaluateOnNewDocument`; see `src/main/lib/inject-capture.ts`). It
 records every JSON response the page receives through `fetch` or XHR. A CDP
 Network log also keeps metadata for every request.
 
@@ -166,7 +171,7 @@ longer JSON. It travels as React Server Components payloads
 - mutations are **server actions**: a POST with a `Next-Action` header
 - the first page load embeds its data in `self.__next_f.push(…)` script tags
 
-Humbler captures all three and decodes them to JSON (`lib/rsc.js`). Scouting,
+Humbler captures all three and decodes them to JSON (`src/main/lib/rsc.ts`). Scouting,
 the live catalog and the Choice harvester all search this data alongside
 plain JSON.
 
@@ -212,7 +217,7 @@ contains:
 ### Scrubbing
 
 Scout dumps and raw harvests (`data/harvest/`) are scrubbed before they're
-written (`lib/scrub.js`). They should never contain a real key, so they can
+written (`src/main/lib/scrub.ts`). They should never contain a real key, so they can
 be shared for debugging:
 
 - **Known keys:** every key value in your synced orders and
@@ -286,14 +291,14 @@ Everything lives in `data/`, which is gitignored:
 
 Humble's redesign **removed the old `/api/v1` API**. It now returns the
 site's "page not found" page. Sync now uses the same server action the
-library page uses (`lib/library-v2.js`), run from inside your logged-in page:
+library page uses (`src/main/lib/library-v2.ts`), run from inside your logged-in page:
 
 | Purpose | Request |
 |---|---|
 | Library, paged | `POST /home/library` with header `Next-Action: <id>`, form fields `_1_query`, `_1_sort=mostRecent`, `_1_cursor`, `_1_page`, `_1_limit`, `_1_hideRevealed`, `_1_hideExpired`, `_1_dateExpires`, `_1_requestId`, and `0` = `[prevState, "$K1"]`. The reply is an RSC payload with `{ results, pagination: { page, totalPages, totalDocs } }` |
 
 - **The action id is a build hash that changes with every Humble deploy.**
-  Humbler never hardcodes it. `lib/actions.js` records every action the site
+  Humbler never hardcodes it. `src/main/lib/actions.ts` records every action the site
   calls, keyed by its argument names, and Sync uses the newest action that
   takes `limit`/`page`/`sort`/`query`. If Sync says it hasn't seen the
   action, open your library on the right once.
@@ -311,6 +316,6 @@ library page uses (`lib/library-v2.js`), run from inside your logged-in page:
 
 ### Legacy (before the redesign)
 
-`lib/humble-api.js` still holds the old `/api/v1` client. It's used only
+`src/main/lib/humble-api.ts` still holds the old `/api/v1` client. It's used only
 for order caches synced before the redesign, and for refreshing their
 download links.

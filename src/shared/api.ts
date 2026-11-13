@@ -1,0 +1,87 @@
+// The IPC API the preload exposes as window.humbler. One definition used by
+// preload (to implement it), main (channel names) and the UI (to call it).
+import type {
+  ChoiceMonth,
+  DownloadProgress,
+  LibraryIndex,
+  OkResult,
+  Order,
+  PlatformRedeemed,
+  RevealResult,
+  SettingsPatch,
+  Status,
+} from "./types";
+
+/** invoke channels: name -> [args, result] */
+export interface InvokeChannels {
+  "library:get": [[], LibraryIndex];
+  "log:history": [[], string[]];
+  "scout:page": [[{ reload: boolean }], OkResult & { dir?: string; responses?: number }];
+  "scout:open-folder": [[], string];
+  "scout:open-live": [[], string];
+  "status:get": [[], void];
+  "library:sync": [[{ full: boolean }], OkResult & { fetched?: number }];
+  "keys:reveal": [[string[]], RevealResult];
+  "keys:export": [[string[] | null], OkResult & { count?: number; filePath?: string }];
+  "downloads:enqueue": [[string[]], OkResult & { added?: number }];
+  "downloads:cancel": [[], void];
+  "downloads:open-folder": [[], string];
+  "downloads:reveal-file": [[string], void];
+  "settings:choose-download-dir": [[], void];
+  "settings:set": [[SettingsPatch], void];
+  "browser:toggle": [[], void];
+  "browser:go": [[string], void];
+  "browser:open": [[string], void];
+  "clipboard:write": [[string], void];
+  "redeem:mark": [[{ id: string; redeemed: boolean; platform?: string | null }], PlatformRedeemed | null];
+  "orders:get": [[], { orders: Order[]; totalDocs: number | null }];
+  "choice:get": [[], ChoiceMonth[]];
+}
+
+/** main -> UI events: name -> payload */
+export interface EventChannels {
+  log: string;
+  status: Status;
+  "library-updated": void;
+  "key-updated": { id: string; key: string | null };
+  "download-progress": DownloadProgress;
+  "choice-updated": void;
+  "orders-updated": void;
+  "app-focus": void;
+}
+
+type Unsubscribe = () => void;
+type On<K extends keyof EventChannels> = (cb: (payload: EventChannels[K]) => void) => Unsubscribe;
+
+export interface HumblerApi {
+  getLibrary(): Promise<LibraryIndex>;
+  getLogHistory(): Promise<string[]>;
+  scoutPage(reload: boolean): Promise<InvokeChannels["scout:page"][1]>;
+  openReconFolder(): Promise<string>;
+  openLiveCatalog(): Promise<string>;
+  requestStatus(): Promise<void>;
+  sync(full: boolean): Promise<InvokeChannels["library:sync"][1]>;
+  revealKeys(ids: string[]): Promise<RevealResult>;
+  exportKeys(ids: string[] | null): Promise<InvokeChannels["keys:export"][1]>;
+  enqueueDownloads(ids: string[]): Promise<InvokeChannels["downloads:enqueue"][1]>;
+  cancelDownloads(): Promise<void>;
+  openDownloadFolder(): Promise<string>;
+  showFile(id: string): Promise<void>;
+  chooseDownloadDir(): Promise<void>;
+  setSettings(patch: SettingsPatch): Promise<void>;
+  toggleBrowser(): Promise<void>;
+  go(where: string): Promise<void>;
+  openUrl(url: string): Promise<void>;
+  copy(text: string): Promise<void>;
+  markRedeemed(id: string, redeemed: boolean, platform?: string | null): Promise<PlatformRedeemed | null>;
+  getOrders(): Promise<InvokeChannels["orders:get"][1]>;
+  getChoice(): Promise<ChoiceMonth[]>;
+  onLog: On<"log">;
+  onStatus: On<"status">;
+  onLibraryUpdated: On<"library-updated">;
+  onKeyUpdated: On<"key-updated">;
+  onDownloadProgress: On<"download-progress">;
+  onChoiceUpdated: On<"choice-updated">;
+  onOrdersUpdated: On<"orders-updated">;
+  onAppFocus: On<"app-focus">;
+}
