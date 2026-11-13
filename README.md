@@ -195,6 +195,24 @@ Login changed in late 2026: Humble now redirects to an Ory login service at
 `_simpleauth_sess` cookie or an Ory session cookie, and trusts what the API
 actually says once you've synced.
 
+## Staying logged in
+
+Your login lives in `data/electron-userdata/`. Two things keep it there
+across restarts:
+
+- Logins often use *session cookies* (no expiry), and Chromium discards
+  those when the app closes. Humbler gives Humble's session cookies a 30-day
+  expiry (`SESSION_COOKIE_DAYS` in `.env`; set it to `0` to turn this off).
+  Logging out on the site still deletes them.
+- Cookies are written to disk about a second after any login change, and
+  again on quit, so a crash or forced close can't lose a fresh login.
+
+If you're still logged out after a restart, open the Scout & Log tab. Any
+"Could not persist cookie" line there names the cookie involved.
+
+To run a separate profile, or tests, without touching your real login, keys
+or downloads, set `HUMBLER_DATA_DIR` to another folder before `npm start`.
+
 ## Data
 
 Everything lives in `data/`, which is gitignored:

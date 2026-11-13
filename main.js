@@ -691,6 +691,42 @@ function layout() {
   humbleView.setVisible(browserVisible);
 }
 
+// ---- keeping the login across restarts --------------------------------
+// Chromium drops cookies that have no expiry ("session cookies") when the
+// app closes, and logins often use them, so you'd be logged out on every
+// restart. Give Humble's session cookies a 30-day expiry instead. A cookie
+// Humble deletes (logout) stays deleted, because only newly set cookies are
+// touched. Cookies are also flushed to disk shortly after any change and on
+// quit, so a crash or forced close can't lose a fresh login.
+const SESSION_COOKIE_DAYS = env("SESSION_COOKIE_DAYS", 30);
+const HUMBLE_COOKIE_DOMAIN = /(^|\.)humblebundle\.com$/i;
+
+function keepLoginAcrossRestarts(ses) {
+  let flushTimer = null;
+  const flushSoon = () => {
+    clearTimeout(flushTimer);
+    flushTimer = setTimeout(() => ses.cookies.flushStore().catch(() => {}), 1000);
+  };
+  ses.cookies.on("changed", (_e, cookie, _cause, removed) => {
+    const domain = (cookie.domain || "").replace(/^\./, "");
+    if (!HUMBLE_COOKIE_DOMAIN.test(domain)) return;
+    flushSoon();
+    if (removed || cookie.expirationDate || !SESSION_COOKIE_DAYS) return; // already persistent, or being deleted
+    const details = {
+      url: `https://${domain}${cookie.path || "/"}`,
+      name: cookie.name,
+      value: cookie.value,
+      path: cookie.path || "/",
+      secure: cookie.secure,
+      httpOnly: cookie.httpOnly,
+      sameSite: cookie.sameSite,
+      expirationDate: Date.now() / 1000 + SESSION_COOKIE_DAYS * 86400,
+    };
+    if (!cookie.hostOnly) details.domain = cookie.domain; // keep host-only cookies host-only (__Host- rules)
+    ses.cookies.set(details).catch((err) => log(`Could not persist cookie ${cookie.name}: ${err.message}`));
+  });
+}
+
 function setBrowserVisible(visible) {
   browserVisible = visible;
   layout();
@@ -702,6 +738,7 @@ function createWindow() {
   // it) sees what a regular Chrome would.
   const ses = humbleSession();
   ses.setUserAgent(ses.getUserAgent().replace(/\s(Electron|humbler)\/\S+/gi, ""));
+  keepLoginAcrossRestarts(ses);
 
   win = new BaseWindow({ width: 1600, height: 960, title: "Humbler", backgroundColor: "#16171b" });
   win.setMenuBarVisibility(false);
@@ -873,5 +910,16 @@ app.whenReady().then(() => {
   log(`Loaded ${index.bundles.length} cached orders, ${index.keys.length} keys, ${index.files.length} files.`);
 });
 
-app.on("before-quit", () => liveScout.saveNow());
+// Write cookies (your login) to disk before exiting. Quitting waits for the
+// flush, but only briefly.
+let flushedOnQuit = false;
+app.on("before-quit", (e) => {
+  liveScout.saveNow();
+  if (flushedOnQuit) return;
+  e.preventDefault();
+  flushedOnQuit = true;
+  Promise.race([humbleSession().cookies.flushStore(), new Promise((r) => setTimeout(r, 2000))])
+    .catch(() => {})
+    .finally(() => app.quit());
+});
 app.on("window-all-closed", () => app.quit());
