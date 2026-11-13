@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld("humbler", {
   copy: (text) => ipcRenderer.invoke("clipboard:write", text),
   markRedeemed: (id, redeemed, platform) => ipcRenderer.invoke("redeem:mark", { id, redeemed, platform }),
   onAppFocus: on("app-focus"),
+  getOrders: () => ipcRenderer.invoke("orders:get"),
+  onOrdersUpdated: on("orders-updated"),
   openUrl: (url) => ipcRenderer.invoke("browser:open", url),
   setSettings: (patch) => ipcRenderer.invoke("settings:set", patch),
   getChoice: () => ipcRenderer.invoke("choice:get"),

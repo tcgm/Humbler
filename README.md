@@ -96,13 +96,25 @@ Use this while the code is changing:
      own on Humble's store, bundle and Choice pages in the right-hand pane. It
      matches titles rather than one page layout, so it keeps working through
      redesigns.
-6. **Bundles tab**: every bundle you own, as cards (search; sort by most
-   recent, A–Z, or most unrevealed keys; filter to bundles with unrevealed
-   keys, with downloads, Choice months, or everything but Choice). Opening
-   one shows a **bundle page** like the old `/downloads?key=` page: the
-   bundle's keys, then its downloads, with platform tabs (Windows / Mac /
-   Linux / eBook …), a "Download all" button, and a button per format with
-   its size (✓ once downloaded; click to show the file).
+6. **Bundles tab**: every bundle you own, as a list. Each row shows the
+   bundle's icon, its counts, when you bought it and what you paid, and a
+   **deadline**: the soonest "redeem by" date among keys you haven't
+   revealed yet, red within 30 days. You can search; sort by most recent,
+   A–Z, most unrevealed keys, or **deadline soonest**; and filter to bundles
+   with unrevealed keys, with a redeem deadline, with downloads, Choice
+   months, or everything but Choice. Opening one shows a **bundle page**
+   like the old `/downloads?key=` page: the bundle's keys, then its
+   downloads, with platform tabs (Windows / Mac / Linux / eBook …), a
+   "Download all" button, and a button per format with its size (✓ once
+   downloaded; click to show the file).
+   - **Icons, purchase dates and prices** come from your orders, which
+     Humble's library pages include a page at a time. Humbler picks them up
+     as you browse (`data/orders-v2.json`, keeping only those fields, never
+     your email, address or payment details). To fill them all in, open
+     **Purchases** on Humble (right) and page through it once. Orders from
+     before Humble's new store may not be listed; those bundles keep
+     placeholder tiles. Key deadlines come from the keys themselves, so
+     they work for every bundle.
 7. **Choice tab**: Humble's 2026 redesign removed the Choice pages, so
    Humbler rebuilds them.
    - **Month index**: every Choice month in your library (bundles named

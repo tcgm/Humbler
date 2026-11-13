@@ -11,7 +11,8 @@ const { LiveScout, LIVE_DIR, endpointOf } = require("./lib/live-scout");
 const { ActionRegistry } = require("./lib/actions");
 const libraryV2 = require("./lib/library-v2");
 const redeemedStore = require("./lib/redeemed");
-const { flightData, PAGE_FLIGHT_SCRIPT } = require("./lib/rsc");
+const ordersV2 = require("./lib/orders-v2");
+const { flightData, resolvedFlightData, PAGE_FLIGHT_SCRIPT } = require("./lib/rsc");
 const settingsStore = require("./lib/settings");
 const lib = require("./lib/library");
 const { HumbleApi, NotLoggedInError, BASE } = require("./lib/humble-api");
@@ -575,6 +576,7 @@ function attachScout(wc) {
       // Always learn action ids (Sync depends on them), even with live
       // scouting off. Only names are kept, never values.
       actionRegistry.note(entry, wc.getURL());
+      harvestOrders(entry); // purchases: icons, dates, prices, key deadlines
       if (!settings.liveScout) return;
       try {
         liveScout.record(entry, wc.getURL());
@@ -914,9 +916,12 @@ function createWindow() {
     // which never passes through fetch.
     // (Full loads only: __next_f isn't updated by client-side navigation,
     // whose data arrives as RSC fetches that are captured anyway.)
-    if (fullLoad && settings.liveScout && /^https:\/\/www\.humblebundle\.com\//.test(url)) {
+    if (fullLoad && /^https:\/\/www\.humblebundle\.com\//.test(url)) {
       const flight = await wc.executeJavaScript(PAGE_FLIGHT_SCRIPT).catch(() => "");
-      if (flight) liveScout.record({ kind: "rsc", method: "PAGE", url, status: 200, text: flight }, url);
+      if (flight) {
+        harvestOrders({ kind: "rsc", text: flight }); // orders embedded in the first load
+        if (settings.liveScout) liveScout.record({ kind: "rsc", method: "PAGE", url, status: 200, text: flight }, url);
+      }
     }
     if (isMembershipPage(url) || isLibraryPage(url)) {
       await harvestChoicePage(wc).catch((err) => log(`Choice harvest failed: ${err.message}`));
@@ -1028,6 +1033,10 @@ ipcMain.handle("browser:go", (_e, where) => {
   humbleView.webContents.loadURL(BASE + (routes[where] || "/home/library"));
 });
 ipcMain.handle("clipboard:write", (_e, text) => clipboard.writeText(String(text ?? "")));
+ipcMain.handle("orders:get", () => {
+  const store = ordersV2.load();
+  return { orders: Object.values(store.orders || {}), totalDocs: store.totalDocs ?? null };
+});
 ipcMain.handle("redeem:mark", (_e, { id, redeemed, platform } = {}) => {
   const key = index.keys.find((k) => k.id === id);
   if (!key) return null;
@@ -1049,7 +1058,52 @@ if (DEV && typeof process.on === "function") {
   });
 }
 
+// ---- purchases (orders) ----------------------------------------------------
+// Harvested passively from any page reply that carries your order list
+// (see lib/orders-v2.js; only non-personal fields are kept).
+
+function harvestOrders(entry) {
+  try {
+    const raw = entry.kind === "rsc" ? entry.text : entry.body;
+    if (!raw || !(typeof raw === "string" ? raw : JSON.stringify(raw)).includes("lineItems")) return; // cheap pre-check
+    const found = ordersV2.extractOrders(entry.kind === "rsc" ? resolvedFlightData(entry.text) : entry.body);
+    const added = ordersV2.merge(found);
+    if (added) {
+      const store = ordersV2.load();
+      const have = Object.keys(store.orders).length;
+      log(`Purchases: ${added} new order(s); ${have}${store.totalDocs ? ` of ${store.totalDocs}` : ""} known. Bundle icons and deadlines updated.`);
+      send("orders-updated");
+    }
+  } catch (err) {
+    log(`Purchases: couldn't read order data (${err.message})`);
+  }
+}
+
+// First run: pick up orders already sitting in scout dumps (they're scrubbed,
+// but the fields we keep survive scrubbing).
+function seedOrdersFromRecon() {
+  if (Object.keys(ordersV2.load().orders || {}).length) return;
+  let files = 0;
+  try {
+    for (const dir of fs.readdirSync(RECON_DIR)) {
+      const full = path.join(RECON_DIR, dir);
+      if (dir === "live" || !fs.statSync(full).isDirectory()) continue;
+      for (const f of fs.readdirSync(full)) {
+        if (!/^\d+\.json$/.test(f)) continue;
+        const text = fs.readFileSync(path.join(full, f), "utf8");
+        if (!text.includes("lineItems")) continue;
+        harvestOrders(JSON.parse(text));
+        files += 1;
+      }
+    }
+  } catch {
+    // no recon yet
+  }
+  if (files) log(`Purchases: read orders from ${files} earlier scout file(s).`);
+}
+
 app.whenReady().then(() => {
+  seedOrdersFromRecon();
   rebuildIndex();
   createWindow();
   log(`Loaded ${index.bundles.length} cached orders, ${index.keys.length} keys, ${index.files.length} files.`);

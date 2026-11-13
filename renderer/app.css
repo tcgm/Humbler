@@ -398,3 +398,29 @@ button.keyfield:disabled { opacity: 0.55; cursor: default; }
 .hb-card, button.keyfield, .file-btn { white-space: normal; }
 .hb-flags { display: flex; flex-wrap: wrap; gap: 2px 10px; }
 .hb-flags .hb-flag { align-self: auto; }
+
+/* Bundles as a list (one row per bundle): icon | name + details | deadline */
+.hb-list { display: flex; flex-direction: column; background: var(--hb-card); border: 1px solid var(--hb-line); border-radius: 4px; }
+.hb-row {
+  display: flex; align-items: center; gap: 14px; width: 100%; padding: 10px 14px; text-align: left; white-space: normal;
+  background: transparent; color: var(--hb-text); border: none; border-bottom: 1px solid var(--hb-line); border-radius: 0; cursor: pointer; font-family: inherit;
+}
+.hb-list > .hb-row:last-child { border-bottom: none; }
+.hb-row:hover:not(:disabled) { background: var(--hb-card-hover); }
+.hb-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.hb-row-main h4 { margin: 0; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-row-main p { margin: 0; font-size: 12px; color: var(--hb-muted); }
+.hb-row .tile.md { width: 92px; height: 52px; font-size: 16px; }
+.tile.art-img { background: var(--hb-field); object-fit: cover; }
+.hb-bundle-head .tile.lg.art-img { width: 184px; height: 104px; }
+.hb-bundle-head-main { flex: 1; min-width: 0; }
+
+/* deadline column */
+.hb-deadline { flex: none; width: 150px; display: flex; flex-direction: column; align-items: flex-end; text-align: right; gap: 1px; }
+.hb-deadline strong { font-size: 12px; font-weight: 600; color: var(--hb-text); }
+.hb-deadline small { font-size: 11px; color: var(--hb-muted); }
+.hb-deadline.soon strong, .hb-deadline.soon small { color: var(--hb-red); }
+.hb-deadline.past strong { color: var(--hb-muted); text-decoration: line-through; }
+.hb-deadline.none { visibility: hidden; }
+.month-card .hb-deadline { width: auto; align-items: flex-start; text-align: left; }
+@media (max-width: 560px) { .hb-deadline { width: 110px; } }

@@ -76,6 +76,92 @@ function bundleStats(b) {
     .join(" · ");
 }
 
+// ---- purchases, icons, deadlines -------------------------------------------------
+
+// Orders (purchases) by bundle name, from data/orders-v2.json. Gives the
+// bundle's thumbnail, purchase date/price and key deadline when known.
+let ordersByName = new Map();
+let ordersTotal = null;
+
+async function loadOrders() {
+  try {
+    const { orders, totalDocs } = await humbler.getOrders();
+    const map = new Map();
+    for (const o of orders) {
+      for (const it of o.items || []) {
+        if (!it.name) continue;
+        const k = normTitle(it.name);
+        const prev = map.get(k);
+        // keep the earliest purchase of a bundle bought more than once
+        // What you paid: the order total when the order is just this bundle
+        // (the line-item price leaves out part of it), else the line's price.
+        const paid = (o.items.length === 1 ? o.total : it.price) || o.total;
+        if (!prev || (o.createdAt && o.createdAt < prev.createdAt)) map.set(k, { ...it, createdAt: o.createdAt, total: paid });
+      }
+    }
+    ordersByName = map;
+    ordersTotal = totalDocs;
+  } catch {
+    // no orders yet
+  }
+}
+
+const orderInfo = (b) => ordersByName.get(normTitle(b.name)) || null;
+
+function formatMoney(m) {
+  if (!m || typeof m.amount !== "number") return "";
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency: m.currency || "USD" }).format(m.amount);
+  } catch {
+    return `${m.amount} ${m.currency || ""}`.trim();
+  }
+}
+
+// The deadline that matters: the soonest redeem-by date among the bundle's
+// still-unrevealed keys (from the keys themselves), else the order's
+// bundle-wide key deadline. Nothing to do if every key is revealed.
+function bundleDeadline(b) {
+  const pending = state.lib.keys.filter((k) => k.gamekey === b.gamekey && k.status === "unused");
+  if (!pending.length) return null;
+  let best = null;
+  for (const k of pending) {
+    const t = Date.parse(k.expiry || "");
+    if (Number.isFinite(t) && (!best || t < best.t)) best = { t, date: k.expiry, count: 0 };
+  }
+  if (best) {
+    best.count = pending.filter((k) => Date.parse(k.expiry || "") === best.t).length;
+  } else {
+    const exp = orderInfo(b)?.keyExpiration;
+    const t = Date.parse(exp || "");
+    if (!Number.isFinite(t)) return null;
+    best = { t, date: exp, count: pending.length };
+  }
+  best.days = Math.floor((best.t - Date.now()) / 86400000);
+  return best;
+}
+
+function deadlineBadge(dl) {
+  if (!dl) return el("div", { class: "hb-deadline none" });
+  const cls = dl.days < 0 ? "past" : dl.days <= 30 ? "soon" : "";
+  const when = dl.days < 0 ? "Deadline passed" : dl.days === 0 ? "Redeem today" : `Redeem by ${formatDate(dl.date)}`;
+  const left = dl.days < 0 ? formatDate(dl.date) : `${dl.days} day${dl.days === 1 ? "" : "s"} left`;
+  return el(
+    "div",
+    { class: `hb-deadline ${cls}`, title: `${plural(dl.count, "unrevealed key")} must be redeemed by ${formatDate(dl.date)}` },
+    el("strong", { textContent: when }),
+    el("small", { textContent: left }),
+  );
+}
+
+// The bundle's art from its order when known, else a placeholder tile.
+function bundleIcon(b, info = orderInfo(b), size = "md") {
+  const src = info?.thumbnail || info?.logo;
+  if (!src) return tile(b.name, size);
+  const img = el("img", { class: `tile ${size} art-img`, src, alt: "", loading: "lazy" });
+  img.addEventListener("error", () => img.replaceWith(tile(b.name, size)), { once: true });
+  return img;
+}
+
 function renderBundleList() {
   const v = view.bundles;
   const page = $("bundlesPage");
@@ -83,6 +169,7 @@ function renderBundleList() {
   let list = (state.lib.bundles || []).filter((b) => {
     if (q && !b.name.toLowerCase().includes(q)) return false;
     if (v.filter === "unrevealed" && !b.unrevealed) return false;
+    if (v.filter === "deadline" && !bundleDeadline(b)) return false;
     if (v.filter === "files" && !b.fileCount) return false;
     if (v.filter === "choice" && !b.choiceMonth) return false;
     if (v.filter === "nochoice" && b.choiceMonth) return false;
@@ -90,7 +177,11 @@ function renderBundleList() {
   });
   if (v.sort === "az") list = [...list].sort((a, b) => a.name.localeCompare(b.name));
   else if (v.sort === "unrevealed") list = [...list].sort((a, b) => (b.unrevealed || 0) - (a.unrevealed || 0) || (a.order ?? 0) - (b.order ?? 0));
-  else list = [...list].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  else if (v.sort === "deadline") {
+    // soonest deadline first; bundles without one go last
+    const t = (b) => Date.parse(bundleDeadline(b)?.date || "") || Infinity;
+    list = [...list].sort((a, b) => t(a) - t(b) || (a.order ?? 0) - (b.order ?? 0));
+  } else list = [...list].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
   const pages = Math.max(1, Math.ceil(list.length / BUNDLES_PER_PAGE));
   v.page = Math.min(Math.max(1, v.page), pages);
@@ -111,6 +202,7 @@ function renderBundleList() {
     el("option", { value: "recent", textContent: "Most recent" }),
     el("option", { value: "az", textContent: "A – Z" }),
     el("option", { value: "unrevealed", textContent: "Most unrevealed keys" }),
+    el("option", { value: "deadline", textContent: "Deadline soonest" }),
   );
   sort.value = v.sort;
   sort.addEventListener("input", () => {
@@ -123,6 +215,7 @@ function renderBundleList() {
     { title: "Show" },
     el("option", { value: "all", textContent: "All bundles" }),
     el("option", { value: "unrevealed", textContent: "With unrevealed keys" }),
+    el("option", { value: "deadline", textContent: "With a redeem deadline" }),
     el("option", { value: "files", textContent: "With downloads" }),
     el("option", { value: "choice", textContent: "Humble Choice months" }),
     el("option", { value: "nochoice", textContent: "Everything but Choice" }),
@@ -134,22 +227,29 @@ function renderBundleList() {
     renderBundleList();
   });
 
-  const grid = el("div", { class: "hb-cards" });
+  // A list, one row per bundle: icon | name, counts, purchase | deadline
+  const grid = el("div", { class: "hb-list" });
   for (const b of shown) {
-    const card = el(
+    const info = orderInfo(b);
+    const dl = bundleDeadline(b);
+    const bought = info?.createdAt
+      ? `Bought ${formatDate(info.createdAt)}${info.total ? ` · ${formatMoney(info.total)}` : ""}`
+      : null;
+    const row = el(
       "button",
-      { class: "hb-card", title: b.name },
-      tile(b.name),
+      { class: "hb-row", title: b.name },
+      bundleIcon(b, info),
       el(
         "div",
-        { class: "hb-card-body" },
+        { class: "hb-row-main" },
         el("h4", { textContent: b.name }),
-        el("p", { textContent: bundleStats(b) }),
+        el("p", { textContent: [bundleStats(b), bought].filter(Boolean).join(" · ") }),
         b.unrevealed ? el("span", { class: "hb-flag", textContent: `${b.unrevealed} unrevealed` }) : null,
       ),
+      deadlineBadge(dl),
     );
-    card.addEventListener("click", () => openBundle(b.gamekey));
-    grid.append(card);
+    row.addEventListener("click", () => openBundle(b.gamekey));
+    grid.append(row);
   }
 
   const pager = el("div", { class: "hb-pager" });
@@ -178,7 +278,16 @@ function renderBundleList() {
       el("h2", { textContent: "Your Bundles" }),
       el("div", { class: "hb-controls" }, search, sort, filter),
     ),
-    el("div", { class: "hb-summary", textContent: `${plural(list.length, "bundle")}${q || v.filter !== "all" ? ` of ${(state.lib.bundles || []).length}` : ""}` }),
+    el("div", {
+      class: "hb-summary",
+      textContent:
+        `${plural(list.length, "bundle")}${q || v.filter !== "all" ? ` of ${(state.lib.bundles || []).length}` : ""}` +
+        // icons/purchase dates come from your orders; say how many are known
+        (ordersByName.size
+          ? ` · purchase details for ${ordersByName.size}${ordersTotal ? ` of ${ordersTotal} orders` : ""}` +
+            (ordersTotal && ordersByName.size < ordersTotal ? " (open Purchases on Humble and page through it to fill in the rest)" : "")
+          : " · open Purchases on Humble once to add bundle icons and purchase dates"),
+    }),
     list.length ? grid : el("div", { class: "hb-empty", textContent: (state.lib.bundles || []).length ? "No bundles match." : "No bundles yet. Click Sync." }),
     pager,
   );
@@ -208,15 +317,24 @@ function renderBundlePage() {
   const files = state.lib.files.filter((f) => f.gamekey === b.gamekey);
   const products = (state.lib.products || []).filter((p) => p.gamekey === b.gamekey);
 
+  const info = orderInfo(b);
   const head = el(
     "div",
     { class: "hb-bundle-head" },
-    tile(b.name, "lg"),
+    bundleIcon(b, info, "lg"),
     el(
       "div",
-      {},
+      { class: "hb-bundle-head-main" },
       el("h2", { textContent: b.name }),
-      el("p", { class: "hb-summary", textContent: bundleStats(b) + (b.unrevealed ? ` · ${b.unrevealed} unrevealed` : "") }),
+      el("p", {
+        class: "hb-summary",
+        textContent: [
+          bundleStats(b) + (b.unrevealed ? ` · ${b.unrevealed} unrevealed` : ""),
+          info?.createdAt ? `Bought ${formatDate(info.createdAt)}${info.total ? ` for ${formatMoney(info.total)}` : ""}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      }),
       el(
         "div",
         { class: "hb-links" },
@@ -224,6 +342,7 @@ function renderBundlePage() {
         b.choiceMonth ? choiceLink(b.choiceMonth) : null,
       ),
     ),
+    deadlineBadge(bundleDeadline(b)),
   );
 
   const sections = [];
@@ -405,6 +524,13 @@ async function renderChoiceIndex() {
     const games = monthGames(m);
     const unrevealed = games.reduce((n, g) => n + g.keys.filter((k) => k.status === "unused").length, 0);
     const notInLib = games.filter((g) => !g.inLibrary).length;
+    // soonest redeem-by date among this month's unrevealed keys
+    let dl = null;
+    for (const k of games.flatMap((g) => g.keys)) {
+      const t = Date.parse(k.expiry || "");
+      if (k.status === "unused" && Number.isFinite(t) && (!dl || t < dl.t)) dl = { t, date: k.expiry, count: 1 };
+    }
+    if (dl) dl.days = Math.floor((dl.t - Date.now()) / 86400000);
     const strip = el("div", { class: "month-strip" }, ...games.slice(0, 4).map((g) => tile(g.title, "xs", g.image)));
     const card = el(
       "button",
@@ -424,6 +550,7 @@ async function renderChoiceIndex() {
           : null,
       ),
       games.length ? strip : null,
+      dl ? deadlineBadge(dl) : null,
     );
     card.addEventListener("click", () => openChoiceMonth(m.month));
     grid.append(card);
@@ -502,11 +629,17 @@ function renderHbPages({ keepView = true } = {}) {
     view.bundles.mode = "list";
     view.choice.mode = "list";
   }
-  if (view.bundles.mode === "bundle") renderBundlePage();
-  else renderBundleList();
-  if (view.choice.mode === "month") renderChoiceMonth();
-  else renderChoiceIndex();
+  const draw = () => {
+    if (view.bundles.mode === "bundle") renderBundlePage();
+    else renderBundleList();
+    if (view.choice.mode === "month") renderChoiceMonth();
+    else renderChoiceIndex();
+  };
+  draw(); // right away with what's known…
+  loadOrders().then(draw); // …then again with purchase details (icons, dates, deadlines)
 }
+
+humbler.onOrdersUpdated(() => renderHbPages()); // renderHbPages reloads orders itself
 
 // Live download progress: refresh the open bundle/Choice page (cheap enough
 // at these sizes), at most a few times a second.
