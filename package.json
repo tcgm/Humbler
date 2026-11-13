@@ -5,8 +5,9 @@
   "description": "A local Electron client for your Humble Bundle library: collect keys, reveal them, and bulk-download your files, using your real logged-in session.",
   "main": "out/main/index.js",
   "scripts": {
+    "start": "node scripts/run.js dev --watch",
     "dev": "node scripts/run.js dev --watch",
-    "start": "node scripts/run.js start",
+    "prod": "node scripts/run.js start",
     "build": "node scripts/run.js build",
     "typecheck": "tsc -b",
     "scrub-data": "tsx scripts/scrub-data.ts"

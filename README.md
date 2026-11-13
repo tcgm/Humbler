@@ -14,7 +14,7 @@ from inside your logged-in session, so it only ever sees your own account.
 ```
 npm install
 cp .env.example .env   # optional; defaults are fine
-npm start              # builds, then runs
+npm start              # dev mode, with HMR
 ```
 
 Electron 44, built with electron-vite (Vite 8), React 19 and TypeScript 7.
@@ -25,8 +25,8 @@ Node and no window opens.
 
 | Command | What |
 |---|---|
-| `npm run dev` | Development: **HMR** for the UI (React Fast Refresh, so edits apply while you keep your place, filters and typed text). Changes to the main process or preload restart the app. DevTools opens for the UI. |
-| `npm start` | Build, then run the built app. |
+| `npm start` (or `npm run dev`) | Development: **HMR** for the UI (React Fast Refresh, so edits apply while you keep your place, filters and typed text). Changes to the main process or preload restart the app. DevTools opens for the UI. |
+| `npm run prod` | Build, then run the built app (no watching, no DevTools). |
 | `npm run build` | Build to `out/` only. |
 | `npm run typecheck` | Type-check everything (`tsc -b`, strict). |
 | `npm run scrub-data` | Re-scrub existing scout dumps (see Scrubbing). |
