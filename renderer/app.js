@@ -218,7 +218,7 @@ function filteredKeys({ ignoreState = false } = {}) {
 }
 
 function copyButton(text, label = "Copy") {
-  const b = el("button", { class: "small", textContent: label });
+  const b = el("button", { class: "hb-btn ghost small", textContent: label });
   b.addEventListener("click", () => {
     humbler.copy(text);
     b.textContent = "Copied";
@@ -227,79 +227,148 @@ function copyButton(text, label = "Copy") {
   return b;
 }
 
-function keyCell(k) {
-  const cell = el("div", { class: "keycell" });
+// ---- platform presentation (old-HB-style rows) ---------------------------
+
+// Normalise Humble's key types to a platform: name for "Reveal your X key",
+// a badge, and the store's redeem link where one exists.
+function platformOf(k) {
+  const t = `${k.keyType || ""}`.toLowerCase();
+  if (/steam/.test(t)) return { id: "steam", name: "Steam", badge: "Steam", redeem: (key) => `https://store.steampowered.com/account/registerkey?key=${encodeURIComponent(key)}` };
+  if (/epic/.test(t)) return { id: "epic", name: "Epic Games Store", badge: "Epic", redeem: () => "https://store.epicgames.com/redeem" };
+  if (/gog/.test(t)) return { id: "gog", name: "GOG.com", badge: "GOG", redeem: (key) => `https://www.gog.com/redeem/${encodeURIComponent(key)}` };
+  if (/origin|^ea\b|ea_app/.test(t)) return { id: "origin", name: "EA app", badge: "EA" };
+  if (/uplay|ubisoft/.test(t)) return { id: "uplay", name: "Ubisoft Connect", badge: "Ubi" };
+  if (/blizzard|battle/.test(t)) return { id: "blizzard", name: "Battle.net", badge: "B.net" };
+  if (/external/.test(t)) return { id: "external", name: "", badge: "Key" };
+  return { id: "other", name: "", badge: "Key" };
+}
+
+function formatDate(iso) {
+  const t = Date.parse(iso || "");
+  return Number.isFinite(t) ? new Date(t).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : iso;
+}
+
+// The keyfield: the big grey box, plus whatever goes beside it.
+function keyField(k) {
+  const p = platformOf(k);
+  const row = el("div", { class: "keyrow" });
   switch (k.status) {
-    case "revealed":
-      cell.append(el("span", { class: "key", textContent: k.key, title: k.key }), copyButton(k.key));
+    case "revealed": {
+      row.append(el("div", { class: "keyfield redeemed", title: "Click the key to select it" }, el("span", { class: "keyfield-value", textContent: k.key || "" })));
+      if (p.redeem && k.key) {
+        const redeem = el("button", { class: "hb-btn small", textContent: "Redeem", title: `Redeem on ${p.name} (opens in your browser)` });
+        redeem.addEventListener("click", () => humbler.openUrl(p.redeem(k.key)));
+        row.append(redeem);
+      }
+      if (k.key) row.append(copyButton(k.key));
       break;
+    }
     case "gifted":
     case "link":
-      cell.append(el("span", { class: `tag ${k.status === "gifted" ? "ok" : ""}`, textContent: k.status === "gifted" ? "gifted" : "redeem link" }));
-      if (k.key) cell.append(el("span", { class: "key", textContent: k.key, title: k.key }), copyButton(k.key, "Copy link"));
+      row.append(el("div", { class: "keyfield gifted", textContent: k.status === "gifted" ? "Gifted" : "Redeem link" }));
+      if (k.key) row.append(copyButton(k.key, "Copy link"));
       break;
     case "expired":
-      cell.append(el("span", { class: "tag bad", textContent: "expired" }));
+      row.append(el("div", { class: "keyfield expired", textContent: "This key has expired" }));
       break;
     case "sold-out":
-      cell.append(el("span", { class: "tag bad", textContent: "sold out" }));
+      row.append(el("div", { class: "keyfield expired", textContent: "Sold out" }));
       break;
     default: {
-      cell.append(el("span", { class: "tag warn", textContent: "hidden" }));
+      const label = `Reveal your ${p.name ? `${p.name} ` : ""}key`;
       if (k.v2) {
         // New-site keys: reveal on Humble's own page until Humbler knows the new reveal action.
-        const open = el("button", { class: "small", textContent: "Open on Humble", title: "Reveal this key on Humble (opens it on the right)" });
+        const open = el("button", { class: "keyfield", textContent: label, title: "Opens this item on Humble (right) so you can reveal it there" });
         open.addEventListener("click", () => humbler.openUrl(k.contentUrl));
-        cell.append(open);
+        row.append(open);
       } else {
-        const reveal = el("button", { class: "small danger", textContent: "Reveal" });
-        armable(reveal, "Sure? click again", () => humbler.revealKeys([k.id]));
+        const reveal = el("button", { class: "keyfield", textContent: label });
+        armable(reveal, "Click again to reveal. It can't be gifted afterwards", () => humbler.revealKeys([k.id]));
         reveal.disabled = !!state.busy;
-        cell.append(reveal);
+        row.append(reveal);
       }
     }
   }
-  if (isExpiring(k)) cell.append(el("span", { class: "tag bad", textContent: `expires in ${k.daysLeft}d`, title: k.expiry || "" }));
-  else if (k.expiry && k.status === "unused") cell.append(el("span", { class: "tag", textContent: "expires", title: k.expiry }));
-  if (k.instructions) cell.append(el("span", { class: "tag", textContent: "how to redeem", title: k.instructions }));
-  return cell;
+
+  const meta = el("div", { class: "keymeta" });
+  if (k.status === "unused" && k.expiry) {
+    meta.append(
+      el("span", {
+        class: isExpiring(k) ? "soon" : "",
+        textContent: `Must be redeemed by ${formatDate(k.expiry)}${k.daysLeft != null ? ` (${k.daysLeft} day${k.daysLeft === 1 ? "" : "s"} left)` : ""}`,
+      }),
+    );
+  }
+  if (k.instructions) meta.append(el("details", {}, el("summary", { textContent: "Redemption instructions" }), el("p", { textContent: k.instructions })));
+  return meta.childNodes.length ? el("div", {}, row, meta) : row;
+}
+
+// ---- keys table + pager ---------------------------------------------------
+
+const KEYS_PER_PAGE = 50;
+state.keyPage = 1;
+
+function pagerButtons(page, pages, go) {
+  const box = $("keyPager");
+  box.replaceChildren();
+  if (pages <= 1) return;
+  const btn = (label, target, opts = {}) => {
+    const b = el("button", { textContent: label, disabled: !!opts.disabled, class: opts.current ? "current" : "" });
+    b.addEventListener("click", () => go(target));
+    return b;
+  };
+  box.append(btn("‹ Prev", page - 1, { disabled: page === 1 }));
+  const shown = new Set([1, pages, page - 2, page - 1, page, page + 1, page + 2].filter((n) => n >= 1 && n <= pages));
+  let last = 0;
+  for (const n of [...shown].sort((a, b) => a - b)) {
+    if (n - last > 1) box.append(el("span", { class: "gap", textContent: "…" }));
+    box.append(btn(String(n), n, { current: n === page }));
+    last = n;
+  }
+  box.append(btn("Next ›", page + 1, { disabled: page === pages }));
 }
 
 function renderKeys() {
   const rows = filteredKeys();
   state.shownKeys = rows;
-  const body = $("keyRows");
+  const pages = Math.max(1, Math.ceil(rows.length / KEYS_PER_PAGE));
+  state.keyPage = Math.min(Math.max(1, state.keyPage), pages);
+  const pageRows = rows.slice((state.keyPage - 1) * KEYS_PER_PAGE, state.keyPage * KEYS_PER_PAGE);
+
   const frag = document.createDocumentFragment();
-  for (const k of rows.slice(0, ROW_LIMIT)) {
+  for (const k of pageRows) {
+    const p = platformOf(k);
     const chk = el("input", { type: "checkbox", checked: state.selKeys.has(k.id) });
     chk.addEventListener("change", () => {
       if (chk.checked) state.selKeys.add(k.id);
       else state.selKeys.delete(k.id);
       updateKeyButtons();
     });
+    const steam = p.id === "steam" || k.steamAppId ? extLink("View on Steam", steamUrl(k.name, k.steamAppId)) : null;
     frag.append(
       el(
         "tr",
         { dataset: { id: k.id } },
         el("td", { class: "chk" }, chk),
-        el(
-          "td",
-          { title: k.name },
-          k.name,
-          /steam/i.test(k.keyType) || k.steamAppId ? extLink("Steam", steamUrl(k.name, k.steamAppId)) : null,
-        ),
-        el("td", { title: k.keyType }, k.keyType),
-        el("td", { title: k.bundle }, k.bundle),
-        el("td", {}, keyCell(k)),
+        el("td", { class: "platform" }, el("span", { class: `plat ${p.id}`, textContent: p.badge, title: p.name || k.keyType || "Key" })),
+        el("td", { class: "hb-game" }, el("h4", { textContent: k.name, title: k.name }), el("p", { textContent: k.bundle, title: k.bundle }), steam),
+        el("td", {}, keyField(k)),
       ),
     );
   }
-  body.replaceChildren(frag);
-  $("keyMore").hidden = rows.length <= ROW_LIMIT;
-  $("keyMore").textContent = `Showing ${ROW_LIMIT} of ${rows.length} — narrow the filters to see the rest.`;
+  $("keyRows").replaceChildren(frag);
+  $("keyEmpty").hidden = rows.length > 0;
+  $("keyEmpty").textContent = state.lib.keys.length ? "No keys match these filters." : "No keys yet. Click Sync.";
+  pagerButtons(state.keyPage, pages, (n) => {
+    state.keyPage = n;
+    renderKeys();
+    $("keyRows").closest(".hb-tablewrap").scrollTop = 0;
+  });
   $("keyAll").checked = rows.length > 0 && rows.every((k) => state.selKeys.has(k.id));
+  $("hideRedeemed").checked = $("keyState").value === "unused";
+
   // Summarise the current bundle/type/search, so an empty view explains
-  // itself ("0 shown of 37: 37 revealed").
+  // itself ("0 shown of 37 (37 revealed)").
   const base = filteredKeys({ ignoreState: true });
   const byStatus = {};
   for (const k of base) byStatus[k.status] = (byStatus[k.status] || 0) + 1;
@@ -310,9 +379,10 @@ function renderKeys() {
     .join(", ");
   const expiring = base.filter(isExpiring).length;
   const hidden = base.length - rows.length;
+  const from = rows.length ? (state.keyPage - 1) * KEYS_PER_PAGE + 1 : 0;
   $("keySummary").textContent =
-    `${rows.length} shown` +
-    (hidden ? ` of ${base.length} (${breakdown}). Change the status filter to see the rest` : base.length ? ` (${breakdown})` : "") +
+    `${rows.length ? `${from}–${from + pageRows.length - 1} of ` : ""}${rows.length} key${rows.length === 1 ? "" : "s"}` +
+    (hidden ? ` (${hidden} more hidden by the status filter; ${breakdown})` : base.length ? ` (${breakdown})` : "") +
     (expiring ? ` · ⚠ ${expiring} expiring within ${EXPIRING_DAYS} days` : "");
   updateKeyButtons();
 }
@@ -328,7 +398,19 @@ function updateKeyButtons() {
   btn.disabled = !n || !!state.busy;
 }
 
-["keySearch", "keyBundle", "keyState", "keyType"].forEach((id) => $(id).addEventListener("input", renderKeys));
+// Any filter change starts again at page 1.
+["keySearch", "keyBundle", "keyState", "keyType"].forEach((id) =>
+  $(id).addEventListener("input", () => {
+    state.keyPage = 1;
+    renderKeys();
+  }),
+);
+// "Hide redeemed keys & entitlements" is a shortcut for the Unrevealed filter.
+$("hideRedeemed").addEventListener("change", (e) => {
+  $("keyState").value = e.target.checked ? "unused" : "all";
+  state.keyPage = 1;
+  renderKeys();
+});
 
 $("keyAll").addEventListener("change", (e) => {
   for (const k of state.shownKeys) {

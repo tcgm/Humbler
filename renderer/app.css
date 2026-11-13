@@ -144,3 +144,122 @@ a.ext:hover { text-decoration: underline; }
 .tabs .spacer { flex-basis: 0; }
 .keycell { flex-wrap: wrap; row-gap: 3px; }
 .grid td:has(.keycell) { white-space: normal; }
+
+/* ---- Keys tab: modelled on the old humblebundle.com/home/keys page ----
+   Light page, a plain table, bold game titles with the bundle underneath,
+   and grey "keyfield" boxes ("Reveal your Steam key") that turn into the
+   key itself once revealed. No Humble assets: platform marks are simple
+   drawn badges. */
+.hbkeys {
+  --hb-bg: #f3f3f3;
+  --hb-card: #ffffff;
+  --hb-line: #e1e1e1;
+  --hb-text: #494949;
+  --hb-muted: #8f8f8f;
+  --hb-field: #e9e9e9;
+  --hb-field-hover: #dcdcdc;
+  --hb-red: #c92a2a;
+  --hb-red-dark: #a51f1f;
+  --hb-green: #2f8f46;
+  background: var(--hb-bg);
+  color: var(--hb-text);
+  color-scheme: light;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+.hb-page { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 16px 18px 10px; gap: 10px; }
+.hb-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.hb-head h2 { margin: 0; font-size: 22px; font-weight: 600; color: var(--hb-text); letter-spacing: 0.01em; }
+.hb-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.hbkeys input[type="search"].hb-search {
+  background: #fff; color: var(--hb-text); border: 1px solid #cfcfcf; border-radius: 3px;
+  padding: 7px 10px; min-width: 220px; font-size: 13px;
+}
+.hb-check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--hb-text); white-space: nowrap; cursor: pointer; }
+.hb-subbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.hbkeys select {
+  background: #fff; color: var(--hb-text); border: 1px solid #cfcfcf; border-radius: 3px; padding: 5px 8px; font-size: 12px; max-width: 230px;
+}
+.hb-btn {
+  background: var(--hb-red); color: #fff; border: 1px solid var(--hb-red-dark); border-radius: 3px;
+  padding: 6px 12px; font-size: 12px; font-weight: 600; letter-spacing: 0.02em; cursor: pointer;
+}
+.hb-btn:hover:not(:disabled) { background: var(--hb-red-dark); }
+.hb-btn:disabled { opacity: 0.45; cursor: default; }
+.hb-btn.ghost { background: #fff; color: var(--hb-text); border-color: #cfcfcf; font-weight: 500; }
+.hb-btn.ghost:hover:not(:disabled) { background: #f0f0f0; }
+.hb-btn.armed { background: var(--hb-red-dark); }
+.hb-btn.small { padding: 4px 9px; font-size: 11px; }
+.hb-summary { font-size: 12px; color: var(--hb-muted); }
+
+.hb-tablewrap { flex: 1; overflow: auto; background: var(--hb-card); border: 1px solid var(--hb-line); border-radius: 3px; }
+table.hb-keys { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.hb-keys th {
+  position: sticky; top: 0; z-index: 1; background: #fafafa; color: var(--hb-muted);
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+  text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--hb-line);
+}
+.hb-keys td { padding: 12px; border-bottom: 1px solid var(--hb-line); vertical-align: middle; }
+.hb-keys tr:hover td { background: #fbfbfb; }
+.hb-keys .chk { width: 34px; padding-right: 0; }
+.hb-keys .platform { width: 92px; text-align: center; }
+.hb-keys .keycol { width: 46%; }
+.hb-keys .hb-game h4 { margin: 0 0 3px; font-size: 14px; font-weight: 600; color: var(--hb-text); line-height: 1.3; }
+.hb-keys .hb-game p { margin: 0; font-size: 12px; color: var(--hb-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-keys .hb-game a { font-size: 11px; color: #3f7fbf; text-decoration: none; cursor: pointer; }
+.hb-keys .hb-game a:hover { text-decoration: underline; }
+
+/* platform badges (drawn, not Humble's icon font) */
+.plat {
+  display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 6px;
+  color: #fff; font-size: 10px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; background: #7b7b7b;
+}
+.plat.steam { background: #1b2838; }
+.plat.epic { background: #2a2a2a; }
+.plat.gog { background: #7c2a8a; }
+.plat.origin { background: #f56c2d; }
+.plat.uplay { background: #1f6fe5; }
+.plat.blizzard { background: #0e86d4; }
+.plat.external { background: #5c6b73; }
+
+/* keyfield: the big grey box */
+.keyrow { display: flex; align-items: center; gap: 8px; }
+.keyfield {
+  flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; min-height: 38px; padding: 6px 12px;
+  background: var(--hb-field); color: var(--hb-text); border: 1px solid #d6d6d6; border-radius: 3px;
+  font-size: 13px; font-weight: 600; text-align: center;
+}
+button.keyfield { cursor: pointer; font-family: inherit; }
+button.keyfield:hover:not(:disabled) { background: var(--hb-field-hover); }
+button.keyfield:disabled { opacity: 0.55; cursor: default; }
+.keyfield.armed { background: #fbe9e9; border-color: var(--hb-red); color: var(--hb-red); }
+.keyfield.redeemed { background: #fff; border-style: dashed; border-color: #bdbdbd; font-weight: 500; }
+.keyfield-value {
+  font-family: Consolas, "Courier New", monospace; font-size: 14px; letter-spacing: 0.04em; user-select: all;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.keyfield.gifted { background: #eef6f0; border-color: #cfe5d5; color: var(--hb-green); }
+.keyfield.expired { background: #f7f7f7; color: var(--hb-muted); font-weight: 500; }
+.keymeta { margin-top: 6px; font-size: 11px; color: var(--hb-muted); display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.keymeta .soon { color: var(--hb-red); font-weight: 600; }
+.keymeta details summary { cursor: pointer; color: #3f7fbf; }
+.keymeta details[open] { flex-basis: 100%; }
+.keymeta details p { margin: 4px 0 0; white-space: pre-wrap; color: var(--hb-text); }
+
+.hb-empty { padding: 30px; text-align: center; color: var(--hb-muted); font-size: 13px; }
+.hb-pager { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
+.hb-pager button {
+  background: #fff; color: var(--hb-text); border: 1px solid #cfcfcf; border-radius: 3px; padding: 4px 10px; font-size: 12px; cursor: pointer; min-width: 32px;
+}
+.hb-pager button:hover:not(:disabled) { background: #f0f0f0; }
+.hb-pager button.current { background: var(--hb-red); border-color: var(--hb-red-dark); color: #fff; font-weight: 600; }
+.hb-pager button:disabled { opacity: 0.4; cursor: default; }
+.hb-pager .gap { padding: 4px 4px; color: var(--hb-muted); }
+.hb-note { margin: 0; font-size: 11px; color: var(--hb-muted); }
+
+/* Keys must always be fully readable: wrap long keys instead of truncating,
+   and let the Redeem/Copy buttons drop below on narrow panels. */
+.keyrow { flex-wrap: wrap; }
+.keyfield.redeemed { flex: 1 1 180px; }
+.keyfield-value { white-space: normal; overflow: visible; text-overflow: clip; word-break: normal; overflow-wrap: anywhere; font-size: 13px; letter-spacing: 0.02em; }
+.hb-keys .keycol { width: 50%; }
+.hb-keys .hb-game a.ext { margin-left: 0; display: inline-block; margin-top: 3px; }
