@@ -11,7 +11,7 @@ const { LiveScout, LIVE_DIR, endpointOf } = require("./lib/live-scout");
 const { flightData, PAGE_FLIGHT_SCRIPT } = require("./lib/rsc");
 const settingsStore = require("./lib/settings");
 const lib = require("./lib/library");
-const { HumbleApi, NotLoggedInError, BASE, BULK_CHUNK } = require("./lib/humble-api");
+const { HumbleApi, NotLoggedInError, ApiGoneError, BASE, BULK_CHUNK } = require("./lib/humble-api");
 const { Downloader } = require("./lib/downloader");
 const { politeDelay } = require("./lib/throttle");
 
@@ -36,7 +36,28 @@ let index = { bundles: [], keys: [], files: [], products: [] };
 let busy = null; // "sync" | "reveal" while one of those is running
 
 const humbleSession = () => session.fromPartition(PARTITION);
-const api = new HumbleApi(humbleSession);
+const api = new HumbleApi(humbleSession, { pageFetch: (url) => pageFetch(url), log: (m) => log(m) });
+
+// fetch() run inside the logged-in Humble page: same cookies and origin as
+// the site's own code. (Defined as a function so humbleView exists by the
+// time it's called.)
+async function pageFetch(url) {
+  await ensureHumblePageLoaded();
+  const at = humbleView.webContents.getURL();
+  if (!at.startsWith(`${BASE}/`)) {
+    // Opening the library bounced us to the login site: genuinely logged out.
+    throw new NotLoggedInError(`the Humble pane was sent to ${new URL(at).host}`);
+  }
+  return humbleView.webContents.executeJavaScript(`
+    (async () => {
+      const r = await fetch(${JSON.stringify(url)}, {
+        credentials: "include",
+        headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+      });
+      return { status: r.status, contentType: r.headers.get("content-type") || "", text: await r.text(), finalUrl: r.url };
+    })()
+  `);
+}
 
 // ---- logging / UI messaging -------------------------------------------
 
@@ -174,11 +195,27 @@ async function syncLibrary({ full }) {
     return { ok: true, fetched, failed };
   } catch (err) {
     if (err instanceof NotLoggedInError) {
-      noteApiLogin(false);
-      log("Not logged in — log in on the right, then sync again.");
-      setBrowserVisible(true);
-      humbleView.webContents.loadURL(`${BASE}/login?goto=%2Fhome%2Flibrary`);
+      // Don't take over the pane. If you're clearly logged in on the site,
+      // the old API just doesn't accept the new login, so say that instead.
+      const onSite = /^https:\/\/www\.humblebundle\.com\/home\//.test(humbleView?.webContents.getURL() || "");
+      if (onSite) {
+        log(
+          "Sync failed: Humble's old library API (/api/v1) refused the request even from inside your logged-in page. " +
+            "It probably doesn't accept the 2026 login. Sync needs moving to the new site's library data. The details above show what came back.",
+        );
+      } else {
+        noteApiLogin(false);
+        log("Not logged in. Log in on the right (Humble library link above), then sync again.");
+      }
       return { ok: false, reason: "not-logged-in" };
+    }
+    if (err instanceof ApiGoneError) {
+      log(`Sync failed: ${err.message}.`);
+      log(
+        "  Humble's 2026 site removed the old library API that Sync was built on. Sync has to move to the new " +
+          "site's library data (the server action the library page uses). Your cached data is untouched.",
+      );
+      return { ok: false, reason: "api-gone" };
     }
     log(`Sync failed: ${err.message}`);
     return { ok: false, reason: err.message };
@@ -190,12 +227,19 @@ async function syncLibrary({ full }) {
 
 // ---- key reveal -------------------------------------------------------
 
+// In-page requests need the pane on www.humblebundle.com. If it's elsewhere
+// (the login page, an external site), open the library, which exists on
+// the 2026 site; /home/keys may not.
 async function ensureHumblePageLoaded() {
   const wc = humbleView.webContents;
-  if (wc.getURL().startsWith(BASE) && !wc.isLoading()) return;
+  if (wc.getURL().startsWith(`${BASE}/`) && !wc.isLoading()) return;
   await new Promise((resolve) => {
-    wc.once("did-finish-load", resolve);
-    wc.loadURL(`${BASE}/home/keys`);
+    const t = setTimeout(resolve, 30000);
+    wc.once("did-finish-load", () => {
+      clearTimeout(t);
+      resolve();
+    });
+    wc.loadURL(`${BASE}/home/library`);
   });
 }
 
