@@ -156,6 +156,37 @@ async function pushStatus() {
 // ---- sync, 2026 site (library server action) ----------------------------
 
 const V2_LIMITS = [100, 50, 20, 5]; // page sizes to try; the site itself uses 5
+const V2_CACHE_FORMAT = 2; // 2 = RSC references resolved (download details present)
+
+// How the downloads came through: enough to tell whether files and signed
+// links were found, plus field names (never values) if they weren't.
+function logDownloadDiagnostics(items) {
+  const ents = items.flatMap((it) => it.entitlements?.downloads || []);
+  if (!ents.length) return;
+  const withLinks = index.files.filter((f) => f.downloadable).length;
+  log(`  Downloads: ${ents.length} download entitlements → ${index.files.length} files, ${withLinks} with download links.`);
+  if (!index.files.length || withLinks < index.files.length) {
+    const sample = ents.find((e) => e.downloads && typeof e.downloads === "object") || ents[0];
+    log(`  Download data shape (field names only): ${JSON.stringify(libraryV2.shapeOnly(sample)).slice(0, 1500)}`);
+  }
+}
+
+// A signed download link expired: search the library for the item to get
+// fresh links.
+async function refreshV2File(item) {
+  const action = actionRegistry.find(libraryV2.LIBRARY_ACTION_ARGS, /^\/home\/library/);
+  if (!action) throw new Error("can't refresh the download link: library action unknown (open your library once)");
+  await ensureHumblePageLoaded();
+  const r = await humbleView.webContents.executeJavaScript(
+    libraryV2.actionCallScript(action.id, action.page || "/home/library", libraryV2.libraryFields({ page: 1, limit: 20, requestId: Date.now() % 100000, query: item.product })),
+  );
+  const data = libraryV2.parseLibraryResponse(r.text);
+  const it = data?.results?.find((x) => x.id === item.itemId);
+  if (!it) throw new Error("couldn't find this item again to refresh its download link");
+  const fresh = libraryV2.buildIndexV2([it], { downloadDir: settings.downloadDir, naming: settings.naming }).files.find((f) => f.id === item.id);
+  if (!fresh?.url) throw new Error("Humble returned no download link for this file on refresh");
+  return fresh.url;
+}
 
 async function callLibraryAction(action, page, limit, requestId) {
   const r = await humbleView.webContents.executeJavaScript(
@@ -189,7 +220,12 @@ async function syncLibrary({ full }) {
     }
     const cache = libraryV2.loadCache();
     const known = new Map((cache?.items || []).map((it) => [it.id, it]));
-    const incremental = !full && known.size > 0;
+    // Caches from before RSC references were resolved hold "$…" stubs where
+    // download details belong. Incremental sync would keep those, so
+    // re-fetch everything once.
+    const staleFormat = known.size > 0 && cache.format !== V2_CACHE_FORMAT;
+    if (staleFormat && !full) log("  Library data format changed since your last sync; fetching everything once.");
+    const incremental = !full && !staleFormat && known.size > 0;
     log(`${incremental ? "Syncing new items" : "Syncing your whole library"} via the new site (action ${action.id.slice(0, 10)}…)`);
 
     // Page size: ask big; if Humble caps it, use what it actually gives.
@@ -242,13 +278,14 @@ async function syncLibrary({ full }) {
     // Incremental: new/updated items first, then everything cached we didn't refetch.
     const items = [...fetched.values()];
     if (incremental) for (const [id, it] of known) if (!fetched.has(id)) items.push(it);
-    libraryV2.saveCache({ fetchedAt: new Date().toISOString(), actionId: action.id, totalDocs, items });
+    libraryV2.saveCache({ format: V2_CACHE_FORMAT, fetchedAt: new Date().toISOString(), actionId: action.id, totalDocs, items });
     rebuildIndex();
     if (!incremental && items.length < totalDocs) log(`  Warning: got ${items.length} of ${totalDocs} items.`);
     log(
       `Sync done: ${stoppedEarly ? `${fetched.size} recent items checked` : `${fetched.size} items fetched`}. ` +
         `Library: ${index.products.length} items, ${index.keys.length} keys, ${index.files.length} files, ${index.bundles.length} bundles.`,
     );
+    logDownloadDiagnostics(items);
     return { ok: true, fetched: fetched.size };
   } catch (err) {
     log(`Sync failed: ${err.message}`);
@@ -396,6 +433,13 @@ function refreshOrder(gamekey) {
 }
 
 async function resolveUrl(item, { force }) {
+  if (item.v2) {
+    // New-site files: use the signed link from sync; on 401/403/404/410
+    // (force), fetch a fresh one.
+    if (!force && item.url) return item.url;
+    item.url = await refreshV2File(item);
+    return item.url;
+  }
   const age = Math.min(lib.orderAgeMs(item.gamekey), Date.now() - (refreshedAt.get(item.gamekey) || 0));
   if (!force && item.url && age < URL_MAX_AGE_MS) return item.url;
   const order = await refreshOrder(item.gamekey);
@@ -446,6 +490,9 @@ function enqueueDownloads(ids) {
       md5: f.md5,
       sha1: f.sha1,
       label: `${f.product} [${f.format || f.platform}] ${f.filename}`,
+      v2: !!f.v2,
+      itemId: f.itemId,
+      product: f.product,
     }));
   const added = downloader.enqueue(items);
   log(`Queued ${added} file(s) → ${settings.downloadDir}`);

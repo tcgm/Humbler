@@ -197,10 +197,12 @@ humbler.onLibraryUpdated(loadLibrary);
 const EXPIRING_DAYS = 30;
 const isExpiring = (k) => k.status === "unused" && k.daysLeft != null && k.daysLeft <= EXPIRING_DAYS;
 
-function filteredKeys() {
+// ignoreState: everything matching bundle/type/search, whatever its status
+// (used by the summary to explain what the status filter is hiding).
+function filteredKeys({ ignoreState = false } = {}) {
   const q = $("keySearch").value.trim().toLowerCase();
   const bundle = $("keyBundle").value;
-  const st = $("keyState").value;
+  const st = ignoreState ? "all" : $("keyState").value;
   const type = $("keyType").value;
   return state.lib.keys.filter((k) => {
     if (bundle && k.gamekey !== bundle) return false;
@@ -296,9 +298,22 @@ function renderKeys() {
   $("keyMore").hidden = rows.length <= ROW_LIMIT;
   $("keyMore").textContent = `Showing ${ROW_LIMIT} of ${rows.length} — narrow the filters to see the rest.`;
   $("keyAll").checked = rows.length > 0 && rows.every((k) => state.selKeys.has(k.id));
-  const revealed = rows.filter((k) => k.status === "revealed").length;
-  const expiring = state.lib.keys.filter(isExpiring).length;
-  $("keySummary").textContent = `${rows.length} shown · ${revealed} revealed${expiring ? ` · ⚠ ${expiring} expiring within ${EXPIRING_DAYS} days` : ""}`;
+  // Summarise the current bundle/type/search, so an empty view explains
+  // itself ("0 shown of 37: 37 revealed").
+  const base = filteredKeys({ ignoreState: true });
+  const byStatus = {};
+  for (const k of base) byStatus[k.status] = (byStatus[k.status] || 0) + 1;
+  const labels = { unused: "unrevealed", revealed: "revealed", gifted: "gifted", link: "redeem links", expired: "expired", "sold-out": "sold out" };
+  const breakdown = Object.entries(byStatus)
+    .sort((a, b) => b[1] - a[1])
+    .map(([s, n]) => `${n} ${labels[s] || s}`)
+    .join(", ");
+  const expiring = base.filter(isExpiring).length;
+  const hidden = base.length - rows.length;
+  $("keySummary").textContent =
+    `${rows.length} shown` +
+    (hidden ? ` of ${base.length} (${breakdown}). Change the status filter to see the rest` : base.length ? ` (${breakdown})` : "") +
+    (expiring ? ` · ⚠ ${expiring} expiring within ${EXPIRING_DAYS} days` : "");
   updateKeyButtons();
 }
 
