@@ -7,6 +7,14 @@ const api = window.humbler;
 
 export type TabId = "keys" | "bundles" | "choice" | "files" | "library" | "log";
 
+interface Nav {
+  tab: TabId;
+  bundleId: string | null;
+  choiceMonth: string | null;
+}
+
+const isNav = (s: unknown): s is Nav => !!s && typeof s === "object" && typeof (s as Nav).tab === "string";
+
 export interface OrderInfo extends OrderItem {
   createdAt: string | null;
   total: Money | null;
@@ -81,9 +89,58 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [orders, setOrders] = useState<Map<string, OrderInfo>>(new Map());
   const [ordersTotal, setOrdersTotal] = useState<number | null>(null);
   const [choiceMonths, setChoiceMonths] = useState<ChoiceMonth[]>([]);
-  const [tab, setTab] = useState<TabId>("keys");
-  const [bundleId, setBundleId] = useState<string | null>(null);
-  const [choiceMonth, setChoiceMonth] = useState<string | null>(null);
+  // Where you are: tab + open bundle page + open Choice month. Every change
+  // is a browser-history entry, so back/forward (mouse buttons 4/5,
+  // Alt+←/→) step through it like a website.
+  const [nav, setNav] = useState<Nav>(() => (isNav(history.state) ? history.state : { tab: "keys", bundleId: null, choiceMonth: null }));
+  const navRef = useRef(nav);
+  navRef.current = nav;
+  const navigate = useCallback((patch: Partial<Nav>) => {
+    const next = { ...navRef.current, ...patch };
+    const cur = navRef.current;
+    if (next.tab === cur.tab && next.bundleId === cur.bundleId && next.choiceMonth === cur.choiceMonth) return; // no-op: no history entry
+    history.pushState(next, "");
+    navRef.current = next;
+    setNav(next);
+  }, []);
+  useEffect(() => {
+    history.replaceState(navRef.current, ""); // the starting point back can return to
+    const onPop = (e: PopStateEvent) => {
+      if (isNav(e.state)) setNav(e.state);
+    };
+    // Mouse buttons 4/5 (back/forward) and Alt+←/→, anywhere in the UI.
+    const onMouse = (e: MouseEvent) => {
+      if (e.button === 3 || e.button === 4) {
+        e.preventDefault();
+        if (e.button === 3) history.back();
+        else history.forward();
+      }
+    };
+    const swallow = (e: MouseEvent) => {
+      if (e.button === 3 || e.button === 4) e.preventDefault(); // no stray default action on press
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        history.back();
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        history.forward();
+      }
+    };
+    window.addEventListener("popstate", onPop);
+    window.addEventListener("mouseup", onMouse);
+    window.addEventListener("mousedown", swallow);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      window.removeEventListener("mouseup", onMouse);
+      window.removeEventListener("mousedown", swallow);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, []);
+  const { tab, bundleId, choiceMonth } = nav;
   const [theme, setTheme] = useState<Theme>("dark");
   const [redeemQuestion, setRedeemQuestion] = useState<PendingRedeem | null>(null);
   const pendingRedeem = useRef<PendingRedeem | null>(null);
@@ -173,17 +230,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     owned,
     busy: !!status?.busy,
     tab,
-    setTab,
+    setTab: (t) => navigate({ tab: t }),
     bundleId,
-    openBundle: (id) => {
-      setBundleId(id);
-      if (id) setTab("bundles");
-    },
+    openBundle: (id) => navigate(id ? { tab: "bundles", bundleId: id } : { bundleId: null }),
     choiceMonth,
-    openChoiceMonth: (m) => {
-      setChoiceMonth(m);
-      if (m) setTab("choice");
-    },
+    openChoiceMonth: (m) => navigate(m ? { tab: "choice", choiceMonth: m } : { choiceMonth: null }),
     theme,
     toggleTheme: () => {
       const next = theme === "dark" ? "light" : "dark";

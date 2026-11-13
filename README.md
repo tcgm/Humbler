@@ -132,9 +132,12 @@ Vite's default 5173 is often inside one.
      aren't in your library yet are marked "Not in your library yet", with a
      link to claim them. The library page only provides images for the
      current month; other games get placeholder tiles.
-8. **Dark mode** is the default everywhere. The ☀ button in the top bar
+8. **Back and forward** work like a browser: your **mouse's back/forward
+   buttons** (or Alt+← / Alt+→) step through tabs, bundle pages and Choice
+   months you've visited. Each tab keeps its filters and scroll position.
+9. **Dark mode** is the default everywhere. The ☀ button in the top bar
    switches to light mode (☾ switches back), and the choice is remembered.
-9. Anything else Humbler doesn't handle, such as gifting, still works in the
+10. Anything else Humbler doesn't handle, such as gifting, still works in the
    right-hand pane. **Hide browser** gives the UI the full window.
 
 ## Harvesting (the scraping half)

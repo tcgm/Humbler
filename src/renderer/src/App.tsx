@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { RedeemAsk } from "./components/RedeemAsk";
 import { api, useStore, type TabId } from "./store";
 import { BundlesTab } from "./tabs/BundlesTab";
@@ -13,14 +13,15 @@ export function App() {
   const { lib, status, tab, setTab } = s;
   // Tabs mount on first visit and then stay mounted (hidden), so switching
   // tabs keeps your filters, selection and scroll position.
-  const [visited, setVisited] = useState<Set<TabId>>(new Set(["keys"]));
+  // (Tracked from the current tab, so tabs reached with back/forward count too.)
+  const [visited, setVisited] = useState<Set<TabId>>(new Set([tab]));
+  useEffect(() => setVisited((v) => (v.has(tab) ? v : new Set([...v, tab]))), [tab]);
 
   const go = (t: TabId) => {
     // Clicking the tab you're on returns Bundles/Choice to their lists.
     if (t === tab && t === "bundles") s.openBundle(null);
     if (t === tab && t === "choice") s.openChoiceMonth(null);
     setTab(t);
-    setVisited((v) => (v.has(t) ? v : new Set([...v, t])));
   };
 
   const unrevealed = lib.keys.filter((k) => k.status === "unused").length;
