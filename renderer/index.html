@@ -135,20 +135,16 @@
   <!-- CHOICE -->
   <section id="tab-choice" class="panel" hidden>
     <div class="toolbar">
-      <button id="scanUnseenBtn" class="primary" title="Visit every Choice month page you haven't harvested yet, slowly">Scan unseen months</button>
-      <button id="scanAllBtn" title="Re-visit every Choice month page">Rescan all</button>
-      <button id="scanStopBtn" hidden>Stop scan</button>
-      <span id="scanProgress" class="muted"></span>
+      <button id="choiceLibraryBtn" class="primary" title="Open your Humble library on the right; Humbler picks up the current Choice month from it">Open library to refresh</button>
     </div>
     <div class="filters">
       <input id="choiceSearch" type="search" placeholder="Search games…" />
       <select id="choiceStatus">
-        <option value="unclaimed" selected>Months with unclaimed games</option>
+        <option value="unclaimed" selected>Months with games not in your library</option>
         <option value="all">All months</option>
-        <option value="unseen">Not scanned yet</option>
       </select>
     </div>
-    <p class="muted hint">Choice pages are harvested automatically whenever you open one on the right, or all at once with Scan. Claimed games are also checked against your synced library.</p>
+    <p class="muted hint">Humble removed its Choice pages in the 2026 redesign. Choice games now appear in your library, where you redeem them. Humbler reads the current month whenever you open your library on the right, and keeps every month it has seen. A game turns green once it's in your synced library.</p>
     <div id="choiceList" class="tableWrap list"></div>
   </section>
 

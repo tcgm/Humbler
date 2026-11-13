@@ -115,9 +115,6 @@ humbler.onStatus((s) => {
   const parts = [];
   if (s.busy === "sync") parts.push("syncing…");
   if (s.busy === "reveal") parts.push("revealing keys…");
-  if (s.busy === "choice-scan") parts.push("scanning Choice…");
-  $("scanUnseenBtn").disabled = $("scanAllBtn").disabled = !!s.busy;
-  $("scanStopBtn").hidden = s.busy !== "choice-scan";
   $("naming").value = s.naming;
   $("markOwned").checked = !!s.markOwned;
   $("liveScout").checked = !!s.liveScout;
@@ -540,12 +537,11 @@ async function renderChoice() {
   for (const m of months) {
     const games = Object.entries(m.games || {}).map(([id, g]) => ({ id, ...g, owned: owned.has(normTitle(g.title)) }));
     const unclaimed = games.filter((g) => !g.claimed && !g.owned);
-    // Only count months you were (probably) subscribed for: an order exists, or the page offered claiming.
+    // Only count months you were (probably) subscribed for: an order exists, or the page said you're a member.
     const entitled = !!m.gamekey || m.canClaim === true;
     if (entitled) totalUnclaimed += unclaimed.length;
 
-    if (mode === "unseen" && m.seen) continue;
-    if (mode === "unclaimed" && !(m.seen && entitled && unclaimed.length)) continue;
+    if (mode === "unclaimed" && !(entitled && unclaimed.length)) continue;
     const shown = games.filter((g) => !q || g.title.toLowerCase().includes(q));
     if (q && !shown.length) continue;
 
@@ -553,13 +549,12 @@ async function renderChoice() {
       "h3",
       {},
       m.title || m.month,
-      extLink("open", m.url, "Open this month on Humble"),
-      m.seen
-        ? el("span", {
-            class: `tag ${entitled ? (unclaimed.length ? "warn" : "ok") : ""}`,
-            textContent: entitled ? `${unclaimed.length} unclaimed / ${games.length}` : `${games.length} games · not subscribed?`,
-          })
-        : el("span", { class: "tag", textContent: "not scanned" }),
+      extLink("open", m.url, m.source === "library" ? "Open your library on Humble (redeem Choice games there)" : "Open this month on Humble"),
+      el("span", {
+        class: `tag ${entitled ? (unclaimed.length ? "warn" : "ok") : ""}`,
+        textContent: entitled ? `${unclaimed.length} not in library / ${games.length}` : `${games.length} games · not subscribed?`,
+        title: "Games count as yours once they show up in your synced library",
+      }),
     );
     const grid = el("div", { class: "games" });
     for (const g of shown) {
@@ -572,25 +567,27 @@ async function renderChoice() {
         g.image ? el("img", { src: g.image, loading: "lazy", alt: "" }) : null,
         el("span", { class: "t", textContent: g.title }),
       );
-      card.addEventListener("click", () => humbler.openUrl(`${m.url}/${encodeURIComponent(g.id)}`));
+      // Old-site months linked to per-game pages; the new site only has the library.
+      card.addEventListener("click", () => humbler.openUrl(m.source === "library" ? m.url : `${m.url}/${encodeURIComponent(g.id)}`));
       grid.append(card);
     }
-    frag.append(el("div", { class: `month${m.seen ? "" : " unseen"}` }, head, games.length ? grid : null));
+    frag.append(el("div", { class: "month" }, head, games.length ? grid : null));
   }
   if (!frag.childNodes.length) {
-    frag.append(el("div", { class: "more", textContent: mode === "unclaimed" ? "No unclaimed Choice games found (in scanned months)." : "Nothing to show." }));
+    const text = !months.length
+      ? "No Choice months yet. Open your library on the right and Humbler will pick up the current month."
+      : mode === "unclaimed"
+        ? "Every Choice game Humbler has seen is in your library."
+        : "Nothing to show.";
+    frag.append(el("div", { class: "more", textContent: text }));
   }
   $("choiceList").replaceChildren(frag);
-  const unseen = months.filter((m) => !m.seen).length;
-  $("choiceCount").textContent = `${totalUnclaimed} unclaimed${unseen ? ` · ${unseen} unscanned` : ""}`;
+  $("choiceCount").textContent = months.length ? `${totalUnclaimed} not in library` : "";
 }
 
 ["choiceSearch", "choiceStatus"].forEach((id) => $(id).addEventListener("input", renderChoice));
-$("scanUnseenBtn").addEventListener("click", () => humbler.scanChoice(false));
-$("scanAllBtn").addEventListener("click", () => humbler.scanChoice(true));
-$("scanStopBtn").addEventListener("click", () => humbler.stopChoiceScan());
+$("choiceLibraryBtn").addEventListener("click", () => humbler.go("library"));
 humbler.onChoiceUpdated(renderChoice);
-humbler.onChoiceScanProgress((p) => ($("scanProgress").textContent = `${p.done}/${p.total} · ${p.month}`));
 
 // ---- scouting -----------------------------------------------------------
 

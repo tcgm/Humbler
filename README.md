@@ -70,15 +70,18 @@ Node and no window opens.
      own on Humble's store, bundle and Choice pages in the right-hand pane. It
      matches titles rather than one page layout, so it keeps working through
      redesigns.
-6. **Choice tab** tracks unclaimed Humble Choice games, as Librarian did.
-   - Opening any Choice month on the right harvests it automatically.
-     **Scan unseen months** walks every month since December 2019 that hasn't
-     been harvested, slowly (`CHOICE_SCAN_DELAY_*`). **Rescan all** revisits
-     every month.
-   - A game counts as claimed if the page says so, or if it's already in your
-     synced library. Months with no order on your account are marked "not
-     subscribed?" and left out of the unclaimed count.
-   - Click a game to open it on the right and claim it there.
+6. **Choice tab** tracks Humble Choice games you haven't got yet, as Librarian
+   did.
+   - Humble's 2026 redesign removed the per-month Choice pages. Choice games
+     now appear in your library, and you redeem them there. Your library page
+     carries the current month's games (`currentChoiceProductInfo`), so
+     Humbler reads them whenever you open your library on the right (at most
+     every 5 minutes). It keeps every month it has seen, so history builds up
+     month by month.
+   - A game counts as yours once it's in your synced library (matched by
+     title). Months where you weren't a member are marked "not subscribed?"
+     and left out of the count.
+   - Click a game to open your library and redeem it there.
 7. Anything else Humbler doesn't handle, such as gifting, still works in the
    right-hand pane. **Hide browser** gives the UI the full window.
 

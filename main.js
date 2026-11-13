@@ -18,7 +18,6 @@ const { politeDelay } = require("./lib/throttle");
 const env = (name, fallback) => Number(process.env[name] ?? fallback);
 const API_DELAY = [env("API_DELAY_MIN_MS", 700), env("API_DELAY_MAX_MS", 1800)];
 const REVEAL_DELAY = [env("REVEAL_DELAY_MIN_MS", 1200), env("REVEAL_DELAY_MAX_MS", 2500)];
-const CHOICE_SCAN_DELAY = [env("CHOICE_SCAN_DELAY_MIN_MS", 3000), env("CHOICE_SCAN_DELAY_MAX_MS", 6000)];
 const URL_MAX_AGE_MS = env("URL_MAX_AGE_MINUTES", 20) * 60_000;
 
 const PARTITION = "persist:humble";
@@ -34,7 +33,7 @@ let humbleView; // real humblebundle.com, for logging in and anything Humbler ca
 let browserVisible = true;
 let settings = settingsStore.load();
 let index = { bundles: [], keys: [], files: [], products: [] };
-let busy = null; // "sync" | "reveal" | "choice-scan" while one of those is running
+let busy = null; // "sync" | "reveal" while one of those is running
 
 const humbleSession = () => session.fromPartition(PARTITION);
 const api = new HumbleApi(humbleSession);
@@ -576,21 +575,37 @@ function pageJsonRoots({ captured, embedded, flight }) {
 
 // ---- harvesting (Choice) + owned marking ------------------------------
 
+// Since the 2026 redesign there are no Choice month pages: the library
+// page carries the current month (currentChoiceProductInfo), and Choice
+// games are redeemed in the library. /membership is still harvested in
+// case it ever carries Choice data again.
 const isMembershipPage = (url) => /^https:\/\/www\.humblebundle\.com\/membership(\/|$)/.test(url);
+const isLibraryPage = (url) => /^https:\/\/www\.humblebundle\.com\/home\/library(\/|$|\?)/.test(url);
 const isMarkablePage = (url) =>
   /^https:\/\/www\.humblebundle\.com\//.test(url) && !/^https:\/\/www\.humblebundle\.com\/(home|downloads|login)/.test(url);
+const LIBRARY_HARVEST_EVERY_MS = 5 * 60 * 1000; // library pages are opened constantly; Choice data changes monthly
+let lastLibraryHarvest = 0;
 
 async function harvestChoicePage(wc) {
   const url = wc.getURL();
+  const fromLibrary = isLibraryPage(url);
+  if (fromLibrary) {
+    if (Date.now() - lastLibraryHarvest < LIBRARY_HARVEST_EVERY_MS) return 0;
+    lastLibraryHarvest = Date.now();
+  }
   const pageData = await collectPageData(wc);
   const { captured, embedded, flight } = pageData;
   const dom = await wc.executeJavaScript(harvest.DOM_CHOICE_SCRIPT).catch(() => []);
   const roots = pageJsonRoots(pageData);
   const found = [...harvest.extractChoiceFromJson(roots, url), ...harvest.extractChoiceFromDom(dom, url)];
-  try {
-    harvest.saveRawHarvest("choice", url, { captured, embedded, flight: flightData(flight), dom, extracted: found }, makeScrubber());
-  } catch (err) {
-    log(`Choice: raw harvest not saved (${err.message})`);
+  // Raw harvests are large, so keep them only when they're informative: a
+  // hit, or a membership page that yielded nothing (worth investigating).
+  if (found.length || !fromLibrary) {
+    try {
+      harvest.saveRawHarvest("choice", url, { captured, embedded, flight: flightData(flight), dom, extracted: found }, makeScrubber());
+    } catch (err) {
+      log(`Choice: raw harvest not saved (${err.message})`);
+    }
   }
 
   // Months with an order on your account are ones you were subscribed for.
@@ -603,7 +618,7 @@ async function harvestChoicePage(wc) {
   for (const f of found) f.gamekey ||= orderMonths.get(f.month) || null;
 
   if (!found.length) {
-    log(`Choice: nothing recognisable on ${url} (raw harvest saved under data/harvest/choice — scout it and send me the summary).`);
+    if (!fromLibrary) log(`Choice: nothing recognisable on ${url} (raw harvest saved under data/harvest/choice).`);
     return 0;
   }
   const store = harvest.mergeChoice(harvest.loadChoice(), found);
@@ -622,62 +637,19 @@ async function markOwnedOnPage(wc) {
   if (n) log(`Marked ${n} owned item(s) on this page.`);
 }
 
-let choiceScanStop = false;
-
-async function scanChoice({ all }) {
-  if (busy) return { ok: false, reason: `busy (${busy})` };
-  busy = "choice-scan";
-  choiceScanStop = false;
-  pushStatus();
-  try {
-    const store = harvest.loadChoice();
-    const months = harvest.allChoiceMonths().filter((m) => all || !store.months[m]);
-    log(`Choice scan: visiting ${months.length} month page(s), politely…`);
-    setBrowserVisible(true);
-    const wc = humbleView.webContents;
-    let done = 0;
-    for (const m of months) {
-      if (choiceScanStop) {
-        log("Choice scan stopped.");
-        break;
-      }
-      await new Promise((resolve) => {
-        const finish = () => {
-          clearTimeout(t);
-          wc.removeListener("did-finish-load", finish);
-          resolve();
-        };
-        const t = setTimeout(finish, 30000);
-        wc.once("did-finish-load", finish);
-        wc.loadURL(harvest.choiceMonthUrl(m)).catch(finish);
-      });
-      if (/auth\.humblebundle\.com/.test(wc.getURL())) {
-        log("Choice scan: Humble wants you to log in — stopping.");
-        noteApiLogin(false);
-        break;
-      }
-      await politeDelay(2500, 3500); // let the page's own data requests land
-      await harvestChoicePage(wc);
-      done += 1;
-      send("choice-scan-progress", { done, total: months.length, month: m });
-      await politeDelay(...CHOICE_SCAN_DELAY);
-    }
-    log(`Choice scan finished: ${done}/${months.length} month(s) visited.`);
-    return { ok: true, done };
-  } finally {
-    busy = null;
-    pushStatus();
-  }
-}
-
+// Harvested months only, newest first. (There are no per-month pages to
+// scan any more; months accumulate as you open your library each month.)
 function choiceView() {
   const store = harvest.loadChoice();
-  return harvest.allChoiceMonths().map((m) => ({
-    month: m,
-    url: harvest.choiceMonthUrl(m),
-    seen: !!store.months[m],
-    ...(store.months[m] || {}),
-  }));
+  return Object.keys(store.months)
+    .sort()
+    .reverse()
+    .map((m) => ({
+      ...store.months[m],
+      month: m,
+      seen: true,
+      url: store.months[m].source === "library" ? "https://www.humblebundle.com/home/library" : harvest.choiceMonthUrl(m),
+    }));
 }
 
 // ---- window -----------------------------------------------------------
@@ -796,7 +768,7 @@ function createWindow() {
       const flight = await wc.executeJavaScript(PAGE_FLIGHT_SCRIPT).catch(() => "");
       if (flight) liveScout.record({ kind: "rsc", method: "PAGE", url, status: 200, text: flight }, url);
     }
-    if (isMembershipPage(url) && busy !== "choice-scan") {
+    if (isMembershipPage(url) || isLibraryPage(url)) {
       await harvestChoicePage(wc).catch((err) => log(`Choice harvest failed: ${err.message}`));
     }
     if (isMarkablePage(url)) await markOwnedOnPage(wc);
@@ -818,10 +790,6 @@ const idList = (ids) => (Array.isArray(ids) ? ids.map(String) : []);
 ipcMain.handle("library:get", () => index);
 ipcMain.handle("log:history", () => logHistory);
 ipcMain.handle("choice:get", () => choiceView());
-ipcMain.handle("choice:scan", (_e, opts) => scanChoice({ all: !!opts?.all }));
-ipcMain.handle("choice:stop", () => {
-  choiceScanStop = true;
-});
 ipcMain.handle("browser:open", (_e, url) => {
   // Only Humble pages open in the pane; everything else goes to your real browser.
   if (typeof url !== "string") return;
