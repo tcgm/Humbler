@@ -23,6 +23,23 @@ Electron 44. `npm start` runs `scripts/start.js`, which clears
 tooling) set that variable, and when it's set Electron quietly runs as plain
 Node and no window opens.
 
+### Dev mode
+
+```
+npm run dev
+```
+
+Use this while the code is changing:
+
+- **`renderer/` changes** reload only the Humbler panel. The Humble pane,
+  your login and running downloads are untouched.
+- **`main.js`, `preload.js` or `lib/` changes** restart the app. It's a
+  normal quit, so cookies are saved first.
+- DevTools opens for the Humbler UI.
+- Closing the window ends dev mode.
+
+`npm start` is the plain run, with no watching and no DevTools.
+
 ## Usage
 
 1. **Log in** in the right-hand pane. Use email and password; Google/Facebook

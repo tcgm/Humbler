@@ -6,6 +6,7 @@
   "main": "main.js",
   "scripts": {
     "start": "node scripts/start.js",
+    "dev": "node scripts/dev.js",
     "scrub-data": "node scripts/scrub-data.js"
   },
   "dependencies": {

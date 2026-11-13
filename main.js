@@ -724,6 +724,7 @@ function createWindow() {
   layout();
 
   uiView.webContents.loadFile(path.join(__dirname, "renderer", "index.html"));
+  if (process.env.HUMBLER_DEV === "1") uiView.webContents.openDevTools({ mode: "detach" });
   attachScout(humbleView.webContents); // before the first load, so it's injected from the start
   humbleView.webContents.loadURL(`${BASE}/home/library`);
 
@@ -780,6 +781,9 @@ function createWindow() {
   win.on("closed", () => {
     downloader.cancelAll();
     win = uiView = humbleView = null;
+    // Quit explicitly: a detached DevTools window (dev mode) would otherwise
+    // keep the app alive with no main window.
+    app.quit();
   });
 }
 
@@ -871,6 +875,19 @@ ipcMain.handle("browser:go", (_e, where) => {
   humbleView.webContents.loadURL(BASE + (routes[where] || "/home/library"));
 });
 ipcMain.handle("clipboard:write", (_e, text) => clipboard.writeText(String(text ?? "")));
+
+// Dev mode (scripts/dev.js): DevTools for the UI, and the dev runner asks
+// us to reload the UI or quit cleanly (instead of killing us) when files change.
+const DEV = process.env.HUMBLER_DEV === "1";
+if (DEV && typeof process.on === "function") {
+  process.on("message", (msg) => {
+    if (msg?.humblerDev === "reload-ui" && uiView && !uiView.webContents.isDestroyed()) {
+      uiView.webContents.reloadIgnoringCache();
+    } else if (msg?.humblerDev === "quit") {
+      app.quit();
+    }
+  });
+}
 
 app.whenReady().then(() => {
   rebuildIndex();
