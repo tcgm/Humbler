@@ -120,6 +120,8 @@ humbler.onStatus((s) => {
   $("scanStopBtn").hidden = s.busy !== "choice-scan";
   $("naming").value = s.naming;
   $("markOwned").checked = !!s.markOwned;
+  $("liveScout").checked = !!s.liveScout;
+  $("liveSummary").textContent = s.live ? `${s.live.endpoints} endpoints · ${s.live.samples} response shapes` : "";
   if (q.active || q.queued) parts.push(`downloading ${q.active} · ${q.queued} queued`);
   $("busy").hidden = !parts.length;
   $("busy").textContent = parts.join(" · ");
@@ -605,6 +607,8 @@ $("scoutBtn").addEventListener("click", async () => {
   }
 });
 $("reconDirBtn").addEventListener("click", () => humbler.openReconFolder());
+$("liveDirBtn").addEventListener("click", () => humbler.openLiveCatalog());
+$("liveScout").addEventListener("change", (e) => humbler.setSettings({ liveScout: e.target.checked }));
 
 // ---- boot ---------------------------------------------------------------
 

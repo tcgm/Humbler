@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("humbler", {
   getLogHistory: () => ipcRenderer.invoke("log:history"),
   scoutPage: (reload) => ipcRenderer.invoke("scout:page", { reload }),
   openReconFolder: () => ipcRenderer.invoke("scout:open-folder"),
+  openLiveCatalog: () => ipcRenderer.invoke("scout:open-live"),
   requestStatus: () => ipcRenderer.invoke("status:get"),
   sync: (full) => ipcRenderer.invoke("library:sync", { full }),
   revealKeys: (ids) => ipcRenderer.invoke("keys:reveal", ids),

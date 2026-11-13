@@ -108,8 +108,45 @@ every Humble page before Humble's own code runs (via CDP
 records every JSON response the page receives through `fetch` or XHR. A CDP
 Network log also keeps metadata for every request.
 
-To use it, browse to any page on the right, such as your library, your keys,
-or a Choice month. Then go to **Scout & Log** and click **Scout this page**.
+**Humble's 2026 site is a Next.js App Router app.** Most page data is no
+longer JSON. It travels as React Server Components payloads
+(`text/x-component`):
+
+- client-side navigation fetches `?_rsc=…` URLs
+- mutations are **server actions**: a POST with a `Next-Action` header
+- the first page load embeds its data in `self.__next_f.push(…)` script tags
+
+Humbler captures all three and decodes them to JSON (`lib/rsc.js`). Scouting,
+the live catalog and the Choice harvester all search this data alongside
+plain JSON.
+
+### Live scouting (continuous, on by default)
+
+While you browse Humble on the right, every JSON and RSC response from
+Humble's own domains is pushed to Humbler as it arrives, through a CDP
+binding, so navigating away loses nothing. Third-party analytics and
+Humble's error-monitoring endpoint are ignored. Everything goes into a
+running, scrubbed catalog in `data/recon/live/`:
+
+- `endpoints.json`: every endpoint seen, with hit counts, statuses, the
+  pages that call it, and first/last seen. Ids in paths collapse to `:id`,
+  and per-product RSC pages to `:slug`, so `/store/<anything>` is a single
+  entry.
+- `samples/`: for JSON, one sample per distinct response **shape**
+  (structure, not data). When Humble changes a response format, a new shape
+  appears and the log says "response shape changed". For RSC, one latest
+  decoded sample per endpoint, refreshed every 10 minutes.
+- **New server actions are logged prominently.** They're how the new site
+  makes changes. If key reveal stops working, reveal one key on Humble's own
+  keys page and the log will name the action that did it.
+
+Toggle it with **Live scouting** on the Scout & Log tab. Disk use is
+bounded: at most 20 shapes per endpoint.
+
+### Manual scout (full snapshot of one page)
+
+Browse to any page on the right, such as your library, your keys, or a
+Choice month. Then go to **Scout & Log** and click **Scout this page**.
 "Reload first" is on by default, so the page's data requests fire while
 Humbler is listening. The dump goes to `data/recon/<timestamp>-<page>/` and
 contains:
@@ -119,6 +156,7 @@ contains:
   easy to spot (also printed to the log)
 - `_network.json`: every request the page made, JSON or not
 - `_embedded.json`: JSON Humble embedded directly in the HTML
+- `_next-data.json`: the page's embedded Next.js (RSC) data, decoded to JSON rows
 - `_page.html`: the rendered page
 
 ### Scrubbing

@@ -7,6 +7,8 @@ const { INJECT_SOURCE } = require("./lib/inject-capture");
 const harvest = require("./lib/harvest");
 const { ownedMarkerSource } = require("./lib/owned-marker");
 const { makeScrubber, alias: gamekeyAlias } = require("./lib/scrub");
+const { LiveScout, LIVE_DIR, endpointOf } = require("./lib/live-scout");
+const { flightData, PAGE_FLIGHT_SCRIPT } = require("./lib/rsc");
 const settingsStore = require("./lib/settings");
 const lib = require("./lib/library");
 const { HumbleApi, NotLoggedInError, BASE, BULK_CHUNK } = require("./lib/humble-api");
@@ -62,8 +64,15 @@ function log(message) {
 function rebuildIndex() {
   index = lib.buildIndex(lib.loadAllOrders(), { downloadDir: settings.downloadDir, naming: settings.naming });
   ownedTitles = null;
+  liveScrubber = null; // new keys may be known now (sync / reveal)
   send("library-updated");
 }
+
+// Continuous scouting shares one scrubber, rebuilt whenever the set of
+// known keys can have changed (every rebuildIndex).
+let liveScrubber = null;
+const getLiveScrubber = () => (liveScrubber ||= makeScrubber());
+const liveScout = new LiveScout({ log: (m) => log(m), getScrubber: getLiveScrubber });
 
 let ownedTitles = null; // normalized titles of everything you own (lazy)
 function getOwnedTitles() {
@@ -105,6 +114,8 @@ async function pushStatus() {
     downloadDir: settings.downloadDir,
     naming: settings.naming,
     markOwned: settings.markOwned,
+    liveScout: settings.liveScout,
+    live: liveScout.summary(),
     busy,
     queue: downloader.summary(),
   });
@@ -404,10 +415,27 @@ function attachScout(wc) {
   }
   dbg.sendCommand("Network.enable").catch(() => {});
   dbg.sendCommand("Page.enable").catch(() => {});
+  // The binding the injected script pushes each response through. It's
+  // installed in every current and future page context.
+  dbg.sendCommand("Runtime.enable").catch(() => {});
+  dbg.sendCommand("Runtime.addBinding", { name: "__humblerEmit" }).catch((err) =>
+    log(`Live scouting unavailable (binding failed: ${err.message})`),
+  );
   dbg.sendCommand("Page.addScriptToEvaluateOnNewDocument", { source: INJECT_SOURCE }).catch((err) =>
     log(`Scouting: script injection failed (${err.message})`),
   );
+  let livePushes = 0;
   dbg.on("message", (_event, method, params) => {
+    if (method === "Runtime.bindingCalled" && params.name === "__humblerEmit") {
+      if (!settings.liveScout) return;
+      try {
+        liveScout.record(JSON.parse(params.payload), wc.getURL());
+        if (++livePushes % 25 === 0) pushStatus(); // keep the UI's live counts fresh without spamming
+      } catch (err) {
+        log(`Live scout: could not record a response (${err.message})`);
+      }
+      return;
+    }
     if (method === "Network.requestWillBeSent") {
       networkLog.push({
         id: params.requestId,
@@ -442,20 +470,6 @@ function slugifyUrl(url) {
   }
 }
 
-// Collapse ids in paths, so /api/v1/order/AbC123xyz groups with the others.
-function endpointOf(url) {
-  try {
-    const u = new URL(url);
-    const p = u.pathname
-      .split("/")
-      .map((seg) => (/^[A-Za-z0-9_-]{12,}$/.test(seg) && /\d/.test(seg) ? ":id" : seg))
-      .join("/");
-    return `${u.host}${p}`;
-  } catch {
-    return url;
-  }
-}
-
 async function scoutPage({ reload }) {
   if (!humbleView) return { ok: false, reason: "no-window" };
   const wc = humbleView.webContents;
@@ -475,6 +489,7 @@ async function scoutPage({ reload }) {
   const raw = await collectPageData(wc);
   const captured = scrub.scrubValue(raw.captured);
   const embedded = scrub.scrubValue(raw.embedded);
+  const flightRows = flightData(raw.flight);
   const html = await wc.executeJavaScript("document.documentElement.outerHTML").catch(() => "");
 
   const dir = path.join(RECON_DIR, `${new Date().toISOString().replace(/[:.]/g, "-")}-${slugifyUrl(url)}`);
@@ -483,6 +498,8 @@ async function scoutPage({ reload }) {
     captured.forEach((entry, i) => scrub.writeScrubbed(path.join(dir, `${String(i + 1).padStart(4, "0")}.json`), entry));
     scrub.writeScrubbed(path.join(dir, "_network.json"), networkLog);
     if (embedded.length) scrub.writeScrubbed(path.join(dir, "_embedded.json"), embedded);
+    // The page's embedded Next.js data, decoded from RSC rows to JSON.
+    if (flightRows.length) scrub.writeScrubbed(path.join(dir, "_next-data.json"), flightRows);
     if (html) scrub.writeScrubbed(path.join(dir, "_page.html"), html);
   } catch (err) {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -493,7 +510,7 @@ async function scoutPage({ reload }) {
   // Summary of what the page talks to, so the interesting endpoints jump out.
   const counts = new Map();
   for (const c of captured) {
-    const k = `${c.method} ${endpointOf(c.url)} → ${c.status}`;
+    const k = `${c.action ? `ACTION ${c.action}` : c.method} ${endpointOf(c.url)}${c.kind === "rsc" ? " [rsc]" : ""} → ${c.status}`;
     counts.set(k, (counts.get(k) || 0) + 1);
   }
   const summary = [...counts.entries()].sort((a, b) => b[1] - a[1]);
@@ -510,7 +527,11 @@ async function scoutPage({ reload }) {
   );
 
   log(`Scouted ${url}`);
-  log(`  ${captured.length} JSON response(s), ${networkLog.length} request(s) total, ${embedded.length} embedded JSON block(s)`);
+  const rscCount = captured.filter((c) => c.kind === "rsc").length;
+  log(
+    `  ${captured.length - rscCount} JSON + ${rscCount} RSC response(s), ${networkLog.length} request(s) total, ` +
+      `${embedded.length} embedded JSON block(s), ${flightRows.length} embedded Next.js data row(s)`,
+  );
   for (const [k, n] of summary.slice(0, 15)) log(`    ${n}× ${k}`);
   if (summary.length > 15) log(`    …and ${summary.length - 15} more in _summary.txt`);
   log(`  Saved to ${dir}`);
@@ -536,7 +557,21 @@ async function collectPageData(wc) {
       .filter(Boolean)`,
     [],
   );
-  return { captured, embedded };
+  // Next.js App Router pages embed their initial data as RSC chunks in
+  // self.__next_f; join them back into one flight payload.
+  const flight = await grab(PAGE_FLIGHT_SCRIPT, "");
+  return { captured, embedded, flight };
+}
+
+// Every JSON value a page holds, wherever it came from: JSON responses,
+// decoded RSC responses, embedded JSON, and the embedded RSC payload.
+function pageJsonRoots({ captured, embedded, flight }) {
+  return [
+    ...captured.filter((c) => c.kind !== "rsc").map((c) => c.body),
+    ...captured.filter((c) => c.kind === "rsc").flatMap((c) => flightData(c.text)),
+    ...embedded.map((e) => e.json).filter(Boolean),
+    ...flightData(flight),
+  ].filter((v) => v && typeof v === "object");
 }
 
 // ---- harvesting (Choice) + owned marking ------------------------------
@@ -547,12 +582,13 @@ const isMarkablePage = (url) =>
 
 async function harvestChoicePage(wc) {
   const url = wc.getURL();
-  const { captured, embedded } = await collectPageData(wc);
+  const pageData = await collectPageData(wc);
+  const { captured, embedded, flight } = pageData;
   const dom = await wc.executeJavaScript(harvest.DOM_CHOICE_SCRIPT).catch(() => []);
-  const roots = [...captured.map((c) => c.body), ...embedded.map((e) => e.json).filter(Boolean)];
+  const roots = pageJsonRoots(pageData);
   const found = [...harvest.extractChoiceFromJson(roots, url), ...harvest.extractChoiceFromDom(dom, url)];
   try {
-    harvest.saveRawHarvest("choice", url, { captured, embedded, dom, extracted: found }, makeScrubber());
+    harvest.saveRawHarvest("choice", url, { captured, embedded, flight: flightData(flight), dom, extracted: found }, makeScrubber());
   } catch (err) {
     log(`Choice: raw harvest not saved (${err.message})`);
   }
@@ -709,19 +745,27 @@ function createWindow() {
 
   // Auto-harvest Choice pages as you browse them (the scan harvests its own
   // pages), and highlight owned items on store/bundle/Choice pages.
-  const afterLoad = async () => {
+  const afterLoad = async (fullLoad) => {
     const wc = humbleView?.webContents;
     if (!wc) return;
     const url = wc.getURL();
     await politeDelay(2000, 2500);
     if (!humbleView || wc.getURL() !== url) return; // navigated away meanwhile
+    // Live scouting also catalogs each full page load's embedded Next.js data,
+    // which never passes through fetch.
+    // (Full loads only: __next_f isn't updated by client-side navigation,
+    // whose data arrives as RSC fetches that are captured anyway.)
+    if (fullLoad && settings.liveScout && /^https:\/\/www\.humblebundle\.com\//.test(url)) {
+      const flight = await wc.executeJavaScript(PAGE_FLIGHT_SCRIPT).catch(() => "");
+      if (flight) liveScout.record({ kind: "rsc", method: "PAGE", url, status: 200, text: flight }, url);
+    }
     if (isMembershipPage(url) && busy !== "choice-scan") {
       await harvestChoicePage(wc).catch((err) => log(`Choice harvest failed: ${err.message}`));
     }
     if (isMarkablePage(url)) await markOwnedOnPage(wc);
   };
-  humbleView.webContents.on("did-finish-load", afterLoad);
-  humbleView.webContents.on("did-navigate-in-page", afterLoad);
+  humbleView.webContents.on("did-finish-load", () => afterLoad(true));
+  humbleView.webContents.on("did-navigate-in-page", () => afterLoad(false));
 
   win.on("resize", layout);
   win.on("closed", () => {
@@ -755,6 +799,10 @@ ipcMain.handle("settings:set", (_e, patch) => {
   const next = { ...settings };
   if (patch && settingsStore.NAMING.includes(patch.naming)) next.naming = patch.naming;
   if (patch && typeof patch.markOwned === "boolean") next.markOwned = patch.markOwned;
+  if (patch && typeof patch.liveScout === "boolean") {
+    next.liveScout = patch.liveScout;
+    if (patch.liveScout !== settings.liveScout) log(`Live scouting ${patch.liveScout ? "on" : "off"}.`);
+  }
   const namingChanged = next.naming !== settings.naming;
   settings = next;
   settingsStore.save(settings);
@@ -765,6 +813,11 @@ ipcMain.handle("settings:set", (_e, patch) => {
   pushStatus();
 });
 ipcMain.handle("scout:page",(_e, opts) => scoutPage({ reload: !!opts?.reload }));
+ipcMain.handle("scout:open-live", () => {
+  liveScout.saveNow();
+  fs.mkdirSync(LIVE_DIR, { recursive: true });
+  return shell.openPath(LIVE_DIR);
+});
 ipcMain.handle("scout:open-folder", () => {
   fs.mkdirSync(RECON_DIR, { recursive: true });
   return shell.openPath(RECON_DIR);
@@ -820,4 +873,5 @@ app.whenReady().then(() => {
   log(`Loaded ${index.bundles.length} cached orders, ${index.keys.length} keys, ${index.files.length} files.`);
 });
 
+app.on("before-quit", () => liveScout.saveNow());
 app.on("window-all-closed", () => app.quit());

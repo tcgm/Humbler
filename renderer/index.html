@@ -155,12 +155,18 @@
   <!-- LOG -->
   <section id="tab-log" class="panel" hidden>
     <div class="toolbar">
+      <label class="check" title="Record every JSON response Humble's pages receive, as you browse, into a scrubbed endpoint catalog"><input id="liveScout" type="checkbox" /> Live scouting</label>
+      <span id="liveSummary" class="muted"></span>
+      <span class="spacer"></span>
+      <button id="liveDirBtn">Open live catalog</button>
+    </div>
+    <div class="toolbar">
       <button id="scoutBtn" class="primary" title="Dump every JSON response the Humble page has received, plus embedded page data, to data/recon/">Scout this page</button>
       <label class="check"><input id="scoutReload" type="checkbox" checked /> Reload first</label>
       <span class="spacer"></span>
       <button id="reconDirBtn">Open recon folder</button>
     </div>
-    <p class="muted hint">Browse to any Humble page on the right, then Scout it to see which endpoints it really calls. Use this when Sync or Reveal breaks after a site change. Recon dumps contain your account data, so keep them private.</p>
+    <p class="muted hint">Live scouting runs all the time. Every endpoint Humble's pages call is catalogued as you browse, and the log flags new endpoints and changed response formats. Scout this page adds a full snapshot (HTML, every request) of one page. Keys, tokens and gamekeys are scrubbed from everything written.</p>
     <div id="log" class="log"></div>
   </section>
 
