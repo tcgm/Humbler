@@ -8,10 +8,12 @@ const harvest = require("./lib/harvest");
 const { ownedMarkerSource } = require("./lib/owned-marker");
 const { makeScrubber, alias: gamekeyAlias } = require("./lib/scrub");
 const { LiveScout, LIVE_DIR, endpointOf } = require("./lib/live-scout");
+const { ActionRegistry } = require("./lib/actions");
+const libraryV2 = require("./lib/library-v2");
 const { flightData, PAGE_FLIGHT_SCRIPT } = require("./lib/rsc");
 const settingsStore = require("./lib/settings");
 const lib = require("./lib/library");
-const { HumbleApi, NotLoggedInError, ApiGoneError, BASE, BULK_CHUNK } = require("./lib/humble-api");
+const { HumbleApi, NotLoggedInError, BASE } = require("./lib/humble-api");
 const { Downloader } = require("./lib/downloader");
 const { politeDelay } = require("./lib/throttle");
 
@@ -82,7 +84,12 @@ function log(message) {
 }
 
 function rebuildIndex() {
-  index = lib.buildIndex(lib.loadAllOrders(), { downloadDir: settings.downloadDir, naming: settings.naming });
+  // The 2026 site's library (Sync v2) when synced; otherwise any legacy
+  // /api/v1 order cache from before the redesign.
+  const v2 = libraryV2.loadCache();
+  index = v2?.items?.length
+    ? libraryV2.buildIndexV2(v2.items, { downloadDir: settings.downloadDir, naming: settings.naming })
+    : lib.buildIndex(lib.loadAllOrders(), { downloadDir: settings.downloadDir, naming: settings.naming });
   ownedTitles = null;
   liveScrubber = null; // new keys may be known now (sync / reveal)
   send("library-updated");
@@ -93,6 +100,9 @@ function rebuildIndex() {
 let liveScrubber = null;
 const getLiveScrubber = () => (liveScrubber ||= makeScrubber());
 const liveScout = new LiveScout({ log: (m) => log(m), getScrubber: getLiveScrubber });
+// Which server action does what (ids change on every Humble deploy).
+const actionRegistry = new ActionRegistry();
+actionRegistry.seedFromCatalog(liveScout.catalog);
 
 let ownedTitles = null; // normalized titles of everything you own (lazy)
 function getOwnedTitles() {
@@ -143,80 +153,104 @@ async function pushStatus() {
 
 // ---- sync -------------------------------------------------------------
 
+// ---- sync, 2026 site (library server action) ----------------------------
+
+const V2_LIMITS = [100, 50, 20, 5]; // page sizes to try; the site itself uses 5
+
+async function callLibraryAction(action, page, limit, requestId) {
+  const r = await humbleView.webContents.executeJavaScript(
+    libraryV2.actionCallScript(action.id, action.page || "/home/library", libraryV2.libraryFields({ page, limit, requestId })),
+  );
+  const data = /x-component/i.test(r.contentType) ? libraryV2.parseLibraryResponse(r.text) : null;
+  if (!data) {
+    const snippet = String(r.text || "").replace(/\s+/g, " ").slice(0, 120).replace(/[A-Za-z0-9]{12,}/g, "…");
+    throw new Error(`library action gave HTTP ${r.status}, ${r.contentType || "no content-type"}: ${JSON.stringify(snippet)}`);
+  }
+  if (data.success === false) throw new Error(`library action reported failure: ${JSON.stringify(data.error ?? null).slice(0, 200)}`);
+  return data;
+}
+
 async function syncLibrary({ full }) {
   if (busy) return { ok: false, reason: `busy (${busy})` };
+  const action = actionRegistry.find(libraryV2.LIBRARY_ACTION_ARGS, /^\/home\/library/);
+  if (!action) {
+    log("Sync: Humbler hasn't yet seen how Humble's new library page loads your items.");
+    log("  Open your library on the right (Humble library link above), let it load, then Sync again.");
+    return { ok: false, reason: "action-unknown" };
+  }
   busy = "sync";
   pushStatus();
   try {
-    log(full ? "Full refresh: re-fetching every order…" : "Syncing library…");
-    const gamekeys = await api.listGamekeys();
-    noteApiLogin(true);
-    const cached = lib.cachedGamekeys();
-    const toFetch = full ? gamekeys : gamekeys.filter((k) => !cached.has(k));
-    log(`${gamekeys.length} orders on your account, ${toFetch.length} to fetch.`);
-
-    let fetched = 0;
-    let failed = 0;
-    for (let i = 0; i < toFetch.length; i += BULK_CHUNK) {
-      const chunk = toFetch.slice(i, i + BULK_CHUNK);
-      let orders = null;
-      try {
-        orders = await api.fetchOrdersBulk(chunk);
-      } catch (err) {
-        if (err instanceof NotLoggedInError) throw err;
-        log(`  bulk fetch failed (${err.message}); falling back to one-by-one`);
-      }
-      if (orders) {
-        orders.forEach((o) => lib.saveOrder(o));
-        fetched += orders.length;
-        failed += chunk.length - orders.length;
-      } else {
-        for (const key of chunk) {
-          try {
-            lib.saveOrder(await api.fetchOrder(key));
-            fetched += 1;
-          } catch (err) {
-            if (err instanceof NotLoggedInError) throw err;
-            failed += 1;
-            log(`  order ${gamekeyAlias(key)} failed: ${err.message}`);
-          }
-          await politeDelay(...API_DELAY);
-        }
-      }
-      log(`  ${Math.min(i + BULK_CHUNK, toFetch.length)}/${toFetch.length} orders processed`);
-      if (i + BULK_CHUNK < toFetch.length) await politeDelay(...API_DELAY);
-    }
-
-    rebuildIndex();
-    log(
-      `Sync done: ${fetched} fetched${failed ? `, ${failed} failed` : ""}. ` +
-        `Library: ${index.bundles.length} orders, ${index.keys.length} keys, ${index.files.length} files.`,
-    );
-    return { ok: true, fetched, failed };
-  } catch (err) {
-    if (err instanceof NotLoggedInError) {
-      // Don't take over the pane. If you're clearly logged in on the site,
-      // the old API just doesn't accept the new login, so say that instead.
-      const onSite = /^https:\/\/www\.humblebundle\.com\/home\//.test(humbleView?.webContents.getURL() || "");
-      if (onSite) {
-        log(
-          "Sync failed: Humble's old library API (/api/v1) refused the request even from inside your logged-in page. " +
-            "It probably doesn't accept the 2026 login. Sync needs moving to the new site's library data. The details above show what came back.",
-        );
-      } else {
-        noteApiLogin(false);
-        log("Not logged in. Log in on the right (Humble library link above), then sync again.");
-      }
+    await ensureHumblePageLoaded();
+    if (!humbleView.webContents.getURL().startsWith(`${BASE}/`)) {
+      noteApiLogin(false);
+      log("Not logged in. Log in on the right, then sync again.");
       return { ok: false, reason: "not-logged-in" };
     }
-    if (err instanceof ApiGoneError) {
-      log(`Sync failed: ${err.message}.`);
-      log(
-        "  Humble's 2026 site removed the old library API that Sync was built on. Sync has to move to the new " +
-          "site's library data (the server action the library page uses). Your cached data is untouched.",
-      );
-      return { ok: false, reason: "api-gone" };
+    const cache = libraryV2.loadCache();
+    const known = new Map((cache?.items || []).map((it) => [it.id, it]));
+    const incremental = !full && known.size > 0;
+    log(`${incremental ? "Syncing new items" : "Syncing your whole library"} via the new site (action ${action.id.slice(0, 10)}…)`);
+
+    // Page size: ask big; if Humble caps it, use what it actually gives.
+    let requestId = 1;
+    let limit = null;
+    let first = null;
+    for (const L of V2_LIMITS) {
+      try {
+        first = await callLibraryAction(action, 1, L, requestId++);
+      } catch (err) {
+        log(`  page size ${L}: ${err.message}`);
+        continue;
+      }
+      const total = first.pagination?.totalDocs ?? 0;
+      if (first.results.length === 0 && total > 0) continue;
+      limit = first.results.length < L && first.results.length < total ? first.results.length : L;
+      if (limit !== L) first = await callLibraryAction(action, 1, limit, requestId++);
+      break;
     }
+    if (!first || limit == null) throw new Error("the library action didn't return items at any page size");
+    noteApiLogin(true);
+    const totalDocs = first.pagination?.totalDocs ?? first.results.length;
+    const totalPages = first.pagination?.totalPages ?? 1;
+    log(`  ${totalDocs} items in your library; fetching ${limit} per page (${totalPages} pages${incremental ? ", stopping at already-synced items" : ""})`);
+
+    const fetched = new Map();
+    const take = (results) => {
+      let fresh = 0;
+      for (const it of results) {
+        if (!fetched.has(it.id)) fresh += 1;
+        fetched.set(it.id, it);
+      }
+      return fresh;
+    };
+    take(first.results);
+    let stoppedEarly = false;
+    for (let page = 2; page <= totalPages; page++) {
+      if (incremental && [...fetched.keys()].slice(-limit).every((id) => known.has(id))) {
+        stoppedEarly = true;
+        break;
+      }
+      await politeDelay(...API_DELAY);
+      const data = await callLibraryAction(action, page, limit, requestId++);
+      if (take(data.results) === 0 && data.results.length) {
+        throw new Error(`page ${page} returned only items already seen; paging isn't advancing (send me the log)`);
+      }
+      if (page % 10 === 0 || page === totalPages) log(`  page ${page}/${totalPages} (${fetched.size} items)`);
+    }
+
+    // Incremental: new/updated items first, then everything cached we didn't refetch.
+    const items = [...fetched.values()];
+    if (incremental) for (const [id, it] of known) if (!fetched.has(id)) items.push(it);
+    libraryV2.saveCache({ fetchedAt: new Date().toISOString(), actionId: action.id, totalDocs, items });
+    rebuildIndex();
+    if (!incremental && items.length < totalDocs) log(`  Warning: got ${items.length} of ${totalDocs} items.`);
+    log(
+      `Sync done: ${stoppedEarly ? `${fetched.size} recent items checked` : `${fetched.size} items fetched`}. ` +
+        `Library: ${index.products.length} items, ${index.keys.length} keys, ${index.files.length} files, ${index.bundles.length} bundles.`,
+    );
+    return { ok: true, fetched: fetched.size };
+  } catch (err) {
     log(`Sync failed: ${err.message}`);
     return { ok: false, reason: err.message };
   } finally {
@@ -290,6 +324,15 @@ async function revealKeys(ids) {
   try {
     await ensureHumblePageLoaded();
     const wanted = new Set(ids);
+    // New-site keys can't be revealed through the old endpoint; open them
+    // on Humble's page instead (until the new reveal action is known).
+    const v2Targets = index.keys.filter((k) => wanted.has(k.id) && k.status === "unused" && k.v2);
+    if (v2Targets.length) {
+      log("Revealing new-site keys from Humbler isn't supported yet. Opening the item on Humble so you can reveal it there.");
+      setBrowserVisible(true);
+      humbleView.webContents.loadURL(v2Targets[0].contentUrl);
+      return { ok: false, reason: "v2-reveal-unsupported", results };
+    }
     const targets = index.keys.filter((k) => wanted.has(k.id) && k.status === "unused");
     log(`Revealing ${targets.length} key(s)…`);
     for (const [n, key] of targets.entries()) {
@@ -470,9 +513,18 @@ function attachScout(wc) {
   let livePushes = 0;
   dbg.on("message", (_event, method, params) => {
     if (method === "Runtime.bindingCalled" && params.name === "__humblerEmit") {
+      let entry;
+      try {
+        entry = JSON.parse(params.payload);
+      } catch {
+        return;
+      }
+      // Always learn action ids (Sync depends on them), even with live
+      // scouting off. Only names are kept, never values.
+      actionRegistry.note(entry, wc.getURL());
       if (!settings.liveScout) return;
       try {
-        liveScout.record(JSON.parse(params.payload), wc.getURL());
+        liveScout.record(entry, wc.getURL());
         if (++livePushes % 25 === 0) pushStatus(); // keep the UI's live counts fresh without spamming
       } catch (err) {
         log(`Live scout: could not record a response (${err.message})`);

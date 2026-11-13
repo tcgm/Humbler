@@ -45,9 +45,10 @@ Use this while the code is changing:
 1. **Log in** in the right-hand pane. Use email and password; Google/Facebook
    sign-in pop-ups generally refuse to run inside embedded browsers. The pill
    at the top turns green once you're logged in.
-2. **Sync** fetches the order list and then every order you haven't cached yet
-   (40 per request, with polite pauses). **Full refresh** re-fetches every
-   order, which picks up changes to bundles you already synced.
+2. **Sync** pages through your library on the new site, newest first, and
+   stops once it reaches items it already has. **Full refresh** re-fetches
+   everything. (See "How it talks to Humble". The first sync of a large
+   library takes a minute or two, with polite pauses between pages.)
 3. **Keys tab** lists all keys. The default filter shows only unrevealed keys.
    - Each key has a status: unrevealed, revealed, **gifted** (the gift link is
      shown and can be copied), redeem link, expired, or sold out. Keys that
@@ -252,20 +253,35 @@ Everything lives in `data/`, which is gitignored:
 
 ## How it talks to Humble
 
-All of this is in `lib/humble-api.js` (reads) and `revealOne()` in `main.js`
-(key reveal). If Humble changes its site again, those are the places to fix.
+### 2026 site (current)
+
+Humble's redesign **removed the old `/api/v1` API**. It now returns the
+site's "page not found" page. Sync now uses the same server action the
+library page uses (`lib/library-v2.js`), run from inside your logged-in page:
 
 | Purpose | Request |
 |---|---|
-| List orders | `GET /api/v1/user/order` |
-| Orders, bulk | `GET /api/v1/orders?all_tpkds=true&gamekeys=…` (×40) |
-| One order | `GET /api/v1/order/<gamekey>?all_tpkds=true` |
-| Reveal key | `POST /humbler/redeemkey` (`keytype`, `key`, `keyindex`), sent from inside the real page with the `csrf_cookie` value as `CSRF-Prevention-Token` |
+| Library, paged | `POST /home/library` with header `Next-Action: <id>`, form fields `_1_query`, `_1_sort=mostRecent`, `_1_cursor`, `_1_page`, `_1_limit`, `_1_hideRevealed`, `_1_hideExpired`, `_1_dateExpires`, `_1_requestId`, and `0` = `[prevState, "$K1"]`. The reply is an RSC payload with `{ results, pagination: { page, totalPages, totalDocs } }` |
 
-Reads go through Electron's `net` module on the `persist:humble` session, with
-the same cookies and user agent as the visible pane ("Electron/x" is removed
-from the UA). Key reveals run inside the Humble page itself, so the request
-matches the site's own request exactly.
+- **The action id is a build hash that changes with every Humble deploy.**
+  Humbler never hardcodes it. `lib/actions.js` records every action the site
+  calls, keyed by its argument names, and Sync uses the newest action that
+  takes `limit`/`page`/`sort`/`query`. If Sync says it hasn't seen the
+  action, open your library on the right once.
+- Sync asks for 100 items per page, falls back if Humble caps the size, and
+  stops with an error if paging repeats items. Plain **Sync** stops once it
+  reaches items already synced (newest first). **Full refresh** fetches
+  everything.
+- Items come with keys (status, gift status, expiry, instructions) and
+  downloads (MD5/SHA-1/size). **Download links aren't included**: the site
+  issues them on demand, and Humbler doesn't know that request yet. The
+  same goes for **revealing** new-site keys. For both, Humbler opens the
+  item on Humble's page instead.
+- The library cache is `data/library-v2.json`. It **includes revealed key
+  values**, like the old order cache.
 
-If the bulk endpoint ever fails, sync falls back to fetching orders one by one
-and logs why.
+### Legacy (before the redesign)
+
+`lib/humble-api.js` still holds the old `/api/v1` client. It's used only
+for order caches synced before the redesign, and for refreshing their
+download links.

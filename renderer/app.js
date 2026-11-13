@@ -244,10 +244,17 @@ function keyCell(k) {
       break;
     default: {
       cell.append(el("span", { class: "tag warn", textContent: "hidden" }));
-      const reveal = el("button", { class: "small danger", textContent: "Reveal" });
-      armable(reveal, "Sure? click again", () => humbler.revealKeys([k.id]));
-      reveal.disabled = !!state.busy;
-      cell.append(reveal);
+      if (k.v2) {
+        // New-site keys: reveal on Humble's own page until Humbler knows the new reveal action.
+        const open = el("button", { class: "small", textContent: "Open on Humble", title: "Reveal this key on Humble (opens it on the right)" });
+        open.addEventListener("click", () => humbler.openUrl(k.contentUrl));
+        cell.append(open);
+      } else {
+        const reveal = el("button", { class: "small danger", textContent: "Reveal" });
+        armable(reveal, "Sure? click again", () => humbler.revealKeys([k.id]));
+        reveal.disabled = !!state.busy;
+        cell.append(reveal);
+      }
     }
   }
   if (isExpiring(k)) cell.append(el("span", { class: "tag bad", textContent: `expires in ${k.daysLeft}d`, title: k.expiry || "" }));
@@ -296,7 +303,7 @@ function renderKeys() {
 }
 
 function selectedRevealable() {
-  return state.lib.keys.filter((k) => state.selKeys.has(k.id) && k.status === "unused");
+  return state.lib.keys.filter((k) => state.selKeys.has(k.id) && k.status === "unused" && !k.v2);
 }
 
 function updateKeyButtons() {
@@ -383,7 +390,10 @@ function statusNode(f) {
     b.addEventListener("click", () => humbler.showFile(f.id));
     return el("span", { class: "keycell" }, el("span", { class: "tag ok", textContent: "downloaded" }), b);
   }
-  if (!f.downloadable) return el("span", { class: "tag", textContent: "no direct file", title: "Humble offers this only as an external link or in-browser" });
+  if (!f.downloadable) {
+    const tag = el("span", { class: "tag", textContent: "no direct file", title: f.notDownloadableReason || "Humble offers this only as an external link or in-browser" });
+    return f.contentUrl ? el("span", { class: "keycell" }, tag, extLink("Open", f.contentUrl, "Download it on Humble (opens on the right)")) : tag;
+  }
   if (f.duplicateOf) return el("span", { class: "tag", textContent: "duplicate", title: "Same file (by checksum) exists in an older bundle" });
   return null;
 }
@@ -497,9 +507,13 @@ function renderLibrary() {
     if (!has.childNodes.length) has.append(el("span", { class: "tag", textContent: "—" }));
     const actions = el("td", { class: "actcol" });
     if (p.keyCount || p.steamAppId) actions.append(extLink("Steam", steamUrl(p.title, p.steamAppId)));
-    if (p.url) actions.append(extLink("Site", p.url));
+    if (p.url) actions.append(extLink(p.v2 ? "Item" : "Site", p.url));
     for (const [i, u] of p.links.slice(0, 3).entries()) actions.append(extLink(p.links.length > 1 ? `Link ${i + 1}` : "Link", u));
-    actions.append(extLink("Order", `https://www.humblebundle.com/downloads?key=${encodeURIComponent(p.gamekey)}`, "Open this order on Humble"));
+    actions.append(
+      p.v2
+        ? extLink("Bundle", `https://www.humblebundle.com/home/library/${encodeURIComponent(p.gamekey)}`, "Open this purchase on Humble")
+        : extLink("Order", `https://www.humblebundle.com/downloads?key=${encodeURIComponent(p.gamekey)}`, "Open this order on Humble"),
+    );
     const when = b.created ? b.created.slice(0, 10) : "";
     const paid = b.amount != null && b.amount !== "" ? ` · ${b.amount}${b.currency ? ` ${b.currency}` : ""}` : "";
     frag.append(
