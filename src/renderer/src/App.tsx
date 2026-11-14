@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { FoldersDialog } from "./components/FoldersDialog";
 import { Menu } from "./components/Menu";
 import { RedeemAsk } from "./components/RedeemAsk";
+import { useRemembered } from "./remember";
 import { api, useStore, type TabId } from "./store";
 import { BundlesTab } from "./tabs/BundlesTab";
 import { ChoiceTab } from "./tabs/ChoiceTab";
@@ -18,6 +19,8 @@ export function App() {
   // (Tracked from the current tab, so tabs reached with back/forward count too.)
   const [visited, setVisited] = useState<Set<TabId>>(new Set([tab]));
   const [foldersOpen, setFoldersOpen] = useState(false);
+  // the counts next to the tab names (off for screenshots, say)
+  const [showCounts, setShowCounts] = useRemembered("tabCounts", true);
   useEffect(() => setVisited((v) => (v.has(tab) ? v : new Set([...v, tab]))), [tab]);
 
   const go = (t: TabId) => {
@@ -81,6 +84,11 @@ export function App() {
               { label: status?.browserVisible === false ? "Show browser" : "Hide browser", title: "The Humble pane on the right", onPick: () => void api.toggleBrowser() },
               "-",
               { label: "Download folders…", title: "Where your downloads are, and where new ones go", onPick: () => setFoldersOpen(true) },
+              {
+                label: showCounts ? "Hide tab counts" : "Show tab counts",
+                title: "The numbers next to the tab names (how many keys, bundles, downloads...)",
+                onPick: () => setShowCounts((v) => !v),
+              },
               "-",
               status?.update
                 ? { label: `Get Humbler ${status.update.version}…`, title: "Open the release page", onPick: () => void api.openExternal(status.update!.url) }
@@ -93,7 +101,7 @@ export function App() {
       <nav className="tabs">
         {tabs.map((t) => (
           <button key={t.id} className={`tab${tab === t.id ? " active" : ""}`} onClick={() => go(t.id)}>
-            {t.label} {t.count && <span className="count">{t.count}</span>}
+            {t.label} {showCounts && t.count && <span className="count">{t.count}</span>}
           </button>
         ))}
         <span className="spacer" />
