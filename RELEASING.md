@@ -72,16 +72,15 @@ secrets and variables, never in the repository.
 - `release.yml`: on a `v*` tag: Linux and Windows, built on one Linux runner
   in `electronuserland/builder:wine`; macOS only if you have a Mac runner.
 
-Setup, once:
+It needs Actions enabled for the repository and a runner with the
+`ubuntu-latest` label that can run Docker containers. Nothing else: it uses
+the job's automatic token to publish. Optional extras:
 
-1. Enable Actions for the repository and have a runner with the
-   `ubuntu-latest` label that can run Docker containers.
-2. Add the secret **`RELEASE_TOKEN`**: a Gitea access token with read and
-   write access to repositories (your settings → Applications → Generate new
-   token). Gitea doesn't allow secret names starting with `GITEA_`.
-3. Optional, for macOS: add the repository variable **`MAC_RUNNER`** set to
-   your Mac runner's label.
-4. Optional: the repository variable **`RELEASE_FEED`** (see below).
+- Secret **`RELEASE_TOKEN`**: only if your Gitea refuses the automatic token
+  release access. A Gitea access token with repository read and write (your
+  settings → Applications → Generate new token).
+- Variable **`MAC_RUNNER`**: your Mac runner's label, to build macOS too.
+- Variable **`RELEASE_FEED`**: see below.
 
 ## "A new version is available"
 

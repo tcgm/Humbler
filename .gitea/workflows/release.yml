@@ -13,10 +13,10 @@
 # Optional repository variable RELEASE_FEED: the update feed built into the
 # app (e.g. the public GitHub one). Unset: Gitea-built copies don't check.
 #
-# Needs a repository secret RELEASE_TOKEN: a Gitea access token with write
-# access to this repository (Settings → Applications → Generate token,
-# scope "repository: read and write"). Signing secrets as on GitHub (see
-# RELEASING.md).
+# Uploads with the job's own automatic token; nothing to set up. Only if
+# your Gitea refuses that token release access, add a repository secret
+# RELEASE_TOKEN (an access token with repository read and write) and it's
+# used instead. Signing secrets as on GitHub (see RELEASING.md).
 name: Release
 
 on:
@@ -55,7 +55,7 @@ jobs:
         env:
           GITEA_URL: ${{ gitea.server_url }}
           GITEA_REPO: ${{ gitea.repository }}
-          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN || gitea.token }}
         run: |
           shopt -s nullglob
           files=(release/*/*.exe release/*/*.zip release/*/*.AppImage release/*/*.tar.gz)
@@ -87,7 +87,7 @@ jobs:
         env:
           GITEA_URL: ${{ gitea.server_url }}
           GITEA_REPO: ${{ gitea.repository }}
-          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN || gitea.token }}
         run: |
           shopt -s nullglob
           files=(release/*/*.dmg release/*/*.zip)
