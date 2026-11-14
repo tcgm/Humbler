@@ -116,8 +116,8 @@ function MonthCard({ m }: { m: Month }) {
       </div>
       {games.length > 0 && (
         <div className="month-strip">
-          {games.slice(0, 4).map((g) => (
-            <Tile key={g.title} title={g.title} size="xs" image={g.image} />
+          {games.slice(0, 4).map((g, i) => (
+            <Tile key={`${i}|${g.title}`} title={g.title} size="xs" image={g.image} />
           ))}
         </div>
       )}
@@ -145,8 +145,8 @@ function MonthPage({ m }: { m: Month }) {
       </div>
       <p className="hb-summary">{games.length ? plural(games.length, "game") : "No games from this month in your library."}</p>
       <div className="choice-grid">
-        {games.map((g) => (
-          <div key={g.title} className={`choice-card${g.inLibrary ? "" : " missing"}`}>
+        {games.map((g, i) => (
+          <div key={`${i}|${g.title}`} className={`choice-card${g.inLibrary ? "" : " missing"}`}>
             {g.image ? <img className="choice-art" src={g.image} alt="" loading="lazy" /> : <Tile title={g.title} size="art" />}
             <div className="choice-body">
               <h4>{g.title}</h4>

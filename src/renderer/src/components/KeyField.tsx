@@ -88,12 +88,13 @@ export function KeyField({ k }: { k: KeyEntry }) {
       </span>,
     );
   }
-  const links = k.instructionLinks || [];
+  // the same link can appear twice in one set of instructions
+  const links = (k.instructionLinks || []).filter((l, i, all) => all.findIndex((x) => x.href === l.href && x.text === l.text) === i);
   // Instructions that are only a link (e.g. "Epic Game Store Instructions")
   // show as that link; longer ones expand, with their links underneath.
   // Links always open in your browser, never in Humbler.
-  const linkEls = links.map((l) => (
-    <a key={l.href} className="ext-out" title={l.href} onClick={() => api.openExternal(l.href)}>
+  const linkEls = links.map((l, i) => (
+    <a key={`${i}|${l.href}`} className="ext-out" title={l.href} onClick={() => api.openExternal(l.href)}>
       {l.text} ↗
     </a>
   ));
