@@ -866,7 +866,7 @@ async function revealKeys(ids: string[]): Promise<RevealResult> {
         log(`  ${key.name}: revealed`);
       } catch (err) {
         results.push({ id: key.id, ok: false, error: errMsg(err) });
-        log(`  ${key.name}: FAILED — ${errMsg(err)}`);
+        log(`  ${key.name}: FAILED: ${errMsg(err)}`);
       }
       send("key-updated", { id: key.id, key: key.key });
       if (n < targets.length - 1) await politeDelay(...REVEAL_DELAY);
@@ -939,7 +939,7 @@ downloader.on("completed", (item: QueueItem, { skipped }: { skipped: boolean }) 
   void pushStatus();
 });
 downloader.on("failed", (item: QueueItem, err: Error) => {
-  log(`  download FAILED: ${item.label} — ${err.message}`);
+  log(`  download FAILED: ${item.label}: ${err.message}`);
   void pushStatus();
 });
 downloader.on("idle", () => {

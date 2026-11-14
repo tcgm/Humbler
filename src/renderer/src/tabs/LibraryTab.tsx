@@ -113,7 +113,7 @@ export function LibraryTab() {
                     </span>
                   </td>
                   <td className="whatcol">
-                    <div className="tags">{has.length ? has : <span className="tag">—</span>}</div>
+                    <div className="tags">{has.length ? has : <span className="tag">-</span>}</div>
                   </td>
                   <td className="actcol">
                     {(p.keyCount > 0 || p.steamAppId) && <ExtLink href={steamUrl(p.title, p.steamAppId)}>Steam</ExtLink>}

@@ -102,7 +102,7 @@ export const INJECT_SOURCE = `
           const body = this.responseType === "json" ? this.response : JSON.parse(this.responseText);
           record({ via: "xhr", method: meta.method, url: meta.url, status: this.status, body });
         } catch {
-          // not parseable JSON — skip
+          // not parseable JSON, skip
         }
       });
     }

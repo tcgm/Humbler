@@ -167,7 +167,7 @@ export function KeysTab() {
         </ArmButton>
       </div>
       <div className="hb-summary">
-        {rows.length ? `${from}–${from + pageRows.length - 1} of ` : ""}
+        {rows.length ? `${from}-${from + pageRows.length - 1} of ` : ""}
         {rows.length} key{rows.length === 1 ? "" : "s"}
         {hidden ? ` (${hidden} more hidden by the status filter; ${breakdown})` : base.length ? ` (${breakdown})` : ""}
         {expiring ? ` · ⚠ ${expiring} expiring within ${EXPIRING_DAYS} days` : ""}

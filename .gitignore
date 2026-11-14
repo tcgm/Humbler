@@ -1,7 +1,7 @@
 node_modules/
 dist/
 
-# Electron's persistent session data — contains your live Humble Bundle login. Never commit this.
+# Electron's persistent session data. It contains your live Humble Bundle login. Never commit this.
 data/electron-userdata/
 
 # Your library data: cached order JSON (includes revealed keys!), key logs, downloads.

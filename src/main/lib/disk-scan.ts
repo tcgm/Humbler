@@ -140,7 +140,7 @@ export function nameTokens(name: string): string[] {
     .toLowerCase()
     .replace(/\(\d{1,2}_\d{1,2}_\d{2,4}[^)]*\)/g, " ") // "(7_21_2024 12_18_15 AM)" from saved pages
     .replace(/&/g, " and ")
-    .replace(/['’]/g, "")
+    .replace(/['\u2019]/g, "")
     .replace(/[^a-z0-9]+/g, " ")
     .split(" ")
     .filter((t) => t && !STOP.has(t));

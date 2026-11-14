@@ -133,7 +133,7 @@ export function BundlePicker({ dir, onClose, onOpenBundle }: { dir: Dir; onClose
           <span className="spacer" />
           <button onClick={onClose}>Cancel</button>
           <button className="primary" disabled={!selected} onClick={() => link(sel)}>
-            {selected ? `Link to “${selected.name.length > 40 ? `${selected.name.slice(0, 40)}…` : selected.name}”` : "Link"}
+            {selected ? `Link to "${selected.name.length > 40 ? `${selected.name.slice(0, 40)}…` : selected.name}"` : "Link"}
           </button>
         </div>
       </div>

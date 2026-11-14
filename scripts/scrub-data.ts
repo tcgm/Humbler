@@ -48,7 +48,7 @@ function visit(dir: string): void {
         try {
           data = JSON.parse(text);
         } catch {
-          // not valid JSON — scrub it as text
+          // not valid JSON, so scrub it as text
         }
       }
       scrub.writeScrubbed(full, data);

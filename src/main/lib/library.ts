@@ -94,7 +94,7 @@ function fieldLike(obj: any, re: RegExp): string | null {
   return null;
 }
 
-// "Title Of Thing™: Deluxe" -> "title of thing deluxe" — for matching titles across sources.
+// "Title Of Thing™: Deluxe" -> "title of thing deluxe", for matching titles across sources.
 export function normTitle(s: unknown): string {
   return String(s || "")
     .toLowerCase()
@@ -213,7 +213,7 @@ function loadDownloaded(): Map<string, string | null> {
   return map;
 }
 
-// Keys revealed by Humbler whose order cache hasn't been refreshed since —
+// Keys revealed by Humbler whose order cache hasn't been refreshed since:
 // overlay them so a revealed key can never "disappear" from the UI.
 export function loadRevealedOverlay(): Map<string, string> {
   const map = new Map<string, string>();

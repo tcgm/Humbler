@@ -123,7 +123,7 @@ Vite's default 5173 is often inside one.
      The first Sync does this for every item with downloads, which takes a
      while; after that only new items are fetched. Links expire, so
      Humbler gets a fresh one per file when you download it. Sizes show
-     as "—" until a file is downloaded.
+     as "-" until a file is downloaded.
    - **Download folders** (☰ menu): list every folder that holds Humble
      downloads, and pick the default one new downloads go to. Humbler scans
      them (names only, 3 levels into each bundle folder; ~1s for 100k
@@ -175,7 +175,7 @@ Vite's default 5173 is often inside one.
    bundle's icon, its counts, when you bought it and what you paid, and a
    **deadline**: the soonest "redeem by" date among keys you haven't
    revealed yet, red within 30 days. You can search; sort by most recent,
-   A–Z, most unrevealed keys, or **deadline soonest**; and filter to bundles
+   A-Z, most unrevealed keys, or **deadline soonest**; and filter to bundles
    with unrevealed keys, with a redeem deadline, with downloads, Choice
    months, or everything but Choice. Opening one shows a **bundle page**
    like the old `/downloads?key=` page: the bundle's keys, then its

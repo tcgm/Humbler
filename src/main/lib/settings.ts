@@ -22,7 +22,7 @@ export function load(): Settings {
   try {
     saved = JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf8"));
   } catch {
-    // first run / unreadable — fall back to defaults
+    // first run / unreadable: fall back to defaults
   }
   return {
     downloadDir: path.resolve(saved.downloadDir || process.env.DOWNLOAD_DIR || DEFAULT_DOWNLOAD_DIR),

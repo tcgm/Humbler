@@ -121,7 +121,7 @@ export class HumbleApi {
 
   async listGamekeys(): Promise<string[]> {
     const data = await this.getJson("/api/v1/user/order");
-    if (!Array.isArray(data)) throw new Error("Order list was not an array — has the API changed?");
+    if (!Array.isArray(data)) throw new Error("Order list was not an array. Has the API changed?");
     return data.map((o: any) => o.gamekey).filter(Boolean);
   }
 

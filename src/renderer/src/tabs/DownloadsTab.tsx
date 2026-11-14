@@ -176,7 +176,7 @@ const FileRow = memo(function FileRow({
         {f.torrentUrl && <span className="tag">+ torrent</span>}
       </td>
       <td title={f.format}>{f.format}</td>
-      <td className="num">{f.humanSize || (f.size ? fmtBytes(f.size) : "—")}</td>
+      <td className="num">{f.humanSize || (f.size ? fmtBytes(f.size) : "-")}</td>
       <td className="status">
         <FileStatus f={f} p={p} />
       </td>

@@ -191,7 +191,7 @@ export class Downloader<T extends DownloadItem = DownloadItem> extends EventEmit
       append = true;
     } else if (status === 200) {
       if (start > 0) {
-        start = 0; // server ignored Range — start over
+        start = 0; // server ignored Range, so start over
         hash = algo ? crypto.createHash(algo) : null;
       }
     } else {
@@ -229,7 +229,7 @@ export class Downloader<T extends DownloadItem = DownloadItem> extends EventEmit
       const actual = hash.digest("hex");
       if (actual !== expected) {
         fs.rmSync(part, { force: true });
-        throw new Error(`checksum mismatch (expected ${expected}, got ${actual}) — partial file deleted`);
+        throw new Error(`checksum mismatch (expected ${expected}, got ${actual}); partial file deleted`);
       }
     }
     // A different file already there (an older version, or someone else's

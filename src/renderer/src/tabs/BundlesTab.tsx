@@ -91,7 +91,7 @@ function BundleList() {
           <input className="hb-search" type="search" placeholder="Search bundles" value={q} onChange={(e) => set(setQ)(e.target.value)} />
           <select title="Sort" value={sort} onChange={(e) => set(setSort)(e.target.value as Sort)}>
             <option value="recent">Most recent</option>
-            <option value="az">A – Z</option>
+            <option value="az">A - Z</option>
             <option value="unrevealed">Most unrevealed keys</option>
             <option value="deadline">Deadline soonest</option>
           </select>
