@@ -25,7 +25,7 @@ Node and no window opens.
 
 | Command | What |
 |---|---|
-| `npm start` (or `npm run dev`) | Development: **HMR** for the UI (React Fast Refresh, so edits apply while you keep your place, filters and typed text). Changes to the main process or preload restart the app. DevTools opens for the UI. |
+| `npm start` (or `npm run dev`) | Development: **HMR** for the UI (React Fast Refresh, so edits apply while you keep your place, filters and typed text). Preload changes reload the window. Main-process changes restart the app, but batched (a burst of saves is one restart), and only once it's idle: a Sync, reveal or download batch in progress finishes first. The app quits normally, so your login is flushed to disk. Type `rs` + Enter in the terminal to restart by hand (`scripts/dev.mjs`). DevTools opens for the UI. |
 | `npm run prod` | Build, then run the built app (no watching, no DevTools). |
 | `npm run build` | Build to `out/` only. |
 | `npm run typecheck` | Type-check everything (`tsc -b`, strict). |

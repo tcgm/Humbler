@@ -3,7 +3,7 @@
 // which makes Electron behave like plain Node and the app silently never
 // opens a window.
 //
-//   node scripts/run.js dev     -> electron-vite dev (HMR)
+//   node scripts/run.js dev     -> scripts/dev.mjs (HMR; main restarts only when idle)
 //   node scripts/run.js start   -> electron-vite build, then preview
 const { spawnSync, spawn } = require("node:child_process");
 const path = require("node:path");
@@ -21,7 +21,11 @@ if (mode === "start") {
   if (built.status !== 0) process.exit(built.status ?? 1);
   const child = spawn(bin, ["preview", ...rest], { cwd: ROOT, env, stdio: "inherit", shell: process.platform === "win32" });
   child.on("exit", (code) => process.exit(code ?? 0));
+} else if (!mode || mode === "dev") {
+  // our own dev runner: batched, idle-only, graceful main-process restarts
+  const child = spawn(process.execPath, [path.join(__dirname, "dev.mjs")], { cwd: ROOT, env, stdio: "inherit" });
+  child.on("exit", (code) => process.exit(code ?? 0));
 } else {
-  const child = spawn(bin, [mode || "dev", ...rest], { cwd: ROOT, env, stdio: "inherit", shell: process.platform === "win32" });
+  const child = spawn(bin, [mode, ...rest], { cwd: ROOT, env, stdio: "inherit", shell: process.platform === "win32" });
   child.on("exit", (code) => process.exit(code ?? 0));
 }

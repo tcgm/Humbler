@@ -1381,6 +1381,31 @@ app.on("before-quit", (e) => {
   flushedOnQuit = true;
   Promise.race([humbleSession().cookies.flushStore(), new Promise((r) => setTimeout(r, 2000))])
     .catch(() => {})
-    .finally(() => app.quit());
+    .finally(() => (devRestartNow ? app.exit(DEV_RESTART_CODE) : app.quit()));
 });
 app.on("window-all-closed", () => app.quit());
+
+// ---- dev mode: restart for new main-process code, but only when idle ------
+// scripts/dev.mjs asks (over the IPC channel) after a rebuild. Quitting
+// normally (above) flushes your login; exit code DEV_RESTART_CODE tells the
+// runner to start the app again. A Sync, reveal or download batch in
+// progress is allowed to finish first.
+const DEV_RESTART_CODE = 75; // must match scripts/dev.mjs
+let devRestartNow = false;
+let devRestartTimer: ReturnType<typeof setInterval> | undefined;
+const appIdle = () => !busy && downloader.summary().active === 0 && downloader.summary().queued === 0;
+function devRestartWhenIdle() {
+  if (devRestartNow) return;
+  if (appIdle()) {
+    clearInterval(devRestartTimer);
+    devRestartNow = true;
+    log("Main-process code updated; restarting.");
+    app.quit();
+    return;
+  }
+  if (!devRestartTimer) {
+    log(`Main-process code updated; restarting once the current ${busy || "downloads"} finish${busy ? "es" : ""}.`);
+    devRestartTimer = setInterval(devRestartWhenIdle, 1000);
+  }
+}
+if (process.send) process.on("message", (m: { type?: string } | null) => m?.type === "humbler:dev-restart" && devRestartWhenIdle());
