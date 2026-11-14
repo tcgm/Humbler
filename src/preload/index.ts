@@ -46,6 +46,7 @@ const api: HumblerApi = {
   rescanFolders: () => ipcRenderer.invoke("folders:rescan"),
   linkFolder: (p, gamekey) => ipcRenderer.invoke("folders:link", { path: p, gamekey }),
   openFolder: (p) => ipcRenderer.invoke("folders:open", p),
+  inspectFolder: (p) => ipcRenderer.invoke("folders:inspect", p),
   onLog: on("log"),
   onStatus: on("status"),
   onLibraryUpdated: on("library-updated"),

@@ -6,10 +6,12 @@ import { LuFolderOpen, LuRotateCcw, LuStar, LuX } from "react-icons/lu";
 import type { FoldersInfo } from "@shared/types";
 import { api, useStore } from "../store";
 import { formatDate } from "../util";
+import { BundlePicker } from "./BundlePicker";
 
 export function FoldersDialog({ onClose }: { onClose: () => void }) {
-  const { lib } = useStore();
+  const { lib, openBundle } = useStore();
   const [info, setInfo] = useState<FoldersInfo | null>(null);
+  const [picking, setPicking] = useState<string | null>(null); // folder path being linked
   const [show, setShow] = useState<"unmatched" | "matched">("unmatched");
   const [q, setQ] = useState("");
   const closeRef = useRef(onClose);
@@ -29,7 +31,6 @@ export function FoldersDialog({ onClose }: { onClose: () => void }) {
     };
   }, []);
 
-  const bundles = useMemo(() => [...lib.bundles].sort((a, b) => a.name.localeCompare(b.name)), [lib.bundles]);
   const nameOf = useMemo(() => new Map(lib.bundles.map((b) => [b.gamekey, b.name])), [lib.bundles]);
   const dirs = (info?.bundleDirs || []).filter((d) => (show === "unmatched" ? !d.gamekeys.length : d.gamekeys.length) && (!q || d.name.toLowerCase().includes(q.toLowerCase())));
   const unmatched = (info?.bundleDirs || []).filter((d) => !d.gamekeys.length).length;
@@ -118,28 +119,33 @@ export function FoldersDialog({ onClose }: { onClose: () => void }) {
                   {d.gamekeys.length > 0 && <> · {d.gamekeys.map((g) => nameOf.get(g) || g).filter((n, i, a) => a.indexOf(n) === i).join(", ")}</>}
                 </span>
               </div>
-              <select
-                value={d.gamekeys.length === 1 ? d.gamekeys[0] : d.linked && !d.gamekeys.length ? "__none" : ""}
-                title={d.gamekeys.map((g) => nameOf.get(g)).join("\n") || "Which bundle is this?"}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  void api.linkFolder(d.path, v === "__auto" ? undefined : v === "__none" ? null : v);
-                }}
+              <button
+                className={`folder-pick${d.gamekeys.length ? " matched" : ""}`}
+                title={d.gamekeys.length ? `Matched to:\n${d.gamekeys.map((g) => nameOf.get(g)).join("\n")}\n\nClick to change` : "Choose which bundle this folder holds"}
+                onClick={() => setPicking(d.path)}
               >
-                <option value="">{d.gamekeys.length > 1 ? `${d.gamekeys.length} bundles (same name)` : "Choose the bundle…"}</option>
-                {d.linked && <option value="__auto">↺ Match automatically</option>}
-                <option value="__none">Not a bundle</option>
-                {bundles.map((b) => (
-                  <option key={b.gamekey} value={b.gamekey}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
+                {d.gamekeys.length
+                  ? [...new Set(d.gamekeys.map((g) => nameOf.get(g) || g))].join(", ")
+                  : d.linked
+                    ? "Not a bundle"
+                    : "Choose the bundle…"}
+              </button>
               {d.linked && <span className="tag">linked</span>}
             </div>
           ))}
           {!dirs.length && <p className="muted-line">{show === "unmatched" ? "Every bundle folder is matched." : "No matched folders."}</p>}
         </div>
+        {picking && info?.bundleDirs.find((d) => d.path === picking) && (
+          <BundlePicker
+            dir={info.bundleDirs.find((d) => d.path === picking)!}
+            onClose={() => setPicking(null)}
+            onOpenBundle={(gk) => {
+              setPicking(null);
+              closeRef.current();
+              openBundle(gk);
+            }}
+          />
+        )}
       </div>
     </div>
   );

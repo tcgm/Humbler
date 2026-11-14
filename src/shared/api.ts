@@ -3,6 +3,7 @@
 import type {
   ChoiceMonth,
   DownloadProgress,
+  FolderInspect,
   FoldersInfo,
   LibraryIndex,
   OkResult,
@@ -46,6 +47,7 @@ export interface InvokeChannels {
   "folders:rescan": [[], void];
   "folders:link": [[{ path: string; gamekey: string | null | undefined }], void];
   "folders:open": [[string], void];
+  "folders:inspect": [[string], FolderInspect];
 }
 
 /** main -> UI events: name -> payload */
@@ -102,6 +104,8 @@ export interface HumblerApi {
   /** link a bundle folder to a bundle (gamekey), mark it "not a bundle" (null), or back to automatic (undefined) */
   linkFolder(path: string, gamekey: string | null | undefined): Promise<void>;
   openFolder(path: string): Promise<void>;
+  /** a bundle folder's contents and likely bundles */
+  inspectFolder(path: string): Promise<FolderInspect>;
   onLog: On<"log">;
   onStatus: On<"status">;
   onLibraryUpdated: On<"library-updated">;

@@ -131,6 +131,17 @@ export interface FileOnDisk {
   how: "file" | "extracted" | "size-differs";
 }
 
+/** One bundle folder, looked at closely (for choosing its bundle). */
+export interface FolderInspect {
+  path: string;
+  entries: { name: string; dir: boolean }[]; // its top level (first 300)
+  total: number; // top-level entries in all
+  /** likely bundles: by name, and by how many of their files are in this folder */
+  suggestions: { gamekey: string; nameScore: number; fileHits: number }[];
+  /** every file/folder name in it (lowercased, as far as the scan reads), to show which of a bundle's files are here */
+  names: string[];
+}
+
 /** Your download folders and what the last scan found. */
 export interface FoldersInfo {
   downloadDir: string; // the default: new downloads go here (unless the bundle already has a folder)

@@ -274,3 +274,17 @@ export function matchFiles(files: FileLike[], scan: DiskScan, bundleDirs: Map<st
   }
   return out;
 }
+
+/** How well a folder name fits a bundle name, 0..1 (for ranking suggestions). */
+export function nameScore(folder: string, bundleName: string): number {
+  const t = nameTokens(folder);
+  if (!t.length) return 0;
+  let best = 0;
+  for (const v of bundleNameVariants(bundleName)) {
+    const covered = t.filter((x) => v.includes(x)).length / t.length;
+    best = Math.max(best, jaccard(t, v), covered * 0.9);
+  }
+  return best;
+}
+
+export const SKIP_NAME = SKIP;

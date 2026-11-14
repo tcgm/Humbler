@@ -6,7 +6,7 @@ import { app, BaseWindow, WebContentsView, ipcMain, session, dialog, shell, clip
 import path from "node:path";
 import fs from "node:fs";
 import type { InvokeChannels } from "../shared/api";
-import type { Busy, FoldersInfo, KeyEntry, LibraryIndex, RevealResult, SettingsPatch } from "../shared/types";
+import type { Busy, FolderInspect, FoldersInfo, KeyEntry, LibraryIndex, RevealResult, SettingsPatch } from "../shared/types";
 import { USERDATA_DIR, LOG_PATH, RECON_DIR } from "./lib/paths";
 import { INJECT_SOURCE } from "./lib/inject-capture";
 import * as harvest from "./lib/harvest";
@@ -24,7 +24,7 @@ import { HumbleApi, NotLoggedInError, BASE } from "./lib/humble-api";
 import { Downloader, type DownloadItem } from "./lib/downloader";
 import { politeDelay, sleep } from "./lib/throttle";
 import { applyKeyUpdates, applyRevealReply } from "./lib/key-updates";
-import { matchBundleDirs, matchFiles, scanFolders, type DiskScan } from "./lib/disk-scan";
+import { matchBundleDirs, matchFiles, nameScore, scanFolders, SKIP_NAME, type DiskScan } from "./lib/disk-scan";
 
 const env = (name: string, fallback: number) => Number(process.env[name] ?? fallback);
 const API_DELAY: [number, number] = [env("API_DELAY_MIN_MS", 700), env("API_DELAY_MAX_MS", 1800)];
@@ -1651,6 +1651,36 @@ handle("folders:link", ({ path: dir, gamekey }) => {
   saveFolders({ folderLinks: links });
   rebuildIndex(); // matching only, no rescan needed
   send("folders-updated");
+});
+handle("folders:inspect", async (dir): Promise<FolderInspect> => {
+  let dirents: fs.Dirent[] = [];
+  try {
+    dirents = (await fs.promises.readdir(dir, { withFileTypes: true })).filter((d) => !SKIP_NAME.test(d.name));
+  } catch {
+    // gone
+  }
+  dirents.sort((a, b) => Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name));
+  // every name the scan saw inside this folder
+  const names = new Set<string>();
+  for (const list of diskScan?.byName.values() || []) for (const e of list) if (e.bundleDir === dir && e.path !== dir) names.add(e.lower);
+  const hits = new Map<string, number>();
+  for (const f of index.files) {
+    const lower = f.filename.toLowerCase();
+    if (names.has(lower) || names.has(path.basename(lower, path.extname(lower)))) hits.set(f.gamekey, (hits.get(f.gamekey) || 0) + 1);
+  }
+  const base = path.basename(dir);
+  const suggestions = index.bundles
+    .map((b) => ({ gamekey: b.gamekey, nameScore: nameScore(base, b.name), fileHits: hits.get(b.gamekey) || 0 }))
+    .filter((s) => s.fileHits > 0 || s.nameScore >= 0.3)
+    .sort((a, b) => b.fileHits - a.fileHits || b.nameScore - a.nameScore)
+    .slice(0, 12);
+  return {
+    path: dir,
+    entries: dirents.slice(0, 300).map((d) => ({ name: d.name, dir: d.isDirectory() || d.isSymbolicLink() })),
+    total: dirents.length,
+    suggestions,
+    names: [...names].slice(0, 20000),
+  };
 });
 handle("folders:open", async (dir) => {
   // The default download folder may not exist until the first download.
