@@ -2,6 +2,7 @@
 // page modelled on the old humblebundle.com /downloads?key=... page.
 import { useMemo } from "react";
 import type { Bundle, FileEntry } from "@shared/types";
+import { ExportButton } from "../components/ExportDialog";
 import { FileButton } from "../components/FileButton";
 import { KeyField } from "../components/KeyField";
 import { BackLink, BundleIcon, DeadlineBadge, ExtLink, HumbleLink, Pager, PlatformBadge, ResetButton, Tile, useOrderInfo } from "../components/ui";
@@ -75,6 +76,10 @@ function BundleList() {
     return out;
   }, [lib.bundles, q, sort, filter, deadlines, soldOut]);
 
+  const listKeys = useMemo(() => {
+    const ids = new Set(list.map((b) => b.gamekey));
+    return lib.keys.filter((k) => ids.has(k.gamekey));
+  }, [list, lib.keys]);
   const pages = Math.max(1, Math.ceil(list.length / PER_PAGE));
   const cur = Math.min(page, pages);
   const shown = list.slice((cur - 1) * PER_PAGE, cur * PER_PAGE);
@@ -107,6 +112,7 @@ function BundleList() {
             <option value="nochoice">Everything but Choice</option>
           </select>
           <ResetButton dirty={dirty} onReset={resetAll} />
+          <ExportButton scope={dirty ? `the ${plural(list.length, "bundle")} matching your filters` : "all your bundles"} keys={listKeys} />
         </div>
       </div>
       <div className="hb-summary">
@@ -224,10 +230,15 @@ function BundlePage({ id }: { id: string }) {
         <DeadlineBadge dl={deadlineOf(keys, info?.keyExpiration)} />
       </div>
 
+      {keys.length > 0 && (
+        <div className="hb-section-head hb-fixed-head">
+          <h3>Keys &amp; Entitlements</h3>
+          <ExportButton scope={b.name} keys={keys} />
+        </div>
+      )}
       <div className="hb-scroll">
         {keys.length > 0 && (
           <section className="hb-section">
-            <h3>Keys &amp; Entitlements</h3>
             <div className="hb-panel">
               {keys.map((k) => (
                 <div className="hb-keyline" key={k.id}>

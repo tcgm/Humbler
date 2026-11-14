@@ -1,10 +1,11 @@
 // Library: everything you own (Humble Librarian's list), including
 // links-only items.
 import { useMemo } from "react";
+import { ExportButton } from "../components/ExportDialog";
 import { ExtLink, HumbleLink, ResetButton } from "../components/ui";
 import { useRemembered } from "../remember";
 import { api, useStore } from "../store";
-import { SITE, steamUrl } from "../util";
+import { normTitle, SITE, steamUrl } from "../util";
 
 const ROW_LIMIT = 1500;
 type Kind = "" | "files" | "keys" | "links";
@@ -36,6 +37,12 @@ export function LibraryTab() {
   }, [lib.products, q, bundle, kind]);
   const bundleOf = useMemo(() => new Map(lib.bundles.map((b) => [b.gamekey, b])), [lib.bundles]);
   const linksOnly = rows.filter((p) => !p.fileCount && !p.keyCount).length;
+  // the keys of the items shown (by item id; older data by bundle + title, as the Choice pages do)
+  const rowKeys = useMemo(() => {
+    const ids = new Set(rows.map((p) => p.id));
+    const named = new Set(rows.map((p) => `${p.gamekey}|${normTitle(p.title)}`));
+    return lib.keys.filter((k) => (k.itemId ? ids.has(k.itemId) : named.has(`${k.gamekey}|${normTitle(k.name)}`)));
+  }, [rows, lib.keys]);
 
   return (
     <section className="panel">
@@ -64,6 +71,12 @@ export function LibraryTab() {
         <span className="muted">
           {rows.length} item(s){linksOnly ? ` · ${linksOnly} links/instructions only` : ""}
         </span>
+        <span className="spacer" />
+        <ExportButton
+          className=""
+          scope={`${bundle ? bundleOf.get(bundle)?.name || "this bundle" : "your library"}${q || kind ? " (matching the Library tab's filters)" : ""}`}
+          keys={rowKeys}
+        />
       </div>
       <div className="tableWrap">
         <table className="grid">

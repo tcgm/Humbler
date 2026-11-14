@@ -2,6 +2,7 @@
 // every month, and a month page modelled on the old /membership/<month> grid.
 import { useMemo } from "react";
 import type { Bundle, ChoiceMonth, FileEntry, KeyEntry, LibraryIndex, Product } from "@shared/types";
+import { ExportButton } from "../components/ExportDialog";
 import { FileButton } from "../components/FileButton";
 import { KeyField } from "../components/KeyField";
 import { BackLink, DeadlineBadge, ExtLink, HumbleLink, ResetButton, Tile } from "../components/ui";
@@ -170,6 +171,7 @@ function MonthIndex({ months }: { months: Month[] }) {
             <option value="empty">No games in your library</option>
           </select>
           <ResetButton dirty={dirty} onReset={resetAll} />
+          <ExportButton scope={needle || filter !== "all" ? `the ${plural(list.length, "Choice month")} matching your filters` : "every Choice month"} keys={list.flatMap((x) => x.games.flatMap((g) => g.keys))} />
         </div>
       </div>
       <p className="hb-summary">
@@ -224,6 +226,7 @@ function MonthCard({ s, matches }: { s: MonthSummary; matches: string[] }) {
 function MonthPage({ m }: { m: Month }) {
   const { openChoiceMonth, openBundle } = useStore();
   const games = useGames(m);
+  const keys = games.flatMap((g) => g.keys);
   return (
     <div className="hb-page">
       <BackLink onClick={() => openChoiceMonth(null)}>All Choice months</BackLink>
@@ -236,6 +239,9 @@ function MonthPage({ m }: { m: Month }) {
             </a>
           ))}
           <ExtLink href={`${SITE}/home/library`}>Open your library on Humble</ExtLink>
+        </div>
+        <div className="hb-controls">
+          <ExportButton scope={`${monthLabel(m.month)} Humble Choice`} keys={keys} />
         </div>
       </div>
       <p className="hb-summary">{games.length ? plural(games.length, "game") : "No games from this month in your library."}</p>

@@ -1078,31 +1078,22 @@ function enqueueDownloads(ids: string[]) {
 }
 
 // ---- exports ----------------------------------------------------------
+// The Export window builds the text (keys, CSV, JSON) itself; this only
+// asks where to put it and writes it.
 
-function csvCell(v: unknown) {
-  const s = v == null ? "" : String(v);
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
+const SAVE_TYPES: Record<string, string> = { csv: "CSV", json: "JSON", txt: "Text" };
 
-async function exportKeys(ids: string[] | null) {
-  const wanted = ids ? new Set(ids) : null;
-  const rows = index.keys.filter((k) => !wanted || wanted.has(k.id));
+async function saveTextFile(name: string, text: string) {
+  const ext = (path.extname(name).slice(1) || "txt").toLowerCase();
   const { canceled, filePath } = await dialog.showSaveDialog({
-    title: "Export keys",
-    defaultPath: `humble-keys-${new Date().toISOString().slice(0, 10)}.csv`,
-    filters: [
-      { name: "CSV", extensions: ["csv"] },
-      { name: "JSON", extensions: ["json"] },
-    ],
+    title: "Save export",
+    defaultPath: path.basename(name),
+    filters: [{ name: SAVE_TYPES[ext] || ext.toUpperCase(), extensions: [ext] }],
   });
   if (canceled || !filePath) return { ok: false, reason: "cancelled" };
-  const fields = ["name", "keyType", "status", "key", "bundle", "created", "expiry", "daysLeft", "instructions", "steamAppId", "gamekey"] as const;
-  const out = filePath.toLowerCase().endsWith(".json")
-    ? JSON.stringify(rows.map((r) => Object.fromEntries(fields.map((f) => [f, r[f]]))), null, 2)
-    : [fields.join(","), ...rows.map((r) => fields.map((f) => csvCell(r[f])).join(","))].join("\r\n");
-  fs.writeFileSync(filePath, out);
-  log(`Exported ${rows.length} key(s) to ${filePath}`);
-  return { ok: true, count: rows.length, filePath };
+  fs.writeFileSync(filePath, text);
+  log(`Exported to ${filePath}`);
+  return { ok: true, filePath };
 }
 
 // ---- scouting (recon) -------------------------------------------------
@@ -1849,7 +1840,7 @@ handle("scout:open-folder", () => {
 handle("status:get", () => pushStatus());
 handle("library:sync", (opts) => syncLibrary({ full: !!opts?.full, focus: Array.isArray(opts?.focus) ? opts.focus.filter((x: unknown): x is string => typeof x === "string").slice(0, 20) : undefined }));
 handle("keys:reveal", (ids) => revealKeys(idList(ids)));
-handle("keys:export", (ids) => exportKeys(Array.isArray(ids) ? idList(ids) : null));
+handle("file:save-text", (opts) => saveTextFile(String(opts?.name || "export.txt"), String(opts?.text ?? "")));
 handle("downloads:enqueue", (ids) => enqueueDownloads(idList(ids)));
 handle("downloads:cancel", () => {
   downloader.cancelAll();

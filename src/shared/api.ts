@@ -24,7 +24,7 @@ export interface InvokeChannels {
   "status:get": [[], void];
   "library:sync": [[{ full: boolean; focus?: string[] }], OkResult & { fetched?: number }];
   "keys:reveal": [[string[]], RevealResult];
-  "keys:export": [[string[] | null], OkResult & { count?: number; filePath?: string }];
+  "file:save-text": [[{ name: string; text: string }], OkResult & { filePath?: string }];
   "downloads:enqueue": [[string[]], OkResult & { added?: number }];
   "downloads:cancel": [[], void];
   "downloads:open-folder": [[], string];
@@ -76,7 +76,8 @@ export interface HumblerApi {
   /** `focus`: bundle ids (purchases) you're looking at, refreshed first */
   sync(full: boolean, focus?: string[]): Promise<InvokeChannels["library:sync"][1]>;
   revealKeys(ids: string[]): Promise<RevealResult>;
-  exportKeys(ids: string[] | null): Promise<InvokeChannels["keys:export"][1]>;
+  /** ask where to save `text` (suggesting `name`) and write it */
+  saveTextFile(name: string, text: string): Promise<InvokeChannels["file:save-text"][1]>;
   enqueueDownloads(ids: string[]): Promise<InvokeChannels["downloads:enqueue"][1]>;
   cancelDownloads(): Promise<void>;
   openDownloadFolder(): Promise<string>;

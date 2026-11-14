@@ -49,7 +49,28 @@
      the key to your account and removes the option to gift it. Select several
      and use **Reveal selected** to do them in a throttled batch.
    - **Copy revealed** copies `Game: KEY` lines for the current view.
-     **Export…** writes the current view to CSV or JSON.
+   - **Export…** is on every view with keys (Keys, the Bundles list and each
+     bundle, the Choice index and each month, Library) and opens the export
+     window for the keys that view shows, after its search and filters.
+     Narrow it further with **platform** chips (Steam, Epic, GOG, ...; Unreal
+     Engine asset keys count as Epic), **key state** chips (revealed and not
+     redeemed, marked redeemed, redeemed by Humble, unrevealed, expiring soon,
+     gifted, expired, sold out; "usable" by default), a search and a sort.
+     Then, in either mode, the result appears in the window to **Copy** or
+     **Save to file…**:
+     - **Key list**: the keys joined by any separator (comma + space by
+       default, or comma, new line, semicolon, tab, space, your own), each
+       entry from a template (`{key}`, `{name}: {key}`, a redeem link, or your
+       own with `{key} {name} {platform} {bundle} {status} {type} {expiry}
+       {redeem}`), optionally grouped by bundle or platform, duplicates
+       skipped.
+     - **Data**: CSV, TSV (pastes straight into a spreadsheet), a Markdown
+       table or JSON, with the columns you pick (every field Humbler has,
+       including purchase date and price, redeem state and Humble's raw
+       details), or **JSON, everything**: grouped by bundle, with each
+       bundle's purchase, every key with all its data, and its library items
+       and files.
+     Your choices are remembered for next time.
 4. **Downloads tab** lists every file across every bundle. Filter by bundle,
    platform (windows / mac / linux / ebook / audio / …), or format
    (PDF / EPUB / MOBI / …), then **Download selected** or **Download all shown**.

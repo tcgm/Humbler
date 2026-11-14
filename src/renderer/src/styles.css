@@ -549,6 +549,10 @@ button.pill.update:hover {
   background: color-mix(in srgb, var(--ok) 15%, transparent);
 }
 
+/* bundle page: the keys heading (and its Export button) stays above the scrolling list */
+.hb-fixed-head { margin: 4px 0 8px; }
+.hb-fixed-head h3 { margin: 0; font-size: 15px; font-weight: 600; color: var(--hb-text); }
+
 /* ---- Settings dialog ---- */
 .ask.settings { width: min(560px, 94vw); max-height: 88vh; overflow: auto; }
 .ask.settings h4 { margin: 16px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--hb-muted); }
@@ -561,3 +565,43 @@ label.settings-row { cursor: pointer; }
 .settings-actions { display: flex; gap: 6px; flex: none; }
 .ask.settings .ask-actions { margin-top: 14px; }
 
+
+/* ---- Export window ---- */
+.ask.export { width: min(1040px, 96vw); height: min(760px, 92vh); display: flex; flex-direction: column; }
+.ask.export > .muted-line { margin: 4px 0 10px; }
+.export-modes { display: flex; gap: 6px; margin-bottom: 10px; }
+.export-modes button {
+  flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 7px 12px; text-align: left;
+  background: var(--hb-input); color: var(--hb-text); border: 1px solid var(--hb-input-border); border-radius: 4px; cursor: pointer; font-weight: 600;
+}
+.export-modes button small { font-weight: 400; font-size: 11px; color: var(--hb-muted); }
+.export-modes button.active { border-color: var(--hb-red); box-shadow: inset 0 -2px 0 var(--hb-red); }
+.export-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(250px, 320px) minmax(0, 1fr); gap: 14px; }
+.export-side { min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 6px; }
+.export-side h4 { display: flex; align-items: baseline; gap: 8px; margin: 8px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--hb-muted); }
+.export-side h4:first-child { margin-top: 0; }
+.export-side h4 a { cursor: pointer; text-transform: none; letter-spacing: 0; color: var(--hb-link); font-weight: 400; }
+.export-side select, .export-side input:not([type="checkbox"]) { width: 100%; box-sizing: border-box; }
+.export-side small.muted-line { font-size: 10px; word-spacing: 2px; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+button.chip {
+  padding: 3px 9px; font-size: 12px; border-radius: 12px; cursor: pointer; white-space: nowrap;
+  background: var(--hb-input); color: var(--hb-text); border: 1px solid var(--hb-input-border);
+}
+button.chip span { color: var(--hb-muted); font-size: 11px; margin-left: 2px; }
+button.chip.on { background: var(--hb-red); border-color: var(--hb-red); color: #fff; }
+button.chip.on span { color: rgba(255, 255, 255, 0.8); }
+button.chip:disabled { opacity: 0.4; cursor: default; }
+.export-check { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
+.export-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; }
+.export-cols .export-check { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.export-main { min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+.export-main .muted-line { margin: 0; }
+.export-keys-text {
+  flex: 1; min-height: 120px; width: 100%; resize: none; box-sizing: border-box; padding: 8px;
+  font-family: ui-monospace, Consolas, monospace; font-size: 12px; white-space: pre; overflow: auto;
+  background: var(--hb-input); color: var(--hb-text); border: 1px solid var(--hb-input-border); border-radius: 4px;
+}
+.export-saved { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; align-self: center; }
+.ask.export .ask-actions { margin-top: 12px; }
+@media (max-width: 700px) { .export-body { grid-template-columns: 1fr; overflow: auto; } .export-side { overflow: visible; } }

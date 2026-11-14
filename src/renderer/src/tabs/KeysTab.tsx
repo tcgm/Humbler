@@ -1,6 +1,7 @@
 // Keys tab, modelled on the old humblebundle.com/home/keys page.
 import { useMemo, useState } from "react";
 import type { KeyEntry, KeyStatus } from "@shared/types";
+import { ExportButton } from "../components/ExportDialog";
 import { KeyField } from "../components/KeyField";
 import { ArmButton, ExtLink, HumbleLink, Pager, PlatformBadge, ResetButton } from "../components/ui";
 import { useRemembered } from "../remember";
@@ -152,9 +153,10 @@ export function KeysTab() {
         >
           {copied != null ? `Copied ${copied}` : "Copy revealed"}
         </button>
-        <button className="hb-btn ghost" onClick={() => api.exportKeys(rows.map((k) => k.id))}>
-          Export…
-        </button>
+        <ExportButton
+          scope={`${bundle ? keyBundles.find((b) => b.gamekey === bundle)?.name || "this bundle" : "your keys"}${dirty ? " (matching the Keys tab's filters)" : ""}`}
+          keys={rows}
+        />
         <ArmButton
           className="hb-btn"
           disabled={!revealable.length || busy}
