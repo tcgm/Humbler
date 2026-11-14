@@ -13,7 +13,7 @@ import * as harvest from "./lib/harvest";
 import { ownedMarkerSource } from "./lib/owned-marker";
 import { makeScrubber } from "./lib/scrub";
 import { LiveScout, LIVE_DIR, endpointOf } from "./lib/live-scout";
-import { ActionRegistry, SCAN_ACTIONS_SCRIPT, argNames, StaleActionError, isStaleActionReply } from "./lib/actions";
+import { ActionRegistry, SCAN_ACTIONS_SCRIPT, argNames, scanActionsOfPageScript, StaleActionError, isStaleActionReply } from "./lib/actions";
 import * as libraryV2 from "./lib/library-v2";
 import * as redeemedStore from "./lib/redeemed";
 import * as ordersV2 from "./lib/orders-v2";
@@ -336,7 +336,7 @@ async function refreshV2File(item: QueueItem): Promise<string> {
 type Action = NonNullable<ReturnType<ActionRegistry["find"]>>;
 
 async function callLibraryAction(action: Action, page: number, limit: number, requestId: number, query = "") {
-  const r = await hv().executeJavaScript(libraryV2.actionCallScript(action.id, action.page || "/home/library", libraryV2.libraryFields({ page, limit, requestId, query })));
+  const r = await hv().executeJavaScript(libraryV2.actionCallScript(action.id, ActionRegistry.postPath(action), libraryV2.libraryFields({ page, limit, requestId, query })));
   const data = /x-component/i.test(r.contentType) ? libraryV2.parseLibraryResponse(r.text) : null;
   if (!data && isStaleActionReply(r.status, r.text)) throw new StaleActionError(`library action ${action.id.slice(0, 10)}… is gone (HTTP ${r.status}): Humble has updated its site`);
   if (!data) {
@@ -414,26 +414,27 @@ async function actionByName(name: string, pageUrl: string | null, staleId?: stri
   if (staleId) actionRegistry.forget(staleId);
   const known = actionRegistry.findByName(name);
   if (known) return known;
+  // Never navigate the pane (that's yours): scan the scripts of the page
+  // that uses the action by fetching it in the background, plus whatever the
+  // pane has loaded already.
+  await ensureHumblePageLoaded();
   const wc = hv();
-  if (pageUrl && wc.getURL() !== pageUrl) {
-    await new Promise<void>((resolve) => {
-      const t = setTimeout(resolve, 30000);
-      wc.once("did-finish-load", () => {
-        clearTimeout(t);
-        resolve();
-      });
-      void wc.loadURL(pageUrl);
-    });
-    await sleep(1500); // let the page load its code
-  }
   let found: { id: string; name: string | null }[] = [];
   try {
-    found = await wc.executeJavaScript(SCAN_ACTIONS_SCRIPT);
+    found = [...(pageUrl ? await wc.executeJavaScript(scanActionsOfPageScript(pageUrl)) : []), ...(await wc.executeJavaScript(SCAN_ACTIONS_SCRIPT))];
   } catch (err) {
     log(`  Couldn't scan the site's scripts: ${errMsg(err)}`);
   }
   // Learn every named action seen (names and ids only), for next time.
-  for (const a of found) if (a.name && !actionRegistry.data.actions[a.id]) actionRegistry.learn(a.id, [], new URL(wc.getURL()).pathname, a.name);
+  for (const a of found) {
+    if (!a.name) continue;
+    const known = actionRegistry.data.actions[a.id];
+    if (!known) actionRegistry.learn(a.id, [], pageUrl ? new URL(pageUrl).pathname : new URL(wc.getURL()).pathname, a.name);
+    else if (!known.name) {
+      known.name = a.name;
+      actionRegistry.save();
+    }
+  }
   return actionRegistry.findByName(name);
 }
 
@@ -442,7 +443,8 @@ async function fetchDownloadLinks(ent: RawItem, pageUrl?: string): Promise<boole
   let action = await actionByName(libraryV2.SIGNED_URLS_ACTION, pageUrl || null);
   if (!action) throw new Error(`couldn't find Humble's ${libraryV2.SIGNED_URLS_ACTION} action`);
   for (let attempt = 0; attempt < 2; attempt++) {
-    const r = await hv().executeJavaScript(libraryV2.jsonActionCallScript(action.id, action.page || "/home/library", [[ent.id]]));
+    const postTo = ActionRegistry.postPath(action, pageUrl ? new URL(pageUrl).pathname : "/home/library");
+    const r = await hv().executeJavaScript(libraryV2.jsonActionCallScript(action.id, postTo, [[ent.id]]));
     if (isStaleActionReply(r.status, r.text) && attempt === 0) {
       action = await actionByName(libraryV2.SIGNED_URLS_ACTION, pageUrl || null, action.id);
       if (!action) throw new Error(`Humble updated its site and ${libraryV2.SIGNED_URLS_ACTION} wasn't found again`);
@@ -482,7 +484,8 @@ async function syncDownloadLinks({ full }: { full: boolean }) {
       try {
         if (await fetchDownloadLinks(ent, pageUrl)) ok += 1;
         else none += 1;
-        if (!shapeLogged && ent.signedUrls) {
+        // (the first reply with files in it: some items have none, e.g. coupons)
+        if (!shapeLogged && ent.signedUrls && libraryV2.structsFromSignedUrls(ent.signedUrls).length) {
           shapeLogged = true;
           log(`  Download links reply (field names only): ${JSON.stringify(libraryV2.shapeOnly(ent.signedUrls)).slice(0, 400)}`);
         }

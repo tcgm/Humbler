@@ -27,6 +27,33 @@ export interface ActionInfo {
 export class StaleActionError extends Error {}
 export const isStaleActionReply = (status: number, text: string): boolean => (status === 404 || status === 409) && /server action/i.test(text || "");
 
+/** Like SCAN_ACTIONS_SCRIPT, but for another page, without opening it: fetch
+ *  its HTML in the background and scan the scripts it loads. */
+export const scanActionsOfPageScript = (pageUrl: string): string => `
+  (async () => {
+    const html = await (await fetch(${JSON.stringify(pageUrl)}, { credentials: "include" })).text();
+    const srcs = new Set();
+    for (const m of html.matchAll(/<script[^>]+src="([^"]+)"/g)) srcs.add(new URL(m[1].replace(/&amp;/g, "&"), location.origin).href);
+    for (const m of html.matchAll(/\\/_next\\/static\\/chunks\\/[A-Za-z0-9_.~-]+\\.js/g)) srcs.add(location.origin + m[0]);
+    const out = [];
+    const seen = new Set();
+    for (const src of srcs) {
+      if (!src.startsWith(location.origin + "/_next/")) continue;
+      let text = "";
+      try { text = await (await fetch(src)).text(); } catch { continue; }
+      const re = /createServerReference\\)?\\(\\s*["']([0-9a-f]{40,})["']([^)]{0,300})\\)/g;
+      let m;
+      while ((m = re.exec(text))) {
+        if (seen.has(m[1])) continue;
+        seen.add(m[1]);
+        const names = m[2].match(/["']([A-Za-z_$][\\w$]*)["']/g);
+        out.push({ id: m[1], name: names ? names[names.length - 1].slice(1, -1) : null });
+      }
+    }
+    return out;
+  })()
+`;
+
 // Page source (for executeJavaScript): every server action referenced by the
 // page's loaded scripts, as {id, name}. Next.js client bundles call
 // createServerReference("<id>", callServer, void 0, findSourceMapURL, "<name>").
@@ -88,12 +115,14 @@ export class ActionRegistry {
     } catch {
       // ignore
     }
+    if (page.includes(":")) page = ""; // a catalog pattern (/home/library/:slug), not a page you can post to
     const prev: Partial<ActionInfo> = this.data.actions[entry.action] || {};
     this.data.actions[entry.action] = {
       args: args.length ? args : prev.args || [],
       page: page || prev.page || "",
       firstSeen: prev.firstSeen || when,
       lastSeen: when > (prev.lastSeen || "") ? when : (prev.lastSeen as string),
+      ...(prev.name ? { name: prev.name } : {}), // learned from the site's scripts; calls don't carry it
     };
     clearTimeout(this.timer ?? undefined);
     this.timer = setTimeout(() => this.save(), 1000);
@@ -107,6 +136,11 @@ export class ActionRegistry {
     } catch {
       // non-fatal; re-learned on next page visit
     }
+  }
+
+  /** Where to POST an action: its page, unless that's only a pattern. */
+  static postPath(a: { page?: string } | null | undefined, fallback = "/home/library"): string {
+    return a?.page && !a.page.includes(":") ? a.page : fallback;
   }
 
   // The most recently seen action taking all of `requiredArgs` (optionally
