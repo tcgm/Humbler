@@ -58,8 +58,14 @@ Vite's default 5173 is often inside one.
    every key by default (50 per page, newest first); filter by status to
    narrow it down.
    - Each key has a status: unrevealed ("Reveal your Steam key" box),
-     revealed, **gifted**, redeem link, expired, or sold out. Keys that
+     revealed, **gifted**, redeem link, expired, or **sold out** (Humble ran
+     out of keys before you revealed it). Sold-out keys get their own filter,
+     a ⚠ count in the summary, a warning on the key with a link to Humble
+     support, and a badge on their bundle and Choice month. Keys that
      expire within 30 days are flagged, and "Expiring soon" filters to them.
+   - Every key, download and product has a **Humble page** link that opens
+     it on Humble (right): the item's own page for new-site items, the
+     purchase for older ones.
      Redemption instructions show under the key, and their links (e.g.
      Humble's support articles) open in your browser, never in Humbler.
    - **Revealing a new-site key**: "Reveal your … key" opens the item on
@@ -136,7 +142,11 @@ Vite's default 5173 is often inside one.
    Humbler rebuilds them.
    - **Month index**: every Choice month in your library (bundles named
      "&lt;Month&gt; Humble Choice"), the empty month groups Humble lists, and the
-     current month as shown on your library page.
+     current month as shown on your library page. Search by month or game
+     title (matching games are listed on the card); sort by most recent,
+     oldest, most unrevealed keys or deadline soonest; filter to months with
+     unrevealed keys, a deadline, sold-out keys, games not in your library,
+     or downloads.
    - **Month page**: the old game grid. Each game shows its key (reveal,
      redeem, redeemed state) and downloads. Games of the current month that
      aren't in your library yet are marked "Not in your library yet", with a
