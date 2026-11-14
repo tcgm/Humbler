@@ -847,9 +847,50 @@ async function ensureHumblePageLoaded() {
   });
 }
 
+// 2026-site keys: the request Humble's own Reveal button sends, from inside
+// the real page. It's the server action redeemEntitlementAction with
+// [key id, key type, undefined] (seen in the live catalog; a key's id is its
+// item's id), replying {success, key}. Humble redeems keyless keys (e.g.
+// epic_keyless) to your linked account the same way its button does.
+const REVEAL_ACTION = "redeemEntitlementAction";
+
+/** stop revealing the rest: they'd fail the same way */
+class RevealStopError extends Error {}
+
+async function revealOneV2(key: KeyEntry): Promise<void> {
+  const rawId = key.id.replace(/^v2\|/, "");
+  const pagePath = key.contentUrl ? new URL(key.contentUrl, BASE).pathname : `/home/library/content/${key.itemId || rawId}`;
+  let action = await actionByName(REVEAL_ACTION, `${BASE}${pagePath}`);
+  if (!action) throw new RevealStopError(`Humble's reveal action isn't known yet: reveal one key on Humble (right) and try again`);
+  const args = [rawId, key.keyType, "$undefined"]; // exactly as the site sends it
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const r = await hv().executeJavaScript(libraryV2.jsonActionCallScript(action.id, pagePath, args));
+    if (isStaleActionReply(r.status, r.text)) {
+      if (attempt === 0) {
+        action = await actionByName(REVEAL_ACTION, `${BASE}${pagePath}`, action.id);
+        if (action) continue;
+      }
+      throw new RevealStopError(`Humble updated its site and its reveal action wasn't found again`);
+    }
+    const value = /x-component/i.test(r.contentType) ? resolvedFlightData(r.text) : null;
+    const reply = value?.find((v: RawItem) => v && typeof v === "object" && "success" in v);
+    if (!reply) throw new Error(`unexpected reply (HTTP ${r.status}, ${r.contentType || "no content-type"})`);
+    if (reply.success !== true) throw new Error(`Humble said no: ${JSON.stringify(reply.error ?? reply.message ?? null).slice(0, 200)}`);
+    // Into the cache (and the revealed-keys safety log) the same way a reveal on the site is picked up.
+    const cache = getLiveCache();
+    if (cache?.items?.length) {
+      const res = applyRevealReply(cache.items, args, value);
+      if (res.changed) commitKeyUpdates(res, cache);
+    }
+    if (typeof reply.key !== "string" || !reply.key.trim() || reply.key === "$undefined") log(`  ${key.name}: Humble confirmed it, without a key in the reply (keyless, or a Sync will show it)`);
+    send("key-updated", { id: key.id, key: typeof reply.key === "string" ? reply.key : null });
+    return;
+  }
+}
+
 // Runs the exact request Humble's own keys page made, from inside the real
 // page, so it carries the same origin, cookies and CSRF token. (Legacy keys
-// only: the 2026 site reveals through a mechanism not captured yet.)
+// only; 2026-site keys go through revealOneV2.)
 async function revealOne(key: KeyEntry): Promise<string> {
   const csrf = (await humbleSession().cookies.get({ url: BASE, name: "csrf_cookie" }))[0]?.value || "";
   const payload = JSON.stringify({ keytype: key.machineName, key: key.gamekey, keyindex: String(key.keyindex), csrf });
@@ -890,15 +931,28 @@ async function revealKeys(ids: string[]): Promise<RevealResult> {
   try {
     await ensureHumblePageLoaded();
     const wanted = new Set(ids);
-    // New-site keys can't be revealed through the old endpoint; open them
-    // on Humble's page instead (until the new reveal action is known).
+    // New-site keys: Humble's own Reveal button (a server action), one at a time.
     const v2Targets = index.keys.filter((k) => wanted.has(k.id) && k.status === "unused" && k.v2);
     if (v2Targets.length) {
-      log("Revealing new-site keys from Humbler isn't supported yet. Opening the item on Humble so you can reveal it there.");
-      openKeyOnHumble(v2Targets[0].id); // watched: picked up as soon as you reveal it
-      return { ok: false, reason: "v2-reveal-unsupported", results };
+      log(`Revealing ${v2Targets.length} key(s) on Humble…`);
+      for (const [n, key] of v2Targets.entries()) {
+        try {
+          await revealOneV2(key);
+          results.push({ id: key.id, ok: true });
+          log(`  ${key.name}: revealed`);
+        } catch (err) {
+          results.push({ id: key.id, ok: false, error: errMsg(err) });
+          log(`  ${key.name}: FAILED: ${errMsg(err)}`);
+          if (err instanceof RevealStopError) break; // the action is gone or not known: the rest would fail the same way
+        }
+        busyDetail = `revealing ${n + 1}/${v2Targets.length}`;
+        void pushStatus();
+        if (n < v2Targets.length - 1) await politeDelay(...REVEAL_DELAY);
+      }
+      busyDetail = null;
     }
-    const targets = index.keys.filter((k) => wanted.has(k.id) && k.status === "unused");
+    const targets = index.keys.filter((k) => wanted.has(k.id) && k.status === "unused" && !k.v2);
+    if (!targets.length) return { ok: results.some((r) => r.ok) || !results.length, results };
     log(`Revealing ${targets.length} key(s)…`);
     for (const [n, key] of targets.entries()) {
       try {

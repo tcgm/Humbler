@@ -73,7 +73,8 @@ export function KeysTab() {
   const pages = Math.max(1, Math.ceil(rows.length / PER_PAGE));
   const cur = Math.min(page, pages);
   const pageRows = rows.slice((cur - 1) * PER_PAGE, cur * PER_PAGE);
-  const revealable = lib.keys.filter((k) => sel.has(k.id) && k.status === "unused" && !k.v2);
+  // selected keys that can be revealed now (not before Humble's release date for them)
+  const revealable = lib.keys.filter((k) => sel.has(k.id) && k.status === "unused" && !(k.availableFrom && Date.parse(k.availableFrom) > Date.now()));
 
   const keyBundles = useMemo(() => lib.bundles.filter((b) => b.keyCount), [lib.bundles]);
   const types = useMemo(() => uniqSorted(lib.keys.map((k) => k.keyType)), [lib.keys]);

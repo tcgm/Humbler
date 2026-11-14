@@ -67,12 +67,7 @@ export function KeyField({ k }: { k: KeyEntry }) {
       break;
     default: {
       const label = `Reveal your ${p.name ? `${p.name} ` : ""}key`;
-      field = k.v2 ? (
-        // New-site keys: reveal on Humble's own page; Humbler watches and picks the key up as soon as you do.
-        <button className="keyfield" title="Opens this item on Humble (right). Reveal it there and it shows up here right away." onClick={() => api.revealOnHumble(k.id)}>
-          {label}
-        </button>
-      ) : (
+      field = (
         <ArmButton className="keyfield" disabled={busy} armedText="Click again to reveal. It can't be gifted afterwards" onFire={() => api.revealKeys([k.id]).then(() => undefined)}>
           {label}
         </ArmButton>

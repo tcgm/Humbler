@@ -28,9 +28,10 @@
      purchase for older ones.
      Redemption instructions show under the key, and their links (e.g.
      Humble's support articles) open in your browser, never in Humbler.
-   - **Revealing a new-site key**: "Reveal your … key" opens the item on
-     Humble (right). Reveal it there and **it appears in Humbler within a
-     second or two, no Sync needed**. Humbler watches the responses the
+   - **Revealing a new-site key**: "Reveal your … key" (two clicks) or
+     **Reveal selected** reveals it through the same request Humble's own
+     Reveal button sends. You can also reveal it on Humble (right), and
+     **it appears in Humbler within a second or two, no Sync needed**. Humbler watches the responses the
      site gets: the reveal action's own reply (`{success, key}`, matched to
      the item by the id it was sent with), any key data the site loads
      (reveals, gifting), and a re-check of an item you opened after the

@@ -22,9 +22,13 @@ library page uses (`src/main/lib/library-v2.ts`), run from inside your logged-in
   everything.
 - Items come with keys (status, gift status, expiry, instructions) and
   downloads (MD5/SHA-1/size). **Download links aren't included**: the site
-  issues them on demand, and Humbler doesn't know that request yet. The
-  same goes for **revealing** new-site keys. For both, Humbler opens the
-  item on Humble's page instead.
+  issues them on demand (the `getSignedUrlsForEntitlements` action), so
+  Humbler asks for them the same way.
+- **Revealing** a new-site key calls the action Humble's own Reveal button
+  uses, `redeemEntitlementAction`, with the same arguments the site sends
+  (`[key id, key type, undefined]`; a key's id is its item's id). The reply
+  is `{success, key}`. Reveal selected does this one key at a time, with a
+  pause between keys.
 - The library cache is `data/library-v2.json`. It includes revealed key
   values, encrypted (see [data.md](data.md)).
 
