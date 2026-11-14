@@ -458,6 +458,7 @@ export function buildIndexV2(items: any[], { downloadDir, naming = "original" }:
           itemId: it.id, // for refreshing an expired signed link
           entitlementId: ent.id,
           urlExpiresAt: und(ent.signedUrlsExpiresAt) ?? null,
+          machineName: typeof st.id === "string" && st.id.includes("/") ? st.id.split("/")[0] : null,
           v2: true,
         });
         product.fileCount += 1;

@@ -39,6 +39,13 @@ const api: HumblerApi = {
   markRedeemed: (id, redeemed, platform) => ipcRenderer.invoke("redeem:mark", { id, redeemed, platform }),
   getOrders: () => ipcRenderer.invoke("orders:get"),
   getChoice: () => ipcRenderer.invoke("choice:get"),
+  getFolders: () => ipcRenderer.invoke("folders:get"),
+  addFolder: () => ipcRenderer.invoke("folders:add"),
+  removeFolder: (p) => ipcRenderer.invoke("folders:remove", p),
+  setDefaultFolder: (p) => ipcRenderer.invoke("folders:set-default", p),
+  rescanFolders: () => ipcRenderer.invoke("folders:rescan"),
+  linkFolder: (p, gamekey) => ipcRenderer.invoke("folders:link", { path: p, gamekey }),
+  openFolder: (p) => ipcRenderer.invoke("folders:open", p),
   onLog: on("log"),
   onStatus: on("status"),
   onLibraryUpdated: on("library-updated"),
@@ -47,6 +54,7 @@ const api: HumblerApi = {
   onChoiceUpdated: on("choice-updated"),
   onOrdersUpdated: on("orders-updated"),
   onAppFocus: on("app-focus"),
+  onFoldersUpdated: on("folders-updated"),
 };
 
 contextBridge.exposeInMainWorld("humbler", api);

@@ -3,6 +3,7 @@
 import type {
   ChoiceMonth,
   DownloadProgress,
+  FoldersInfo,
   LibraryIndex,
   OkResult,
   Order,
@@ -38,6 +39,13 @@ export interface InvokeChannels {
   "redeem:mark": [[{ id: string; redeemed: boolean; platform?: string | null }], PlatformRedeemed | null];
   "orders:get": [[], { orders: Order[]; totalDocs: number | null }];
   "choice:get": [[], ChoiceMonth[]];
+  "folders:get": [[], FoldersInfo];
+  "folders:add": [[], void];
+  "folders:remove": [[string], void];
+  "folders:set-default": [[string], void];
+  "folders:rescan": [[], void];
+  "folders:link": [[{ path: string; gamekey: string | null | undefined }], void];
+  "folders:open": [[string], void];
 }
 
 /** main -> UI events: name -> payload */
@@ -50,6 +58,7 @@ export interface EventChannels {
   "choice-updated": void;
   "orders-updated": void;
   "app-focus": void;
+  "folders-updated": void;
 }
 
 type Unsubscribe = () => void;
@@ -83,6 +92,16 @@ export interface HumblerApi {
   markRedeemed(id: string, redeemed: boolean, platform?: string | null): Promise<PlatformRedeemed | null>;
   getOrders(): Promise<InvokeChannels["orders:get"][1]>;
   getChoice(): Promise<ChoiceMonth[]>;
+  getFolders(): Promise<FoldersInfo>;
+  /** pick a folder (dialog) to scan */
+  addFolder(): Promise<void>;
+  removeFolder(path: string): Promise<void>;
+  /** new downloads go here */
+  setDefaultFolder(path: string): Promise<void>;
+  rescanFolders(): Promise<void>;
+  /** link a bundle folder to a bundle (gamekey), mark it "not a bundle" (null), or back to automatic (undefined) */
+  linkFolder(path: string, gamekey: string | null | undefined): Promise<void>;
+  openFolder(path: string): Promise<void>;
   onLog: On<"log">;
   onStatus: On<"status">;
   onLibraryUpdated: On<"library-updated">;
@@ -91,4 +110,5 @@ export interface HumblerApi {
   onChoiceUpdated: On<"choice-updated">;
   onOrdersUpdated: On<"orders-updated">;
   onAppFocus: On<"app-focus">;
+  onFoldersUpdated: On<"folders-updated">;
 }

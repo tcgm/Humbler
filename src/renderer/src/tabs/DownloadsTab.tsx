@@ -201,10 +201,23 @@ function FileStatus({ f, p }: { f: FileEntry; p: DownloadProgress | undefined })
       </span>
     );
   if (p?.state === "cancelled") return <span className="tag warn">cancelled</span>;
+  if (f.onDisk?.how === "size-differs" && p?.state !== "done")
+    return (
+      <span className="keycell">
+        <span className="tag warn" title={`A file with this name is on disk, but its size differs (incomplete or a different version):\n${f.onDisk.path}`}>
+          on disk, size differs
+        </span>
+        <button className="small" onClick={() => api.showFile(f.id)}>
+          Show
+        </button>
+      </span>
+    );
   if (f.downloaded || p?.state === "done")
     return (
       <span className="keycell">
-        <span className="tag ok">downloaded</span>
+        <span className="tag ok" title={f.onDisk ? f.onDisk.path : undefined}>
+          {f.onDisk?.how === "extracted" ? "extracted" : f.onDisk ? "on disk" : "downloaded"}
+        </span>
         <button className="small" onClick={() => api.showFile(f.id)}>
           Show
         </button>

@@ -1,4 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { FoldersDialog } from "./components/FoldersDialog";
+import { Menu } from "./components/Menu";
 import { RedeemAsk } from "./components/RedeemAsk";
 import { api, useStore, type TabId } from "./store";
 import { BundlesTab } from "./tabs/BundlesTab";
@@ -15,6 +17,7 @@ export function App() {
   // tabs keeps your filters, selection and scroll position.
   // (Tracked from the current tab, so tabs reached with back/forward count too.)
   const [visited, setVisited] = useState<Set<TabId>>(new Set([tab]));
+  const [foldersOpen, setFoldersOpen] = useState(false);
   useEffect(() => setVisited((v) => (v.has(tab) ? v : new Set([...v, tab]))), [tab]);
 
   const go = (t: TabId) => {
@@ -59,10 +62,6 @@ export function App() {
           <button className="primary" disabled={s.busy} title="Fetch items added since your last sync" onClick={() => api.sync(false)}>
             Sync
           </button>
-          <button disabled={s.busy} title="Re-fetch your whole library" onClick={() => api.sync(true)}>
-            Full refresh
-          </button>
-          <button onClick={() => api.toggleBrowser()}>{status?.browserVisible === false ? "Show browser" : "Hide browser"}</button>
           <button
             className="icon-btn"
             title={s.theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
@@ -71,6 +70,14 @@ export function App() {
           >
             {s.theme === "dark" ? "☀" : "☾"}
           </button>
+          <Menu
+            items={[
+              { label: "Full refresh", title: "Re-fetch your whole library (and every download link)", disabled: s.busy, onPick: () => void api.sync(true) },
+              { label: status?.browserVisible === false ? "Show browser" : "Hide browser", title: "The Humble pane on the right", onPick: () => void api.toggleBrowser() },
+              "-",
+              { label: "Download folders…", title: "Where your downloads are, and where new ones go", onPick: () => setFoldersOpen(true) },
+            ]}
+          />
         </div>
       </header>
 
@@ -101,6 +108,7 @@ export function App() {
       )}
 
       <RedeemAsk />
+      {foldersOpen && <FoldersDialog onClose={() => setFoldersOpen(false)} />}
     </>
   );
 }

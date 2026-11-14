@@ -447,3 +447,44 @@ button.keyfield:disabled { opacity: 0.55; cursor: default; }
 .hb a.ext-out { color: var(--hb-link); cursor: pointer; font-size: 11px; }
 .hb a.ext-out:hover { text-decoration: underline; }
 .instr-links { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+
+/* ---- ☰ menu ---- */
+.menu { position: relative; display: inline-flex; }
+.icon-btn svg { width: 16px; height: 16px; vertical-align: middle; }
+.menu-pop {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 60; min-width: 200px; padding: 4px;
+  background: var(--panel, #1e2026); border: 1px solid var(--line, #3a3d45); border-radius: 6px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  display: flex; flex-direction: column;
+}
+.menu-pop hr { border: 0; border-top: 1px solid var(--line, #3a3d45); margin: 4px 2px; }
+button.menu-item { text-align: left; border: 0; background: transparent; padding: 7px 10px; border-radius: 4px; white-space: nowrap; }
+button.menu-item:hover:not(:disabled) { background: var(--hover, rgba(255, 255, 255, 0.07)); }
+button.menu-item:disabled { opacity: 0.45; }
+
+/* ---- Download folders dialog ---- */
+.ask.folders { width: min(760px, 94vw); max-height: 88vh; display: flex; flex-direction: column; }
+.folders-head { display: flex; align-items: center; justify-content: space-between; }
+.folders-head h3 { margin: 0; }
+.ask.folders .muted-line { font-size: 12px; color: var(--hb-muted); margin: 6px 0 10px; }
+.folder-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.folder-list li { display: flex; align-items: center; gap: 8px; padding: 5px 8px; background: var(--hb-input); border: 1px solid var(--hb-input-border); border-radius: 4px; }
+.folder-list li.missing { opacity: 0.6; }
+.folder-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.folder-path .star { color: #e3b341; vertical-align: -2px; }
+.folder-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+.folder-actions .icon-btn { width: 28px; padding: 4px 0; }
+.folders-actions { justify-content: flex-start; align-items: center; flex-wrap: wrap; }
+.folders-actions button svg { width: 13px; height: 13px; vertical-align: -2px; }
+.ask.folders h4 { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 14px 0 6px; font-size: 13px; }
+.ask.folders h4 a { cursor: pointer; color: var(--hb-muted); }
+.ask.folders h4 a.active { color: var(--hb-text); text-decoration: underline; }
+.ask.folders h4 .hb-search { margin-left: auto; min-width: 180px; padding: 4px 8px; }
+.folder-dirs { overflow: auto; min-height: 80px; display: flex; flex-direction: column; gap: 3px; }
+.folder-dir { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.folder-dir .folder-name { flex: 1 1 45%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; color: var(--hb-text); }
+.folder-dir .folder-name:hover { text-decoration: underline; }
+.folder-dir select { flex: 1 1 55%; max-width: none; }
+
+/* files/bundles found on disk */
+.on-disk { margin: 2px 0 0; font-size: 11px; color: var(--hb-green, #4fbf6c); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-bundle-head-main .on-disk { white-space: normal; font-size: 12px; }

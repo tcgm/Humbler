@@ -103,6 +103,24 @@ Vite's default 5173 is often inside one.
      while; after that only new items are fetched. Links expire, so
      Humbler gets a fresh one per file when you download it. Sizes show
      as "—" until a file is downloaded.
+   - **Download folders** (☰ menu): list every folder that holds Humble
+     downloads, and pick the default one new downloads go to. Humbler scans
+     them (names only, 3 levels into each bundle folder; ~1s for 100k
+     files) and works out what you already have:
+     - bundle folders are matched to bundles by name, loosely ("Cyberpunk"
+       = "Humble RPG Book Bundle: Cyberpunk by R. Talsorian"); folders it
+       can't place are listed so you can link them to a bundle by hand (or
+       mark them "not a bundle");
+     - files are found by Humble's file name, by the Humble Bundle
+       Downloader extension's `Title - Publisher.ext` naming
+       (`HumbleBundle/<Bundle>/<format>/…`), or as an extracted folder named
+       after the archive or product; a same-named file of a different size
+       is flagged;
+     - files found count as downloaded; bundles show "N of M files on disk"
+       with their folders, and Bundles can filter to "With a folder on disk"
+       or "Missing files";
+     - new downloads for a bundle that already has a folder go into that
+       folder; otherwise into the default folder.
    - Files go to `<download folder>/<bundle>/<product>/<file>`. Change the
      folder with **Change…**. The naming dropdown switches between Humble's
      own file names (`thegreatbook_v2.pdf`) and readable ones

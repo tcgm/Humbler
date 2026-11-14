@@ -11,7 +11,7 @@ import { bundleUrl, deadlineOf, fmtBytes, formatDate, formatMoney, monthLabel, n
 
 const PER_PAGE = 60;
 type Sort = "recent" | "az" | "unrevealed" | "deadline";
-type Filter = "all" | "unrevealed" | "deadline" | "soldout" | "files" | "choice" | "nochoice";
+type Filter = "all" | "unrevealed" | "deadline" | "soldout" | "files" | "ondisk" | "missing" | "choice" | "nochoice";
 
 const stats = (b: Bundle) =>
   [plural(b.itemCount ?? 0, "item"), b.keyCount ? plural(b.keyCount, "key") : null, b.fileCount ? plural(b.fileCount, "file") : null].filter(Boolean).join(" · ");
@@ -59,6 +59,8 @@ function BundleList() {
       if (filter === "deadline" && !deadlines.get(b.gamekey)) return false;
       if (filter === "soldout" && !soldOut.get(b.gamekey)) return false;
       if (filter === "files" && !b.fileCount) return false;
+      if (filter === "ondisk" && !b.diskDirs?.length) return false;
+      if (filter === "missing" && !(b.fileCount && (b.filesOnDisk ?? 0) < b.fileCount)) return false;
       if (filter === "choice" && !b.choiceMonth) return false;
       if (filter === "nochoice" && b.choiceMonth) return false;
       return true;
@@ -99,6 +101,8 @@ function BundleList() {
             <option value="deadline">With a redeem deadline</option>
             <option value="soldout">With sold-out keys</option>
             <option value="files">With downloads</option>
+            <option value="ondisk">With a folder on disk</option>
+            <option value="missing">Missing files (not on disk)</option>
             <option value="choice">Humble Choice months</option>
             <option value="nochoice">Everything but Choice</option>
           </select>
@@ -135,6 +139,11 @@ function BundleRow({ b, dl, soldOut, onOpen }: { b: Bundle; dl: ReturnType<typeo
       <div className="hb-row-main">
         <h4>{b.name}</h4>
         <p>{[stats(b), bought].filter(Boolean).join(" · ")}</p>
+        {!!b.diskDirs?.length && (
+          <p className="on-disk" title={b.diskDirs.join("\n")}>
+            {b.fileCount ? `${b.filesOnDisk ?? 0} of ${b.fileCount} files on disk` : "Has a folder on disk"}
+          </p>
+        )}
         {(!!b.unrevealed || soldOut > 0) && (
           <div className="hb-flags">
             {!!b.unrevealed && <span className="hb-flag">{b.unrevealed} unrevealed</span>}
@@ -186,6 +195,19 @@ function BundlePage({ id }: { id: string }) {
               .filter(Boolean)
               .join(" · ")}
           </p>
+          {!!b.diskDirs?.length && (
+            <p className="on-disk">
+              {b.fileCount ? `${b.filesOnDisk ?? 0} of ${b.fileCount} files on disk in ` : "On disk in "}
+              {b.diskDirs.map((d, i) => (
+                <span key={d}>
+                  {i > 0 && ", "}
+                  <a className="ext" title="Open this folder" onClick={() => api.openFolder(d)}>
+                    {d}
+                  </a>
+                </span>
+              ))}
+            </p>
+          )}
           <div className="hb-links">
             <ExtLink href={bundleUrl(b)} title="Open this purchase on Humble (right)">
               Open on Humble

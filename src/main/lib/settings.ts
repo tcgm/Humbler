@@ -11,6 +11,10 @@ export interface Settings {
   markOwned: boolean;
   liveScout: boolean;
   theme: Theme;
+  /** other folders to scan for things you already have (downloadDir is always scanned) */
+  folders: string[];
+  /** bundle folder -> bundle gamekey (null = not a bundle), set by hand */
+  folderLinks: Record<string, string | null>;
 }
 
 export function load(): Settings {
@@ -30,6 +34,8 @@ export function load(): Settings {
     liveScout: saved.liveScout !== false,
     // dark by default; "light" for anyone who insists
     theme: saved.theme === "light" ? "light" : "dark",
+    folders: Array.isArray(saved.folders) ? saved.folders.filter((f: unknown) => typeof f === "string" && f) : [],
+    folderLinks: saved.folderLinks && typeof saved.folderLinks === "object" ? saved.folderLinks : {},
   };
 }
 

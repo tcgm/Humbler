@@ -68,6 +68,11 @@ export interface FileEntry {
   itemId?: string;
   entitlementId?: string; // the download entitlement (for fresh signed links)
   urlExpiresAt?: string | null; // when the signed link stops working
+  machineName?: string | null; // the product's machine name (extracted folders are often named after it)
+  /** found in one of your download folders */
+  onDisk?: FileOnDisk | null;
+  /** where it is, or where it'll be downloaded to */
+  dest?: string;
   v2?: boolean;
 }
 
@@ -104,6 +109,25 @@ export interface Bundle {
   unrevealed?: number;
   choiceMonth?: string | null;
   order?: number; // recency rank, 1 = newest
+  /** this bundle's folders in your download folders */
+  diskDirs?: string[];
+  filesOnDisk?: number;
+}
+
+export interface FileOnDisk {
+  path: string;
+  /** file = the file itself; extracted = a folder of its unpacked contents; size-differs = same name, different size */
+  how: "file" | "extracted" | "size-differs";
+}
+
+/** Your download folders and what the last scan found. */
+export interface FoldersInfo {
+  downloadDir: string; // the default: new downloads go here (unless the bundle already has a folder)
+  folders: string[]; // other folders that are scanned
+  scanning: boolean;
+  scan: { at: string; files: number; dirs: number; ms: number; missing: string[]; truncated: boolean } | null;
+  /** every bundle folder found, and the bundles it's matched to */
+  bundleDirs: { path: string; name: string; root: string; gamekeys: string[]; linked: boolean }[];
 }
 
 export interface ChoiceGroup {

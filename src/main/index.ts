@@ -6,7 +6,7 @@ import { app, BaseWindow, WebContentsView, ipcMain, session, dialog, shell, clip
 import path from "node:path";
 import fs from "node:fs";
 import type { InvokeChannels } from "../shared/api";
-import type { Busy, KeyEntry, LibraryIndex, RevealResult, SettingsPatch } from "../shared/types";
+import type { Busy, FoldersInfo, KeyEntry, LibraryIndex, RevealResult, SettingsPatch } from "../shared/types";
 import { USERDATA_DIR, LOG_PATH, RECON_DIR } from "./lib/paths";
 import { INJECT_SOURCE } from "./lib/inject-capture";
 import * as harvest from "./lib/harvest";
@@ -24,6 +24,7 @@ import { HumbleApi, NotLoggedInError, BASE } from "./lib/humble-api";
 import { Downloader, type DownloadItem } from "./lib/downloader";
 import { politeDelay, sleep } from "./lib/throttle";
 import { applyKeyUpdates, applyRevealReply } from "./lib/key-updates";
+import { matchBundleDirs, matchFiles, scanFolders, type DiskScan } from "./lib/disk-scan";
 
 const env = (name: string, fallback: number) => Number(process.env[name] ?? fallback);
 const API_DELAY: [number, number] = [env("API_DELAY_MIN_MS", 700), env("API_DELAY_MAX_MS", 1800)];
@@ -112,9 +113,90 @@ function rebuildIndex() {
   const redeemedMap = redeemedStore.load();
   // ...or, for keys Humble redeemed to your account itself, that.
   for (const k of index.keys) k.platformRedeemed = redeemedMap[k.id] || k.autoRedeemed || null;
+  applyDiskScan();
   ownedTitles = null;
   liveScrubber = null; // new keys may be known now (sync / reveal)
   send("library-updated");
+}
+
+// ---- download folders: what's already on disk ------------------------------
+// Every folder in settings (plus the default download folder) is scanned for
+// bundle folders and files (names only), matched to the library, and the
+// result applied to the index: files found count as downloaded, bundles
+// know their folders, and new downloads for a bundle that already has a
+// folder go into that folder.
+
+let diskScan: DiskScan | null = null;
+let scanning = false;
+let bundleDirMatch = new Map<string, string[]>(); // gamekey -> folders
+
+const scanRoots = () => [settings.downloadDir, ...settings.folders.filter((f) => path.resolve(f) !== path.resolve(settings.downloadDir))];
+
+function applyDiskScan() {
+  bundleDirMatch = diskScan ? matchBundleDirs(index.bundles, diskScan.bundleDirs, settings.folderLinks) : new Map();
+  const found = diskScan
+    ? matchFiles(
+        index.files.map((f) => ({ id: f.id, gamekey: f.gamekey, filename: f.filename, product: f.product, publisher: f.publisher, size: f.size, machineName: f.machineName || f.productMachine })),
+        diskScan,
+        bundleDirMatch,
+      )
+    : new Map();
+  const onDiskPer = new Map<string, number>();
+  for (const f of index.files) {
+    const hit = found.get(f.id) || null;
+    f.onDisk = hit;
+    if (hit && hit.how !== "size-differs") {
+      f.downloaded = true;
+      onDiskPer.set(f.gamekey, (onDiskPer.get(f.gamekey) || 0) + 1);
+    }
+    const home = bundleDirMatch.get(f.gamekey)?.[0];
+    f.dest = hit?.how === "file" ? hit.path : home ? path.join(home, f.filename) : path.join(settings.downloadDir, f.rel);
+  }
+  for (const b of index.bundles) {
+    b.diskDirs = bundleDirMatch.get(b.gamekey) || [];
+    b.filesOnDisk = onDiskPer.get(b.gamekey) || 0;
+  }
+}
+
+async function rescanFolders(reason: string) {
+  if (scanning) return;
+  scanning = true;
+  send("folders-updated");
+  try {
+    const roots = scanRoots();
+    diskScan = await scanFolders(roots);
+    rebuildIndex();
+    const filesFound = index.files.filter((f) => f.onDisk && f.onDisk.how !== "size-differs").length;
+    log(
+      `Folders (${reason}): ${diskScan.files} files and ${diskScan.dirs} folders in ${roots.length} location(s), ${(diskScan.ms / 1000).toFixed(1)}s. ` +
+        `${[...bundleDirMatch.keys()].length} bundles have a folder; ${filesFound} of ${index.files.length} files found on disk.` +
+        (diskScan.missingRoots.length ? ` Not found: ${diskScan.missingRoots.join(", ")}.` : "") +
+        (diskScan.truncated ? " (Stopped early: too many files.)" : ""),
+    );
+  } catch (err) {
+    log(`Folder scan failed: ${errMsg(err)}`);
+  } finally {
+    scanning = false;
+    send("folders-updated");
+  }
+}
+
+function foldersInfo(): FoldersInfo {
+  const byDir = new Map<string, string[]>();
+  for (const [gk, dirs] of bundleDirMatch) for (const d of dirs) byDir.set(d, [...(byDir.get(d) || []), gk]);
+  return {
+    downloadDir: settings.downloadDir,
+    folders: settings.folders.filter((f) => path.resolve(f) !== path.resolve(settings.downloadDir)),
+    scanning,
+    scan: diskScan ? { at: diskScan.at, files: diskScan.files, dirs: diskScan.dirs, ms: diskScan.ms, missing: diskScan.missingRoots, truncated: diskScan.truncated } : null,
+    bundleDirs: (diskScan?.bundleDirs || []).map((d) => ({ path: d.path, name: d.name, root: d.root, gamekeys: byDir.get(d.path) || [], linked: d.path in settings.folderLinks })),
+  };
+}
+
+function saveFolders(patch: Partial<Pick<typeof settings, "downloadDir" | "folders" | "folderLinks">>) {
+  settings = { ...settings, ...patch };
+  settingsStore.save(settings);
+  void pushStatus();
 }
 
 // Continuous scouting shares one scrubber, rebuilt whenever the set of
@@ -724,7 +806,7 @@ function enqueueDownloads(ids: string[]) {
       gamekey: f.gamekey,
       url: f.url,
       rel: f.rel,
-      abs: path.join(settings.downloadDir, f.rel),
+      abs: f.dest || path.join(settings.downloadDir, f.rel),
       size: f.size,
       md5: f.md5,
       sha1: f.sha1,
@@ -1455,7 +1537,7 @@ handle("downloads:open-folder", () => {
 });
 handle("downloads:reveal-file", (id) => {
   const f = index.files.find((x) => x.id === id);
-  if (f) shell.showItemInFolder(path.join(settings.downloadDir, f.rel));
+  if (f) shell.showItemInFolder(f.onDisk?.path || f.dest || path.join(settings.downloadDir, f.rel));
 });
 handle("settings:choose-download-dir", async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
@@ -1464,12 +1546,39 @@ handle("settings:choose-download-dir", async () => {
     properties: ["openDirectory", "createDirectory"],
   });
   if (canceled || !filePaths[0]) return;
-  settings = { ...settings, downloadDir: filePaths[0] };
-  settingsStore.save(settings);
-  log(`Download folder: ${settings.downloadDir}`);
-  rebuildIndex();
-  void pushStatus();
+  setDefaultFolder(filePaths[0]);
 });
+
+function setDefaultFolder(dir: string) {
+  const prev = settings.downloadDir;
+  const folders = [...new Set([...settings.folders, prev].map((f) => path.resolve(f)))].filter((f) => f !== path.resolve(dir));
+  saveFolders({ downloadDir: path.resolve(dir), folders });
+  log(`Default download folder: ${settings.downloadDir} (the previous one is still scanned)`);
+  void rescanFolders("default folder changed");
+}
+
+handle("folders:get", () => foldersInfo());
+handle("folders:add", async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({ title: "Add a folder with Humble downloads", properties: ["openDirectory", "multiSelections"] });
+  if (canceled || !filePaths.length) return;
+  saveFolders({ folders: [...new Set([...settings.folders, ...filePaths.map((f) => path.resolve(f))])] });
+  void rescanFolders("folder added");
+});
+handle("folders:remove", (dir) => {
+  saveFolders({ folders: settings.folders.filter((f) => path.resolve(f) !== path.resolve(dir)) });
+  void rescanFolders("folder removed");
+});
+handle("folders:set-default", (dir) => setDefaultFolder(dir));
+handle("folders:rescan", () => void rescanFolders("rescan"));
+handle("folders:link", ({ path: dir, gamekey }) => {
+  const links = { ...settings.folderLinks };
+  if (gamekey === undefined) delete links[dir];
+  else links[dir] = gamekey;
+  saveFolders({ folderLinks: links });
+  rebuildIndex(); // matching only, no rescan needed
+  send("folders-updated");
+});
+handle("folders:open", (dir) => void shell.openPath(dir));
 handle("browser:toggle", () => setBrowserVisible(!browserVisible));
 handle("browser:go", (where) => {
   const routes: Record<string, string> = {
@@ -1502,6 +1611,7 @@ void app.whenReady().then(() => {
   rebuildIndex();
   createWindow();
   log(`Loaded ${index.bundles.length} cached orders, ${index.keys.length} keys, ${index.files.length} files.`);
+  void rescanFolders("startup"); // what's already on disk
 });
 
 // Write cookies (your login) to disk before exiting. Quitting waits for the
