@@ -55,7 +55,10 @@ interface Store {
 }
 
 const EMPTY: LibraryIndex = { bundles: [], keys: [], files: [], products: [], choiceGroups: [] };
-const Ctx = createContext<Store | null>(null);
+// Kept across hot reloads: editing a module this file imports (util.ts...)
+// re-runs it, and a fresh context would orphan every mounted useStore().
+const Ctx: React.Context<Store | null> = import.meta.hot?.data.storeCtx ?? createContext<Store | null>(null);
+if (import.meta.hot) import.meta.hot.data.storeCtx = Ctx;
 
 export function useStore(): Store {
   const s = useContext(Ctx);
