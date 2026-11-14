@@ -1,7 +1,7 @@
 // Library: everything you own (Humble Librarian's list), including
 // links-only items.
 import { useMemo, useState } from "react";
-import { ExtLink } from "../components/ui";
+import { ExtLink, HumbleLink } from "../components/ui";
 import { api, useStore } from "../store";
 import { SITE, steamUrl } from "../util";
 
@@ -109,7 +109,8 @@ export function LibraryTab() {
                   </td>
                   <td className="actcol">
                     {(p.keyCount > 0 || p.steamAppId) && <ExtLink href={steamUrl(p.title, p.steamAppId)}>Steam</ExtLink>}
-                    {p.url && <ExtLink href={p.url}>{p.v2 ? "Item" : "Site"}</ExtLink>}
+                    <HumbleLink of={p} label="Humble" />
+                    {!p.v2 && p.url && <ExtLink href={p.url}>Site</ExtLink>}
                     {p.links.slice(0, 3).map((u, i) => (
                       <ExtLink key={u} href={u}>
                         {p.links.length > 1 ? `Link ${i + 1}` : "Link"}

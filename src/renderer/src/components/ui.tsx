@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import type { Bundle, KeyEntry } from "@shared/types";
 import { api, useStore, type OrderInfo } from "../store";
-import { formatDate, normTitle, platformOf, plural, tileLook, type Deadline } from "../util";
+import { formatDate, humblePageOf, normTitle, platformOf, plural, tileLook, type Deadline } from "../util";
 
 /** Opens Humble URLs in the pane on the right and anything else in your browser. */
 export function ExtLink({ href, children, title }: { href: string; children: ReactNode; title?: string }) {
@@ -18,6 +18,17 @@ export function ExtLink({ href, children, title }: { href: string; children: Rea
     >
       {children}
     </a>
+  );
+}
+
+/** "Humble page" link for any key, file or product (opens in the pane on the right). */
+export function HumbleLink({ of, label = "Humble page" }: { of: Parameters<typeof humblePageOf>[0] | null | undefined; label?: string }) {
+  const href = of ? humblePageOf(of) : null;
+  if (!href) return null;
+  return (
+    <ExtLink href={href} title={`Open on Humble (right)\n${href}`}>
+      {label}
+    </ExtLink>
   );
 }
 

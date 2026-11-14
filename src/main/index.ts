@@ -13,7 +13,7 @@ import * as harvest from "./lib/harvest";
 import { ownedMarkerSource } from "./lib/owned-marker";
 import { makeScrubber } from "./lib/scrub";
 import { LiveScout, LIVE_DIR, endpointOf } from "./lib/live-scout";
-import { ActionRegistry, SCAN_ACTIONS_SCRIPT, StaleActionError, isStaleActionReply } from "./lib/actions";
+import { ActionRegistry, SCAN_ACTIONS_SCRIPT, argNames, StaleActionError, isStaleActionReply } from "./lib/actions";
 import * as libraryV2 from "./lib/library-v2";
 import * as redeemedStore from "./lib/redeemed";
 import * as ordersV2 from "./lib/orders-v2";
@@ -689,7 +689,9 @@ function attachScout(wc: WebContents) {
       actionRegistry.note(entry, wc.getURL());
       harvestOrders(entry); // purchases: icons, dates, prices, key deadlines
       applyLiveKeyUpdates(entry); // keys revealed/gifted on the site, right away
-      if (entry.action && watchedItems.size) refreshWatchedSoon(); // a site action (e.g. a reveal) on an item you opened
+      // A site action (e.g. a reveal) on an item you opened. Not the library
+      // listing itself: Humbler's own re-check calls that, which would loop.
+      if (entry.action && watchedItems.size && !libraryV2.LIBRARY_ACTION_ARGS.every((a) => argNames(entry.requestBody).includes(a))) refreshWatchedSoon();
       if (!settings.liveScout) return;
       try {
         liveScout.record(entry, wc.getURL());
@@ -961,7 +963,8 @@ function applyLiveKeyUpdates(entry: RawItem) {
 }
 
 const WATCH_MS = 15 * 60 * 1000;
-const watchedItems = new Map<string, { title: string; until: number }>(); // item id -> what to search for
+const watchedItems = new Map<string, { title: string; until: number; checks?: number }>(); // item id -> what to search for
+const WATCH_MAX_CHECKS = 5; // re-checks per opened item, then just the passive matching
 let watchTimer: ReturnType<typeof setTimeout> | undefined;
 
 function refreshWatchedSoon() {
@@ -973,7 +976,8 @@ async function refreshWatched() {
   const cache = getLiveCache();
   if (!cache?.items?.length) return;
   for (const [itemId, w] of [...watchedItems]) {
-    if (Date.now() > w.until) {
+    w.checks = (w.checks || 0) + 1;
+    if (Date.now() > w.until || w.checks > WATCH_MAX_CHECKS) {
       watchedItems.delete(itemId);
       continue;
     }

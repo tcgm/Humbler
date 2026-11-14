@@ -1,12 +1,15 @@
 // Humble Choice, rebuilt (Humble no longer serves these pages): an index of
 // every month, and a month page modelled on the old /membership/<month> grid.
-import { useMemo } from "react";
-import type { Bundle, ChoiceMonth, FileEntry, KeyEntry } from "@shared/types";
+import { useMemo, useState } from "react";
+import type { Bundle, ChoiceMonth, FileEntry, KeyEntry, LibraryIndex, Product } from "@shared/types";
 import { FileButton } from "../components/FileButton";
 import { KeyField } from "../components/KeyField";
-import { BackLink, DeadlineBadge, ExtLink, Tile } from "../components/ui";
+import { BackLink, DeadlineBadge, ExtLink, HumbleLink, Tile } from "../components/ui";
 import { useStore } from "../store";
-import { deadlineOf, monthLabel, normTitle, plural, SITE } from "../util";
+import { deadlineOf, monthLabel, normTitle, plural, SITE, type Deadline } from "../util";
+
+type Sort = "recent" | "oldest" | "unrevealed" | "deadline";
+type Filter = "all" | "unrevealed" | "deadline" | "soldout" | "missing" | "files" | "empty";
 
 interface Month {
   month: string;
@@ -21,6 +24,7 @@ interface Game {
   keys: KeyEntry[];
   files: FileEntry[];
   inLibrary: boolean;
+  product?: Product; // the library item (absent for games not in your library)
 }
 
 /** Every Choice month: library bundles "<Month> Humble Choice", Humble's
@@ -44,8 +48,12 @@ function useMonths(): Month[] {
  *  current-month games not in your library yet. */
 function useGames(m: Month | undefined): Game[] {
   const { lib } = useStore();
-  return useMemo(() => {
-    if (!m) return [];
+  return useMemo(() => gamesOf(m, lib), [m, lib]);
+}
+
+function gamesOf(m: Month | undefined, lib: LibraryIndex): Game[] {
+  if (!m) return [];
+  {
     const ids = new Set(m.bundles.map((b) => b.gamekey));
     const images = new Map(Object.values(m.harvested?.games || {}).map((g) => [normTitle(g.title), g.image]));
     const games: Game[] = lib.products
@@ -57,13 +65,41 @@ function useGames(m: Month | undefined): Game[] {
         keys: lib.keys.filter((k) => (k.itemId ? k.itemId === p.id : k.gamekey === p.gamekey && normTitle(k.name) === normTitle(p.title))),
         files: lib.files.filter((f) => (f.itemId ? f.itemId === p.id : f.gamekey === p.gamekey && f.product === p.title)),
         inLibrary: true,
+        product: p,
       }));
     const have = new Set(games.map((g) => normTitle(g.title)));
     for (const g of Object.values(m.harvested?.games || {})) {
       if (!have.has(normTitle(g.title))) games.push({ title: g.title, image: g.image, keys: [], files: [], inLibrary: false });
     }
     return games;
-  }, [m, lib]);
+  }
+}
+
+/** What the index shows (and searches, filters, sorts by) for one month. */
+interface MonthSummary {
+  m: Month;
+  games: Game[];
+  unrevealed: number;
+  soldOut: number;
+  notInLib: number;
+  files: number;
+  dl: Deadline | null;
+  haystack: string; // month name + game titles, lowercased
+}
+
+function summarize(m: Month, lib: LibraryIndex): MonthSummary {
+  const games = gamesOf(m, lib);
+  const keys = games.flatMap((g) => g.keys);
+  return {
+    m,
+    games,
+    unrevealed: keys.filter((k) => k.status === "unused").length,
+    soldOut: keys.filter((k) => k.status === "sold-out").length,
+    notInLib: games.filter((g) => !g.inLibrary).length,
+    files: games.reduce((n, g) => n + g.files.length, 0),
+    dl: deadlineOf(keys),
+    haystack: `${monthLabel(m.month)} ${m.month} ${games.map((g) => g.title).join(" ")}`.toLowerCase(),
+  };
 }
 
 export function ChoiceTab() {
@@ -74,42 +110,90 @@ export function ChoiceTab() {
 }
 
 function MonthIndex({ months }: { months: Month[] }) {
+  const { lib } = useStore();
+  const [q, setQ] = useState("");
+  const [sort, setSort] = useState<Sort>("recent");
+  const [filter, setFilter] = useState<Filter>("all");
+  const all = useMemo(() => months.map((m) => summarize(m, lib)), [months, lib]);
+  const needle = q.trim().toLowerCase();
+
+  const list = useMemo(() => {
+    let out = all.filter((x) => {
+      if (needle && !x.haystack.includes(needle)) return false;
+      if (filter === "unrevealed" && !x.unrevealed) return false;
+      if (filter === "deadline" && !x.dl) return false;
+      if (filter === "soldout" && !x.soldOut) return false;
+      if (filter === "missing" && !x.notInLib) return false;
+      if (filter === "files" && !x.files) return false;
+      if (filter === "empty" && x.games.length) return false;
+      return true;
+    });
+    const recent = (a: MonthSummary, b: MonthSummary) => b.m.month.localeCompare(a.m.month);
+    if (sort === "oldest") out = [...out].sort((a, b) => -recent(a, b));
+    else if (sort === "unrevealed") out = [...out].sort((a, b) => b.unrevealed - a.unrevealed || recent(a, b));
+    else if (sort === "deadline") out = [...out].sort((a, b) => (a.dl?.t ?? Infinity) - (b.dl?.t ?? Infinity) || recent(a, b));
+    else out = [...out].sort(recent);
+    return out;
+  }, [all, needle, sort, filter]);
+
+  // games that matched the search, shown on the card (unless the month name matched)
+  const matchesOf = (x: MonthSummary) =>
+    needle && !monthLabel(x.m.month).toLowerCase().includes(needle) ? x.games.filter((g) => g.title.toLowerCase().includes(needle)).map((g) => g.title) : [];
+
   return (
     <div className="hb-page hb-scroll">
       <div className="hb-head">
         <h2>Humble Choice</h2>
+        <div className="hb-controls">
+          <input className="hb-search" type="search" placeholder="Search months or games" value={q} onChange={(e) => setQ(e.target.value)} />
+          <select title="Sort" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
+            <option value="recent">Most recent</option>
+            <option value="oldest">Oldest first</option>
+            <option value="unrevealed">Most unrevealed keys</option>
+            <option value="deadline">Deadline soonest</option>
+          </select>
+          <select title="Show" value={filter} onChange={(e) => setFilter(e.target.value as Filter)}>
+            <option value="all">All months</option>
+            <option value="unrevealed">With unrevealed keys</option>
+            <option value="deadline">With a redeem deadline</option>
+            <option value="soldout">With sold-out keys</option>
+            <option value="missing">With games not in your library</option>
+            <option value="files">With downloads</option>
+            <option value="empty">No games in your library</option>
+          </select>
+        </div>
       </div>
       <p className="hb-summary">
-        Humble no longer serves its Choice pages. These are rebuilt from your library (each month's games, keys and downloads) and from the current month as listed on your library
-        page.
+        {plural(list.length, "month")}
+        {needle || filter !== "all" ? ` of ${all.length}` : ""} · Humble no longer serves its Choice pages. These are rebuilt from your library (each month&apos;s games, keys
+        and downloads) and from the current month as listed on your library page.
       </p>
-      {months.length ? (
+      {list.length ? (
         <div className="hb-cards months">
-          {months.map((m) => (
-            <MonthCard key={m.month} m={m} />
+          {list.map((x) => (
+            <MonthCard key={x.m.month} s={x} matches={matchesOf(x)} />
           ))}
         </div>
       ) : (
-        <div className="hb-empty">No Choice months yet. Sync your library, or open it on the right.</div>
+        <div className="hb-empty">{all.length ? "No months match." : "No Choice months yet. Sync your library, or open it on the right."}</div>
       )}
     </div>
   );
 }
 
-function MonthCard({ m }: { m: Month }) {
+function MonthCard({ s, matches }: { s: MonthSummary; matches: string[] }) {
   const { openChoiceMonth } = useStore();
-  const games = useGames(m);
-  const unrevealed = games.reduce((n, g) => n + g.keys.filter((k) => k.status === "unused").length, 0);
-  const notInLib = games.filter((g) => !g.inLibrary).length;
-  const dl = deadlineOf(games.flatMap((g) => g.keys));
+  const { m, games, unrevealed, soldOut, notInLib, dl } = s;
   return (
     <button className="hb-card month-card" onClick={() => openChoiceMonth(m.month)}>
       <div className="hb-card-body">
         <h4>{monthLabel(m.month)}</h4>
         <p>{games.length ? plural(games.length, "game") : m.group ? "No games from this month in your library" : "No games yet"}</p>
-        {(unrevealed > 0 || notInLib > 0) && (
+        {matches.length > 0 && <p className="month-matches">{matches.join(" · ")}</p>}
+        {(unrevealed > 0 || notInLib > 0 || soldOut > 0) && (
           <div className="hb-flags">
             {unrevealed > 0 && <span className="hb-flag">{unrevealed} unrevealed</span>}
+            {soldOut > 0 && <span className="hb-flag red">⚠ {soldOut} sold out</span>}
             {notInLib > 0 && <span className="hb-flag amber">{notInLib} not in library</span>}
           </div>
         )}
@@ -150,6 +234,11 @@ function MonthPage({ m }: { m: Month }) {
             {g.image ? <img className="choice-art" src={g.image} alt="" loading="lazy" /> : <Tile title={g.title} size="art" />}
             <div className="choice-body">
               <h4>{g.title}</h4>
+              {g.product && (
+                <div className="row-links">
+                  <HumbleLink of={g.product} />
+                </div>
+              )}
               {g.keys.map((k) => (
                 <div className="choice-key" key={k.id}>
                   <KeyField k={k} />

@@ -2,12 +2,12 @@
 import { useMemo, useState } from "react";
 import type { KeyEntry, KeyStatus } from "@shared/types";
 import { KeyField } from "../components/KeyField";
-import { ArmButton, ExtLink, Pager, PlatformBadge } from "../components/ui";
+import { ArmButton, ExtLink, HumbleLink, Pager, PlatformBadge } from "../components/ui";
 import { api, useStore } from "../store";
 import { EXPIRING_DAYS, isExpiring, platformOf, steamUrl, uniqSorted } from "../util";
 
 const PER_PAGE = 50;
-type StateFilter = "all" | "unused" | "revealed" | "notredeemed" | "platformredeemed" | "gifted" | "expiring" | "expired";
+type StateFilter = "all" | "unused" | "revealed" | "notredeemed" | "platformredeemed" | "gifted" | "expiring" | "expired" | "soldout";
 const LABELS: Record<KeyStatus, string> = { unused: "unrevealed", revealed: "revealed", gifted: "gifted", link: "redeem links", expired: "expired", "sold-out": "sold out" };
 
 function matchesState(k: KeyEntry, st: StateFilter): boolean {
@@ -25,7 +25,9 @@ function matchesState(k: KeyEntry, st: StateFilter): boolean {
     case "expiring":
       return isExpiring(k);
     case "expired":
-      return k.status === "expired" || k.status === "sold-out";
+      return k.status === "expired";
+    case "soldout":
+      return k.status === "sold-out";
     default:
       return true;
   }
@@ -74,6 +76,7 @@ export function KeysTab() {
     .map(([s, n]) => `${n} ${LABELS[s as KeyStatus] || s}`)
     .join(", ");
   const expiring = base.filter(isExpiring).length;
+  const soldOut = base.filter((k) => k.status === "sold-out").length;
   const hidden = base.length - rows.length;
   const from = rows.length ? (cur - 1) * PER_PAGE + 1 : 0;
 
@@ -122,7 +125,8 @@ export function KeysTab() {
           <option value="platformredeemed">Redeemed on platform</option>
           <option value="gifted">Gifted / links</option>
           <option value="expiring">Expiring soon</option>
-          <option value="expired">Expired / sold out</option>
+          <option value="expired">Expired</option>
+          <option value="soldout">Sold out</option>
         </select>
         <span className="spacer" />
         <button
@@ -157,6 +161,14 @@ export function KeysTab() {
         {rows.length} key{rows.length === 1 ? "" : "s"}
         {hidden ? ` (${hidden} more hidden by the status filter; ${breakdown})` : base.length ? ` (${breakdown})` : ""}
         {expiring ? ` · ⚠ ${expiring} expiring within ${EXPIRING_DAYS} days` : ""}
+        {soldOut > 0 && st !== "soldout" && (
+          <>
+            {" · "}
+            <a className="warn-link" title="Show only sold-out keys" onClick={() => reset(setSt)("soldout")}>
+              ⚠ {soldOut} sold out
+            </a>
+          </>
+        )}
       </div>
       <div className="hb-tablewrap">
         <table className="hb-keys">
@@ -187,7 +199,10 @@ export function KeysTab() {
                 <td className="hb-game">
                   <h4 title={k.name}>{k.name}</h4>
                   <p title={k.bundle}>{k.bundle}</p>
-                  {(platformOf(k).id === "steam" || k.steamAppId) && <ExtLink href={steamUrl(k.name, k.steamAppId)}>View on Steam</ExtLink>}
+                  <span className="row-links">
+                    <HumbleLink of={k} />
+                    {(platformOf(k).id === "steam" || k.steamAppId) && <ExtLink href={steamUrl(k.name, k.steamAppId)}>View on Steam</ExtLink>}
+                  </span>
                 </td>
                 <td>
                   <KeyField k={k} />

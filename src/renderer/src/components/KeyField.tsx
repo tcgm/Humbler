@@ -44,7 +44,11 @@ export function KeyField({ k }: { k: KeyEntry }) {
       field = <div className="keyfield expired">This key has expired</div>;
       break;
     case "sold-out":
-      field = <div className="keyfield expired">Sold out</div>;
+      field = (
+        <div className="keyfield soldout" title="Humble has run out of keys for this item">
+          ⚠ Sold out
+        </div>
+      );
       break;
     default: {
       const label = `Reveal your ${p.name ? `${p.name} ` : ""}key`;
@@ -78,6 +82,16 @@ export function KeyField({ k }: { k: KeyEntry }) {
           </a>
         </span>
       ),
+    );
+  }
+  if (k.status === "sold-out") {
+    meta.push(
+      <span key="so" className="soldout-note">
+        Humble ran out of keys for this before you revealed it. Humble support can sometimes offer a replacement:{" "}
+        <a className="ext-out" title="https://support.humblebundle.com/" onClick={() => api.openExternal("https://support.humblebundle.com/")}>
+          Humble support ↗
+        </a>
+      </span>,
     );
   }
   if (k.status === "unused" && k.expiry) {

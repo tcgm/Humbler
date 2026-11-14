@@ -1,7 +1,7 @@
 // Downloads: every file across every bundle, with filters and a queue.
 import { memo, useMemo, useState } from "react";
 import type { DownloadProgress, FileEntry, Naming } from "@shared/types";
-import { ExtLink } from "../components/ui";
+import { ExtLink, HumbleLink } from "../components/ui";
 import { api, useStore } from "../store";
 import { fmtBytes, uniqSorted } from "../util";
 
@@ -157,7 +157,7 @@ const FileRow = memo(function FileRow({
       <td title={`${f.product}\n${f.bundle}\n${f.filename}`}>
         {f.product}
         <span className="sub">
-          {f.bundle} · {f.filename}
+          {f.bundle} · {f.filename} · <HumbleLink of={f} />
         </span>
       </td>
       <td>{f.platform}</td>

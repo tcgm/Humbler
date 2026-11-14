@@ -124,6 +124,15 @@ export function deadlineOf(keys: KeyEntry[], fallback?: string | null): Deadline
 
 export const bundleUrl = (b: Pick<Bundle, "gamekey">) => `${SITE}/home/library/${encodeURIComponent(b.gamekey)}`;
 
+/** A product's page on Humble: new-site items have their own page; legacy
+ *  items (from old order data) open the purchase they came in. Works for
+ *  keys, files and products alike. */
+export function humblePageOf(x: { v2?: boolean; contentUrl?: string; url?: string | null; gamekey?: string }): string | null {
+  if (x.contentUrl) return x.contentUrl;
+  if (x.v2 && x.url) return x.url; // Product.url is the item page for new-site items (a developer site for legacy ones)
+  return x.gamekey ? bundleUrl({ gamekey: x.gamekey }) : null;
+}
+
 /** Stable placeholder colour + initials for items with no art. */
 export function tileLook(title: string): { initials: string; hue: number } {
   let h = 0;

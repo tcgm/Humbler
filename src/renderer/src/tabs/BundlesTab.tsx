@@ -4,13 +4,13 @@ import { useMemo, useState } from "react";
 import type { Bundle, FileEntry } from "@shared/types";
 import { FileButton } from "../components/FileButton";
 import { KeyField } from "../components/KeyField";
-import { BackLink, BundleIcon, DeadlineBadge, ExtLink, Pager, PlatformBadge, Tile, useOrderInfo } from "../components/ui";
+import { BackLink, BundleIcon, DeadlineBadge, ExtLink, HumbleLink, Pager, PlatformBadge, Tile, useOrderInfo } from "../components/ui";
 import { api, useStore } from "../store";
 import { bundleUrl, deadlineOf, fmtBytes, formatDate, formatMoney, monthLabel, normTitle, PLATFORM_LABELS, plural } from "../util";
 
 const PER_PAGE = 60;
 type Sort = "recent" | "az" | "unrevealed" | "deadline";
-type Filter = "all" | "unrevealed" | "deadline" | "files" | "choice" | "nochoice";
+type Filter = "all" | "unrevealed" | "deadline" | "soldout" | "files" | "choice" | "nochoice";
 
 const stats = (b: Bundle) =>
   [plural(b.itemCount ?? 0, "item"), b.keyCount ? plural(b.keyCount, "key") : null, b.fileCount ? plural(b.fileCount, "file") : null].filter(Boolean).join(" · ");
@@ -35,12 +35,20 @@ function BundleList() {
     return new Map(lib.bundles.map((b) => [b.gamekey, deadlineOf(byBundle.get(b.gamekey) || [], orders.get(normTitle(b.name))?.keyExpiration)]));
   }, [lib, orders]);
 
+  // sold-out keys per bundle
+  const soldOut = useMemo(() => {
+    const n = new Map<string, number>();
+    for (const k of lib.keys) if (k.status === "sold-out") n.set(k.gamekey, (n.get(k.gamekey) || 0) + 1);
+    return n;
+  }, [lib.keys]);
+
   const list = useMemo(() => {
     const needle = q.trim().toLowerCase();
     let out = lib.bundles.filter((b) => {
       if (needle && !b.name.toLowerCase().includes(needle)) return false;
       if (filter === "unrevealed" && !b.unrevealed) return false;
       if (filter === "deadline" && !deadlines.get(b.gamekey)) return false;
+      if (filter === "soldout" && !soldOut.get(b.gamekey)) return false;
       if (filter === "files" && !b.fileCount) return false;
       if (filter === "choice" && !b.choiceMonth) return false;
       if (filter === "nochoice" && b.choiceMonth) return false;
@@ -54,7 +62,7 @@ function BundleList() {
       out = [...out].sort((a, b) => t(a) - t(b) || recent(a, b));
     } else out = [...out].sort(recent);
     return out;
-  }, [lib.bundles, q, sort, filter, deadlines]);
+  }, [lib.bundles, q, sort, filter, deadlines, soldOut]);
 
   const pages = Math.max(1, Math.ceil(list.length / PER_PAGE));
   const cur = Math.min(page, pages);
@@ -80,6 +88,7 @@ function BundleList() {
             <option value="all">All bundles</option>
             <option value="unrevealed">With unrevealed keys</option>
             <option value="deadline">With a redeem deadline</option>
+            <option value="soldout">With sold-out keys</option>
             <option value="files">With downloads</option>
             <option value="choice">Humble Choice months</option>
             <option value="nochoice">Everything but Choice</option>
@@ -96,7 +105,7 @@ function BundleList() {
       {list.length ? (
         <div className="hb-list">
           {shown.map((b) => (
-            <BundleRow key={b.gamekey} b={b} dl={deadlines.get(b.gamekey) ?? null} onOpen={() => openBundle(b.gamekey)} />
+            <BundleRow key={b.gamekey} b={b} dl={deadlines.get(b.gamekey) ?? null} soldOut={soldOut.get(b.gamekey) || 0} onOpen={() => openBundle(b.gamekey)} />
           ))}
         </div>
       ) : (
@@ -107,7 +116,7 @@ function BundleList() {
   );
 }
 
-function BundleRow({ b, dl, onOpen }: { b: Bundle; dl: ReturnType<typeof deadlineOf>; onOpen: () => void }) {
+function BundleRow({ b, dl, soldOut, onOpen }: { b: Bundle; dl: ReturnType<typeof deadlineOf>; soldOut: number; onOpen: () => void }) {
   const info = useOrderInfo(b);
   const bought = info?.createdAt ? `Bought ${formatDate(info.createdAt)}${info.total ? ` · ${formatMoney(info.total)}` : ""}` : null;
   return (
@@ -116,7 +125,12 @@ function BundleRow({ b, dl, onOpen }: { b: Bundle; dl: ReturnType<typeof deadlin
       <div className="hb-row-main">
         <h4>{b.name}</h4>
         <p>{[stats(b), bought].filter(Boolean).join(" · ")}</p>
-        {!!b.unrevealed && <span className="hb-flag">{b.unrevealed} unrevealed</span>}
+        {(!!b.unrevealed || soldOut > 0) && (
+          <div className="hb-flags">
+            {!!b.unrevealed && <span className="hb-flag">{b.unrevealed} unrevealed</span>}
+            {soldOut > 0 && <span className="hb-flag red">⚠ {soldOut} sold out</span>}
+          </div>
+        )}
       </div>
       <DeadlineBadge dl={dl} />
     </button>
@@ -156,6 +170,7 @@ function BundlePage({ id }: { id: string }) {
           <p className="hb-summary">
             {[
               stats(b) + (b.unrevealed ? ` · ${b.unrevealed} unrevealed` : ""),
+              keys.some((k) => k.status === "sold-out") ? `⚠ ${keys.filter((k) => k.status === "sold-out").length} sold out` : null,
               info?.createdAt ? `Bought ${formatDate(info.createdAt)}${info.total ? ` for ${formatMoney(info.total)}` : ""}` : null,
             ]
               .filter(Boolean)
@@ -184,6 +199,7 @@ function BundlePage({ id }: { id: string }) {
                 <PlatformBadge k={k} />
                 <div className="hb-keyline-title">
                   <h4>{k.name}</h4>
+                  <HumbleLink of={k} />
                 </div>
                 <div className="hb-keyline-field">
                   <KeyField k={k} />
@@ -223,6 +239,7 @@ function BundlePage({ id }: { id: string }) {
                   <div className="hb-dlrow-title">
                     <h4>{title}</h4>
                     <p>{[...new Set(fs.map((f) => PLATFORM_LABELS[f.platform] || f.platform))].join(" · ")}</p>
+                    <HumbleLink of={fs[0]} />
                   </div>
                   <div className="hb-dlrow-files">
                     {fs.map((f) => (
@@ -248,7 +265,9 @@ function BundlePage({ id }: { id: string }) {
                   <h4>{p.title}</h4>
                   <p>No key or download in the library data</p>
                 </div>
-                <div>{p.url && <ExtLink href={p.url}>Open on Humble</ExtLink>}</div>
+                <div>
+                  <HumbleLink of={p} />
+                </div>
               </div>
             ))}
           </div>
