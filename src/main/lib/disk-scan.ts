@@ -16,6 +16,10 @@ import path from "node:path";
 
 const SKIP = /^(__MACOSX|\.DS_Store|\$RECYCLE\.BIN|System Volume Information|desktop\.ini|Thumbs\.db|\..*)$/i;
 const MAX_DEPTH = 3; // levels read inside each bundle folder
+// ...and inside a HumbleBundle/ folder (the downloader extension's
+// HumbleBundle/<bundle title>/<label>/<file>), however deep it sits
+const EXTENSION_DEPTH = 3;
+const EXTENSION_DIR = /^humble ?bundle$/i;
 const MAX_ENTRIES = 3_000_000; // safety stop
 
 export interface DiskEntry {
@@ -73,8 +77,8 @@ export async function scanFolders(roots: string[]): Promise<DiskScan> {
   const scan: DiskScan = { at: new Date().toISOString(), roots, missingRoots: [], bundleDirs: [], byName: new Map(), files: 0, dirs: 0, ms: 0, truncated: false };
   const seenReal = new Set<string>();
 
-  const walk = async (dir: string, depth: number, bundleDir: string): Promise<void> => {
-    if (depth > MAX_DEPTH || scan.truncated) return;
+  const walk = async (dir: string, depth: number, bundleDir: string, maxDepth = MAX_DEPTH): Promise<void> => {
+    if (depth > maxDepth || scan.truncated) return;
     for (const d of await readDir(dir)) {
       if (SKIP.test(d.name)) continue;
       if (scan.files + scan.dirs > MAX_ENTRIES) {
@@ -86,7 +90,7 @@ export async function scanFolders(roots: string[]): Promise<DiskScan> {
       add(scan.byName, { path: full, lower: d.name.toLowerCase(), dir: isDir, bundleDir });
       if (isDir) {
         scan.dirs += 1;
-        await walk(full, depth + 1, bundleDir);
+        await walk(full, depth + 1, bundleDir, EXTENSION_DIR.test(d.name) ? Math.max(maxDepth, depth + 1 + EXTENSION_DEPTH) : maxDepth);
       } else scan.files += 1;
     }
   };
@@ -110,7 +114,7 @@ export async function scanFolders(roots: string[]): Promise<DiskScan> {
         continue;
       }
       // The downloader extension keeps everything under HumbleBundle/.
-      if (depth === 0 && /^humble ?bundle$/i.test(d.name)) {
+      if (depth === 0 && EXTENSION_DIR.test(d.name)) {
         await scanRoot(full, 1);
         continue;
       }
@@ -214,6 +218,9 @@ export const extensionStyleName = (title: string, publisher: string | null, ext:
   return `${publisher ? `${clean(title)} - ${publisher}` : clean(title)}.${ext}`.toLowerCase();
 };
 
+/** A title for loose comparison: letters and digits only. */
+const titleKey = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
+
 const GENERIC = /^(readme|license|licence|index|setup|install|manual|cover|thumbs?|preview|changelog)(\.\w+)?$/i;
 
 export interface FileLike {
@@ -234,13 +241,53 @@ export interface FileOnDisk {
 /** Find each file on disk: in its bundle's folders first, then anywhere if the name is distinctive. */
 export function matchFiles(files: FileLike[], scan: DiskScan, bundleDirs: Map<string, string[]>): Map<string, FileOnDisk> {
   const out = new Map<string, FileOnDisk>();
+  const sizes = new Map<string, number>();
   const sizeOf = (p: string): number => {
-    try {
-      return fs.statSync(p).size;
-    } catch {
-      return -1;
+    let n = sizes.get(p);
+    if (n === undefined) {
+      try {
+        n = fs.statSync(p).size;
+      } catch {
+        n = -1;
+      }
+      sizes.set(p, n);
     }
+    return n;
   };
+  // Files in bundle folders by "<title>" (the extension's "<Title> - <Publisher>.ext",
+  // and browser copies "name(1).ext"), for when the publisher isn't known:
+  // bundle dir -> ".ext|normalized title" -> entries.
+  const byTitle = new Map<string, Map<string, DiskEntry[]>>();
+  for (const list of scan.byName.values()) {
+    for (const e of list) {
+      if (e.dir || !e.bundleDir) continue;
+      const ext = path.extname(e.lower);
+      const stem = path.basename(e.lower, ext).replace(/\s*\(\d+\)$/, "");
+      const keys = new Set([titleKey(stem)]);
+      const dash = stem.lastIndexOf(" - ");
+      if (dash > 0) keys.add(titleKey(stem.slice(0, dash)));
+      let m = byTitle.get(e.bundleDir);
+      if (!m) byTitle.set(e.bundleDir, (m = new Map()));
+      for (const k of keys) if (k.length >= 3) m.set(`${ext}|${k}`, [...(m.get(`${ext}|${k}`) || []), e]);
+    }
+  }
+  const looseCache = new Map<string, DiskEntry[]>();
+  const looseFiles = (bundleDir: string): DiskEntry[] => {
+    let l = looseCache.get(bundleDir);
+    if (!l) {
+      l = [];
+      for (const list of scan.byName.values()) for (const e of list) if (!e.dir && e.bundleDir === bundleDir) l.push(e);
+      looseCache.set(bundleDir, l);
+    }
+    return l;
+  };
+  const bySize: { f: FileLike; e: DiskEntry }[] = [];
+  // a product with several files of one type can't be matched by its title
+  const perTitle = new Map<string, number>();
+  for (const f of files) {
+    const k = `${f.gamekey}|${path.extname(f.filename).toLowerCase()}|${titleKey(f.product)}`;
+    perTitle.set(k, (perTitle.get(k) || 0) + 1);
+  }
   for (const f of files) {
     const ext = path.extname(f.filename).slice(1);
     const stem = path.basename(f.filename, path.extname(f.filename)).toLowerCase();
@@ -261,6 +308,21 @@ export function matchFiles(files: FileLike[], scan: DiskScan, bundleDirs: Map<st
       hit = { path: e.path, how: f.size > 0 && size >= 0 && size !== f.size ? "size-differs" : "file" };
       if (hit.how === "file") break;
     }
+    if (!hit && perTitle.get(`${f.gamekey}|${path.extname(f.filename).toLowerCase()}|${titleKey(f.product)}`) === 1) {
+      const key = `${path.extname(f.filename).toLowerCase()}|${titleKey(f.product)}`;
+      const cands = [...mine].flatMap((d) => byTitle.get(d)?.get(key) || []);
+      // prefer the copy with the right size
+      const sized = f.size > 0 ? cands.find((e) => sizeOf(e.path) === f.size) : null;
+      const e = sized || cands[0];
+      if (e) hit = { path: e.path, how: f.size > 0 && !sized ? "size-differs" : "file" };
+    }
+    // still nothing: a file of the same type and exact size in its bundle's
+    // folders that nothing else claimed (renamed, or titled differently)
+    if (!hit && f.size > 0) {
+      const ext = path.extname(f.filename).toLowerCase();
+      const same = [...mine].flatMap((d) => looseFiles(d)).filter((e) => path.extname(e.lower) === ext && sizeOf(e.path) === f.size);
+      if (same.length === 1) bySize.push({ f, e: same[0] });
+    }
     if (!hit || hit.how === "size-differs") {
       for (const n of dirNames) {
         const e = pick((scan.byName.get(n) || []).filter((x) => x.dir && x.path !== x.bundleDir));
@@ -272,6 +334,10 @@ export function matchFiles(files: FileLike[], scan: DiskScan, bundleDirs: Map<st
     }
     if (hit) out.set(f.id, hit);
   }
+  const claimed = new Set([...out.values()].map((h) => h.path));
+  const sizeClaims = new Map<string, number>();
+  for (const { e } of bySize) sizeClaims.set(e.path, (sizeClaims.get(e.path) || 0) + 1);
+  for (const { f, e } of bySize) if (!claimed.has(e.path) && sizeClaims.get(e.path) === 1) out.set(f.id, { path: e.path, how: "file" });
   return out;
 }
 
