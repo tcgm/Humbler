@@ -1,4 +1,4 @@
-// Scouting, as in pinterinter. This script is injected into every
+// Scouting. This script is injected into every
 // humblebundle.com document via CDP Page.addScriptToEvaluateOnNewDocument, so
 // it runs before Humble's own scripts. It records JSON responses made by
 // fetch/XHR into a page global, which main.js reads back when you click
@@ -8,7 +8,7 @@
 // is more reliable than CDP's Network.getResponseBody, which silently misses
 // some request types.
 //
-// Unlike pinterinter, XHR is patched on the prototype, not by replacing the
+// XHR is patched on the prototype, not by replacing the
 // constructor, so `instanceof XMLHttpRequest` checks in Humble's code still
 // pass. Request bodies are never recorded, because the login form posts your
 // password.

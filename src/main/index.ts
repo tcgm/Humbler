@@ -1002,7 +1002,7 @@ async function exportKeys(ids: string[] | null) {
 }
 
 // ---- scouting (recon) -------------------------------------------------
-// Same idea as pinterinter. The injected script (lib/inject-capture)
+// The injected script (lib/inject-capture)
 // records every JSON/RSC response the Humble page receives. A CDP Network
 // log keeps metadata for *every* request. "Scout this page" dumps both,
 // plus any data embedded in the page, to data/recon/<timestamp>-<page>/.
