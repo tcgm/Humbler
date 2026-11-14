@@ -4,9 +4,10 @@ A local client for your Humble Bundle library. It lets you see every key you
 own, reveal and export keys in bulk, and download your files in bulk with
 resume and checksum checks. You don't have to fight the website to do any of it.
 
-It's an Electron app with two panes. The Humbler UI is on the left, and the real humblebundle.com runs on the right, where you log in
-normally. Humbler then loads your library the way Humble's own pages do,
-from inside your logged-in session, so it only ever sees your own account.
+It's an Electron app with two panes. The Humbler UI is on the left, and the
+real humblebundle.com runs on the right, where you log in normally. Humbler
+then loads your library the way Humble's own pages do, from inside your
+logged-in session, so it only ever sees your own account.
 
 ## Install
 
