@@ -32,6 +32,10 @@ if (!["win", "linux", "mac"].includes(target)) {
 
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE; // some hosts set it; it breaks Electron tooling
+// CI passes unset secrets as empty strings; electron-builder treats an empty
+// CSC_LINK as a path (the project folder) and fails with "not a file".
+for (const k of ["CSC_LINK", "CSC_KEY_PASSWORD", "WIN_CSC_LINK", "WIN_CSC_KEY_PASSWORD", "APPLE_ID", "APPLE_APP_SPECIFIC_PASSWORD", "APPLE_TEAM_ID"])
+  if (env[k] !== undefined && !env[k].trim()) delete env[k];
 // No certificate configured: build unsigned instead of searching the keychain.
 if (!env.CSC_LINK && !env.WIN_CSC_LINK) env.CSC_IDENTITY_AUTO_DISCOVERY = "false";
 
