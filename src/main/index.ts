@@ -870,13 +870,19 @@ interface NetEntry {
 const NETWORK_LOG_MAX = 3000;
 let networkLog: NetEntry[] = [];
 
-function attachScout(wc: WebContents) {
+let quitting = false; // set on quit: detaches are expected then
+app.on("before-quit", () => {
+  quitting = true;
+});
+
+// Attach the debugger and set up capture (again after a detach).
+function attachDebugger(wc: WebContents): boolean {
   const dbg = wc.debugger;
   try {
-    dbg.attach("1.3");
+    if (!dbg.isAttached()) dbg.attach("1.3");
   } catch (err) {
     log(`Scouting unavailable (debugger attach failed: ${errMsg(err)})`);
-    return;
+    return false;
   }
   dbg.sendCommand("Network.enable").catch(() => {});
   dbg.sendCommand("Page.enable").catch(() => {});
@@ -885,6 +891,12 @@ function attachScout(wc: WebContents) {
   dbg.sendCommand("Runtime.enable").catch(() => {});
   dbg.sendCommand("Runtime.addBinding", { name: "__humblerEmit" }).catch((err) => log(`Live scouting unavailable (binding failed: ${errMsg(err)})`));
   dbg.sendCommand("Page.addScriptToEvaluateOnNewDocument", { source: INJECT_SOURCE }).catch((err) => log(`Scouting: script injection failed (${errMsg(err)})`));
+  return true;
+}
+
+function attachScout(wc: WebContents) {
+  const dbg = wc.debugger;
+  if (!attachDebugger(wc)) return;
   let livePushes = 0;
   dbg.on("message", (_event, method: string, params: RawItem) => {
     if (method === "Runtime.bindingCalled" && params.name === "__humblerEmit") {
@@ -922,7 +934,21 @@ function attachScout(wc: WebContents) {
       }
     }
   });
-  dbg.on("detach", (_e, reason) => log(`Scouting detached (${reason}). Restart Humbler to re-enable it.`));
+  // Detached while running (a renderer swap, DevTools taking over...):
+  // re-attach, so live capture (key reveals, action ids) keeps working.
+  // The page's capture script returns on its next load.
+  let reattaches = 0;
+  dbg.on("detach", (_e, reason) => {
+    if (quitting || wc.isDestroyed()) return;
+    if (++reattaches > 20) {
+      log(`Scouting detached (${reason}) too often; restart Humbler to re-enable it.`);
+      return;
+    }
+    setTimeout(() => {
+      if (quitting || wc.isDestroyed() || dbg.isAttached()) return;
+      if (attachDebugger(wc)) log(`Scouting re-attached (it was detached: ${reason}).`);
+    }, 1000);
+  });
   // Each full page load starts a fresh capture in the page, so reset the
   // network log to match.
   wc.on("did-start-navigation", (details) => {
