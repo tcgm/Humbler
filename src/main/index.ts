@@ -1851,14 +1851,15 @@ function setUpKeySealing() {
   // files from before sealing existed
   try {
     let sealed = lib.sealRevealedLog();
-    if (libraryV2.cacheHasPlainKeys()) {
+    const plain = libraryV2.cachePlainSecrets();
+    if (plain) {
       const cache = libraryV2.loadCache();
       if (cache) {
-        sealed += (cache.items || []).reduce((n: number, it: RawItem) => n + (it.entitlements?.keys || []).filter((k: RawItem) => typeof k.redemptionData?.keyFormatted === "string").length, 0);
         libraryV2.saveCache(cache);
+        sealed += plain;
       }
     }
-    if (sealed) log(`Encrypted ${sealed} stored key value(s) on disk (readable only by Humbler under your Windows account).`);
+    if (sealed) log(`Encrypted ${sealed} stored key value(s) and gamekey(s) on disk (readable only by Humbler under your Windows account).`);
   } catch (err) {
     log(`Couldn't encrypt stored keys: ${errMsg(err)}`);
   }

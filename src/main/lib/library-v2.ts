@@ -36,10 +36,13 @@ const shortHash = (s: string): string => crypto.createHash("sha1").update(s).dig
 // ---- cache ------------------------------------------------------------------
 
 // The cache file's contents are whatever the caller saved (untyped here).
-// Key values (redemptionData.keyFormatted) are sealed on disk; see secret-store.
+// Key values (redemptionData.keyFormatted) and order gamekeys (keys[].gameKey,
+// which Humbler doesn't use) are sealed on disk; see secret-store.
+const SEALED_FIELDS = new Set(["keyFormatted", "gameKey"]);
+
 export function loadCache(): any {
   try {
-    return JSON.parse(fs.readFileSync(CACHE_PATH, "utf8"), (k, v) => (k === "keyFormatted" ? secrets.open(v) : v));
+    return JSON.parse(fs.readFileSync(CACHE_PATH, "utf8"), (k, v) => (SEALED_FIELDS.has(k) ? secrets.open(v) : v));
   } catch {
     return null;
   }
@@ -48,16 +51,16 @@ export function loadCache(): any {
 export function saveCache(cache: unknown): void {
   fs.mkdirSync(path.dirname(CACHE_PATH), { recursive: true });
   const tmp = `${CACHE_PATH}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(cache, (k, v) => (k === "keyFormatted" && typeof v === "string" ? secrets.seal(v) : v)));
+  fs.writeFileSync(tmp, JSON.stringify(cache, (k, v) => (SEALED_FIELDS.has(k) && typeof v === "string" ? secrets.seal(v) : v)));
   fs.renameSync(tmp, CACHE_PATH);
 }
 
-/** Does the cache file still hold any unsealed key value? */
-export function cacheHasPlainKeys(): boolean {
+/** How many key values and gamekeys the cache file still holds unsealed. */
+export function cachePlainSecrets(): number {
   try {
-    return /"keyFormatted"\s*:\s*"(?!sealed1:|\$)[^"]/.test(fs.readFileSync(CACHE_PATH, "utf8"));
+    return (fs.readFileSync(CACHE_PATH, "utf8").match(/"(?:keyFormatted|gameKey)"\s*:\s*"(?!sealed1:|\$)[^"]/g) || []).length;
   } catch {
-    return false;
+    return 0;
   }
 }
 

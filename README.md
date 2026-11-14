@@ -350,8 +350,9 @@ Everything lives in `data/`, which is gitignored:
 
 ### Keys are encrypted at rest
 
-Key values in `library-v2.json` and `revealed-keys.jsonl` are stored as
-`sealed1:…`, encrypted with Electron `safeStorage` (on Windows: a key in
+Key values in `library-v2.json` and `revealed-keys.jsonl`, and the order
+gamekeys Humble includes in `library-v2.json` (`keys[].gameKey`, which
+Humbler doesn't use), are stored as `sealed1:…`, encrypted with Electron `safeStorage` (on Windows: a key in
 `electron-userdata/Local State`, itself protected by DPAPI under your
 Windows account). Only Humbler, running as you, can read them; a copy of
 `data/` (a backup, a sync folder, another account) shows no keys. The rest
