@@ -1209,7 +1209,7 @@ function openKeyOnHumble(id: string) {
   if (!key?.contentUrl) return;
   if (key.itemId) watchedItems.set(key.itemId, { title: key.name, until: Date.now() + WATCH_MS });
   setBrowserVisible(true);
-  void hv().loadURL(key.contentUrl);
+  void openInPane(key.contentUrl);
 }
 
 // ---- purchases (orders) ----------------------------------------------------
@@ -1480,11 +1480,49 @@ handle("choice:get", () => choiceView());
 // Only the Humble site itself (www + login) opens in the pane. Everything
 // else, including Humble's support/help pages, goes to your real browser.
 const PANE_URL = /^https:\/\/(www|auth)\.humblebundle\.com\//;
+// Opening a Humble page from Humbler. Some item/purchase pages answer
+// "The page you requested cannot be found" when opened directly; when that
+// happens, say so (with the URL, so links can be fixed) and fall back to the
+// item's purchase page, then to Purchases.
+const NOT_FOUND_SCRIPT = `/page you requested cannot be found/i.test(document.body ? document.body.innerText.slice(0, 4000) : "")`;
+
+function fallbacksFor(url: string): string[] {
+  const out: string[] = [];
+  const m = /\/home\/library\/content\/([^/?#]+)/.exec(url);
+  if (m) {
+    const it = getLiveCache()?.items?.find((x: RawItem) => x.id === m[1] || (x.entitlements?.keys || []).some((k: RawItem) => k.id === m[1]));
+    if (it?.productEntitlementId) out.push(`${BASE}/home/library/${it.productEntitlementId}`);
+  }
+  out.push(`${BASE}/home/purchases`);
+  return out.filter((u) => u !== url);
+}
+
+async function openInPane(url: string, fallbacks = fallbacksFor(url)) {
+  setBrowserVisible(true);
+  const wc = hv();
+  try {
+    await wc.loadURL(url);
+  } catch {
+    // aborted by a redirect or a newer navigation; checked below anyway
+  }
+  await sleep(1200); // the not-found message is rendered client-side
+  if (wc.getURL().split("#")[0] !== url.split("#")[0] && !wc.getURL().startsWith(url)) return; // navigated elsewhere meanwhile
+  let missing = false;
+  try {
+    missing = await wc.executeJavaScript(NOT_FOUND_SCRIPT);
+  } catch {
+    return;
+  }
+  if (!missing) return;
+  const next = fallbacks[0];
+  log(`Humble says this page doesn't exist: ${url.replace(BASE, "")}${next ? `; opening ${next.replace(BASE, "")} instead` : ""}`);
+  if (next) void openInPane(next, fallbacks.slice(1));
+}
+
 handle("browser:open", (url) => {
   if (typeof url !== "string") return;
   if (PANE_URL.test(url)) {
-    setBrowserVisible(true);
-    void hv().loadURL(url);
+    void openInPane(url);
   } else if (/^https?:\/\//.test(url)) {
     void shell.openExternal(url);
   }
