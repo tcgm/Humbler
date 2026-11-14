@@ -32,7 +32,7 @@ export function DownloadsTab() {
     return lib.files.filter(
       (f) =>
         (!bundle || f.gamekey === bundle) &&
-        (!platform || f.platform === platform) &&
+        (!platform || f.platform === platform || !!f.platforms?.includes(platform)) &&
         (!format || f.format === format) &&
         !(hideDone && f.downloaded && !progress[f.id]) &&
         !(hideDupes && f.duplicateOf) &&
@@ -41,7 +41,7 @@ export function DownloadsTab() {
   }, [lib.files, q, bundle, platform, format, hideDone, hideDupes, progress]);
 
   const fileBundles = useMemo(() => lib.bundles.filter((b) => b.fileCount), [lib.bundles]);
-  const platforms = useMemo(() => uniqSorted(lib.files.map((f) => f.platform)), [lib.files]);
+  const platforms = useMemo(() => uniqSorted(lib.files.flatMap((f) => f.platforms || [f.platform])), [lib.files]);
   const formats = useMemo(() => uniqSorted(lib.files.map((f) => f.format)), [lib.files]);
   const toGet = rows.reduce((s, f) => s + (f.downloaded ? 0 : f.size || 0), 0);
   const selectable = rows.filter((f) => f.downloadable);
@@ -171,7 +171,10 @@ const FileRow = memo(function FileRow({
           {f.bundle} · {f.filename} · <HumbleLink of={f} />
         </span>
       </td>
-      <td>{f.platform}</td>
+      <td title={f.variants ? `Humble offers this same file ${f.variants} ways (${[...(f.platforms || [f.platform]), f.torrentUrl ? "torrent" : null].filter(Boolean).join(", ")}); shown once` : undefined}>
+        {(f.platforms || [f.platform]).join(", ")}
+        {f.torrentUrl && <span className="tag">+ torrent</span>}
+      </td>
       <td title={f.format}>{f.format}</td>
       <td className="num">{f.humanSize || (f.size ? fmtBytes(f.size) : "—")}</td>
       <td className="status">

@@ -80,6 +80,12 @@ export interface FileEntry {
   entitlementId?: string; // the download entitlement (for fresh signed links)
   urlExpiresAt?: string | null; // when the signed link stops working
   machineName?: string | null; // the product's machine name (extracted folders are often named after it)
+  /** the same file as a .torrent (signed link) */
+  torrentUrl?: string | null;
+  /** every platform this same file is offered for (when more than one) */
+  platforms?: string[];
+  /** how many offers of this file were collapsed into this entry */
+  variants?: number;
   /** found in one of your download folders */
   onDisk?: FileOnDisk | null;
   /** where it is, or where it'll be downloaded to */

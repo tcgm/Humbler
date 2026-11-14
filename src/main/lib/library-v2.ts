@@ -157,10 +157,14 @@ export function structsFromSignedUrls(su: any): { d: any; st: any }[] {
         : byName && typeof byName === "object"
           ? Object.entries<any>(byName).filter((e): e is [string, string] => isUrl(e[1]))
           : [];
+      // "x.zip" and "x.zip.torrent" are the same file, two ways to get it
+      const names = new Set(entries.map(([n]) => n));
+      const torrents = new Map(entries.filter(([n]) => /\.torrent$/i.test(n) && names.has(n.slice(0, -8))).map(([n, u]) => [n.slice(0, -8), u]));
       for (const [fileName, url] of entries) {
+        if (/\.torrent$/i.test(fileName) && torrents.has(fileName.slice(0, -8))) continue;
         out.push({
           d: { platform: platformOfKey(dkey) },
-          st: { id: `${machine}/${dkey}/${fileName}`, name: formatOfName(fileName), fileName, url: { web: url } },
+          st: { id: `${machine}/${dkey}/${fileName}`, name: formatOfName(fileName), fileName, url: { web: url, bittorrent: torrents.get(fileName) || null } },
         });
       }
     }
@@ -473,11 +477,44 @@ export function buildIndexV2(items: any[], { downloadDir, naming = "original" }:
       if (status === "unused") b.unrevealed += 1;
     }
 
-    for (const ent of it.entitlements?.downloads || []) {
+    // The same file can be offered several times for one item: per platform
+    // (one zip for Windows and Mac), or as a direct link plus a torrent.
+    // Those are collapsed into one entry (by checksum, else name + size).
+    const sameFile = new Map<string, FileEntry>();
+    const offers = (it.entitlements?.downloads || []).flatMap((ent: any) => {
       const signed = signedUrlLookup(ent.signedUrls);
-      for (const { d, st } of downloadStructs(ent)) {
+      return downloadStructs(ent).map(({ d, st }) => ({ ent, signed, d, st }));
+    });
+    const torrentFirst = (o: any): boolean => /\.torrent$/i.test(o.st.fileName || o.st.url?.web?.split("?")[0] || "");
+    offers.sort((a: any, b: any) => Number(torrentFirst(a)) - Number(torrentFirst(b))); // files before stray torrents
+    {
+      for (const { ent, signed, d, st } of offers) {
         const web: string = st.url?.web || "";
         const webName = st.fileName || (web ? decodeURIComponent(path.posix.basename(web.split("?")[0])) : "");
+        const tor: string = st.url?.bittorrent || "";
+        const torName = tor ? decodeURIComponent(path.posix.basename(tor.split("?")[0])) : "";
+        const torrentUrl =
+          (/^https?:\/\//.test(tor) ? tor : null) || (torName && signed.get(torName)) || (webName && signed.get(`${webName}.torrent`)) || null;
+        const isTorrent = /\.torrent$/i.test(webName);
+        const baseName = isTorrent ? webName.slice(0, -8) : webName;
+        const same = st.md5 || st.sha1 || (baseName ? `${baseName.toLowerCase()}|${isTorrent ? "" : st.fileSize || ""}` : null);
+        let prev = same ? sameFile.get(same) || sameFile.get(`${baseName.toLowerCase()}|`) || null : null;
+        // same name but different size or checksum: a different version, keep both
+        if (prev && !isTorrent && ((prev.size && st.fileSize && prev.size !== st.fileSize) || (prev.md5 && st.md5 && prev.md5 !== st.md5))) prev = null;
+        if (prev) {
+          const plat = d.platform || "other";
+          if (!prev.platforms?.includes(plat)) prev.platforms = [...(prev.platforms || [prev.platform]), plat];
+          const u = signed.get(String(st.id)) || signed.get(webName) || (/^https?:\/\//.test(web) ? web : null);
+          if (isTorrent) prev.torrentUrl = prev.torrentUrl || u;
+          else {
+            prev.torrentUrl = prev.torrentUrl || torrentUrl;
+            if (!prev.url && u) Object.assign(prev, { url: u, downloadable: true, notDownloadableReason: null });
+            if (!prev.size && st.fileSize) Object.assign(prev, { size: st.fileSize, humanSize: st.size || "" });
+            prev.md5 = prev.md5 || st.md5 || null;
+          }
+          prev.variants = (prev.variants || 1) + 1;
+          continue;
+        }
         const fname = lib.safeName(webName || `${it.contentId || it.id}-${st.name || d.platform}`, 120);
         let rel = path.join(lib.safeName(bundleName), lib.safeName(it.title), naming === "title" ? lib.safeName(`${it.title}${path.extname(fname)}`, 120) : fname);
         if (usedDest.has(rel.toLowerCase())) rel = path.join(path.dirname(rel), lib.safeName(d.platform || "other"), path.basename(rel));
@@ -522,8 +559,11 @@ export function buildIndexV2(items: any[], { downloadDir, naming = "original" }:
           entitlementId: ent.id,
           urlExpiresAt: und(ent.signedUrlsExpiresAt) ?? null,
           machineName: typeof st.id === "string" && st.id.includes("/") ? st.id.split("/")[0] : null,
+          torrentUrl: isTorrent ? null : torrentUrl,
           v2: true,
         });
+        if (same) sameFile.set(same, files[files.length - 1]);
+        if (baseName && !isTorrent && same !== `${baseName.toLowerCase()}|`) sameFile.set(`${baseName.toLowerCase()}|`, files[files.length - 1]);
         product.fileCount += 1;
         b.fileCount += 1;
       }
