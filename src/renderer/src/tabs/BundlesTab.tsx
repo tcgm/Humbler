@@ -13,7 +13,7 @@ import { bundleUrl, deadlineOf, fmtBytes, formatDate, formatMoney, monthLabel, n
 
 const PER_PAGE = 60;
 type Sort = "recent" | "az" | "unrevealed" | "deadline";
-type Filter = "all" | "unrevealed" | "deadline" | "soldout" | "files" | "ondisk" | "missing" | "choice" | "nochoice";
+type Filter = "all" | "unrevealed" | "deadline" | "soldout" | "expired" | "files" | "ondisk" | "missing" | "choice" | "nochoice";
 
 const stats = (b: Bundle) =>
   [plural(b.itemCount ?? 0, "item"), b.keyCount ? plural(b.keyCount, "key") : null, b.fileCount ? plural(b.fileCount, "file") : null].filter(Boolean).join(" · ");
@@ -46,11 +46,15 @@ function BundleList() {
     return new Map(lib.bundles.map((b) => [b.gamekey, deadlineOf(byBundle.get(b.gamekey) || [], orders.get(normTitle(b.name))?.keyExpiration)]));
   }, [lib, orders]);
 
-  // sold-out keys per bundle
-  const soldOut = useMemo(() => {
-    const n = new Map<string, number>();
-    for (const k of lib.keys) if (k.status === "sold-out") n.set(k.gamekey, (n.get(k.gamekey) || 0) + 1);
-    return n;
+  // sold-out and expired keys per bundle
+  const [soldOut, expired] = useMemo(() => {
+    const so = new Map<string, number>();
+    const ex = new Map<string, number>();
+    for (const k of lib.keys) {
+      if (k.status === "sold-out") so.set(k.gamekey, (so.get(k.gamekey) || 0) + 1);
+      if (k.status === "expired") ex.set(k.gamekey, (ex.get(k.gamekey) || 0) + 1);
+    }
+    return [so, ex];
   }, [lib.keys]);
 
   const list = useMemo(() => {
@@ -60,6 +64,7 @@ function BundleList() {
       if (filter === "unrevealed" && !b.unrevealed) return false;
       if (filter === "deadline" && !deadlines.get(b.gamekey)) return false;
       if (filter === "soldout" && !soldOut.get(b.gamekey)) return false;
+      if (filter === "expired" && !expired.get(b.gamekey)) return false;
       if (filter === "files" && !b.fileCount) return false;
       if (filter === "ondisk" && !b.diskDirs?.length) return false;
       if (filter === "missing" && !(b.fileCount && (b.filesOnDisk ?? 0) < b.fileCount)) return false;
@@ -75,7 +80,7 @@ function BundleList() {
       out = [...out].sort((a, b) => t(a) - t(b) || recent(a, b));
     } else out = [...out].sort(recent);
     return out;
-  }, [lib.bundles, q, sort, filter, deadlines, soldOut]);
+  }, [lib.bundles, q, sort, filter, deadlines, soldOut, expired]);
 
   const listKeys = useMemo(() => {
     const ids = new Set(list.map((b) => b.gamekey));
@@ -106,6 +111,7 @@ function BundleList() {
             <option value="unrevealed">With unrevealed keys</option>
             <option value="deadline">With a redeem deadline</option>
             <option value="soldout">With sold-out keys</option>
+            <option value="expired">With expired keys</option>
             <option value="files">With downloads</option>
             <option value="ondisk">With a folder on disk</option>
             <option value="missing">Missing files (not on disk)</option>
@@ -127,7 +133,7 @@ function BundleList() {
         {list.length ? (
           <div className="hb-list">
             {shown.map((b) => (
-              <BundleRow key={b.gamekey} b={b} dl={deadlines.get(b.gamekey) ?? null} soldOut={soldOut.get(b.gamekey) || 0} onOpen={() => openBundle(b.gamekey)} />
+              <BundleRow key={b.gamekey} b={b} dl={deadlines.get(b.gamekey) ?? null} soldOut={soldOut.get(b.gamekey) || 0} expired={expired.get(b.gamekey) || 0} onOpen={() => openBundle(b.gamekey)} />
             ))}
           </div>
         ) : (
@@ -139,7 +145,7 @@ function BundleList() {
   );
 }
 
-function BundleRow({ b, dl, soldOut, onOpen }: { b: Bundle; dl: ReturnType<typeof deadlineOf>; soldOut: number; onOpen: () => void }) {
+function BundleRow({ b, dl, soldOut, expired, onOpen }: { b: Bundle; dl: ReturnType<typeof deadlineOf>; soldOut: number; expired: number; onOpen: () => void }) {
   const info = useOrderInfo(b);
   const bought = info?.createdAt ? `Bought ${formatDate(info.createdAt)}${info.total ? ` · ${formatMoney(info.total)}` : ""}` : null;
   return (
@@ -153,10 +159,11 @@ function BundleRow({ b, dl, soldOut, onOpen }: { b: Bundle; dl: ReturnType<typeo
             {b.fileCount ? `${b.filesOnDisk ?? 0} of ${b.fileCount} files on disk${b.olderOnDisk ? ` (+${b.olderOnDisk} older version${b.olderOnDisk === 1 ? "" : "s"})` : ""}` : "Has a folder on disk"}
           </p>
         )}
-        {(!!b.unrevealed || soldOut > 0) && (
+        {(!!b.unrevealed || soldOut > 0 || expired > 0) && (
           <div className="hb-flags">
             {!!b.unrevealed && <span className="hb-flag">{b.unrevealed} unrevealed</span>}
             {soldOut > 0 && <span className="hb-flag red">⚠ {soldOut} sold out</span>}
+            {expired > 0 && <span className="hb-flag muted" title="Expired before they were revealed">{expired} expired</span>}
           </div>
         )}
       </div>

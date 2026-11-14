@@ -12,7 +12,7 @@ import { useStore } from "../store";
 import { deadlineOf, monthLabel, normTitle, plural, SITE, type Deadline } from "../util";
 
 type Sort = "recent" | "oldest" | "unrevealed" | "deadline";
-type Filter = "all" | "unrevealed" | "deadline" | "soldout" | "missing" | "files" | "empty";
+type Filter = "all" | "unrevealed" | "deadline" | "soldout" | "expired" | "missing" | "files" | "empty";
 
 interface Month {
   month: string;
@@ -84,6 +84,7 @@ interface MonthSummary {
   games: Game[];
   unrevealed: number;
   soldOut: number;
+  expired: number;
   notInLib: number;
   files: number;
   dl: Deadline | null;
@@ -98,6 +99,7 @@ function summarize(m: Month, lib: LibraryIndex): MonthSummary {
     games,
     unrevealed: keys.filter((k) => k.status === "unused").length,
     soldOut: keys.filter((k) => k.status === "sold-out").length,
+    expired: keys.filter((k) => k.status === "expired").length,
     notInLib: games.filter((g) => !g.inLibrary).length,
     files: games.reduce((n, g) => n + g.files.length, 0),
     dl: deadlineOf(keys),
@@ -133,6 +135,7 @@ function MonthIndex({ months }: { months: Month[] }) {
       if (filter === "unrevealed" && !x.unrevealed) return false;
       if (filter === "deadline" && !x.dl) return false;
       if (filter === "soldout" && !x.soldOut) return false;
+      if (filter === "expired" && !x.expired) return false;
       if (filter === "missing" && !x.notInLib) return false;
       if (filter === "files" && !x.files) return false;
       if (filter === "empty" && x.games.length) return false;
@@ -167,6 +170,7 @@ function MonthIndex({ months }: { months: Month[] }) {
             <option value="unrevealed">With unrevealed keys</option>
             <option value="deadline">With a redeem deadline</option>
             <option value="soldout">With sold-out keys</option>
+            <option value="expired">With expired keys</option>
             <option value="missing">With games not in your library</option>
             <option value="files">With downloads</option>
             <option value="empty">No games in your library</option>
@@ -197,17 +201,18 @@ function MonthIndex({ months }: { months: Month[] }) {
 
 function MonthCard({ s, matches }: { s: MonthSummary; matches: string[] }) {
   const { openChoiceMonth } = useStore();
-  const { m, games, unrevealed, soldOut, notInLib, dl } = s;
+  const { m, games, unrevealed, soldOut, expired, notInLib, dl } = s;
   return (
     <button className="hb-card month-card" onClick={() => openChoiceMonth(m.month)}>
       <div className="hb-card-body">
         <h4>{monthLabel(m.month)}</h4>
         <p>{games.length ? plural(games.length, "game") : m.group ? "No games from this month in your library" : "No games yet"}</p>
         {matches.length > 0 && <p className="month-matches">{matches.join(" · ")}</p>}
-        {(unrevealed > 0 || notInLib > 0 || soldOut > 0) && (
+        {(unrevealed > 0 || notInLib > 0 || soldOut > 0 || expired > 0) && (
           <div className="hb-flags">
             {unrevealed > 0 && <span className="hb-flag">{unrevealed} unrevealed</span>}
             {soldOut > 0 && <span className="hb-flag red">⚠ {soldOut} sold out</span>}
+            {expired > 0 && <span className="hb-flag muted" title="Expired before they were revealed">{expired} expired</span>}
             {notInLib > 0 && <span className="hb-flag amber">{notInLib} not in library</span>}
           </div>
         )}

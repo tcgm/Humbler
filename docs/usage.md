@@ -136,7 +136,8 @@
    **deadline**: the soonest "redeem by" date among keys you haven't
    revealed yet, red within 30 days. You can search; sort by most recent,
    A-Z, most unrevealed keys, or **deadline soonest**; and filter to bundles
-   with unrevealed keys, with a redeem deadline, with downloads, Choice
+   with unrevealed keys, with a redeem deadline, with sold-out or expired
+   keys, with downloads, Choice
    months, or everything but Choice. Opening one shows a **bundle page**
    like the old `/downloads?key=` page: the bundle's keys, then its
    downloads, with platform tabs (Windows / Mac / Linux / eBook …), a
@@ -159,8 +160,8 @@
      current month as shown on your library page. Search by month or game
      title (matching games are listed on the card); sort by most recent,
      oldest, most unrevealed keys or deadline soonest; filter to months with
-     unrevealed keys, a deadline, sold-out keys, games not in your library,
-     or downloads.
+     unrevealed keys, a deadline, sold-out keys, expired keys, games not in
+     your library, or downloads.
    - **Month page**: the old game grid. Each game shows its key (reveal,
      redeem, redeemed state) and downloads. Games of the current month that
      aren't in your library yet are marked "Not in your library yet", with a
