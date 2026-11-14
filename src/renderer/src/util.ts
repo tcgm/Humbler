@@ -75,10 +75,11 @@ export interface Platform {
 }
 
 /** Normalise Humble's key types to a platform: name, badge and redeem link. */
-export function platformOf(k: Pick<KeyEntry, "keyType">): Platform {
+export function platformOf(k: Pick<KeyEntry, "keyType"> & { name?: string }): Platform {
   const t = `${k.keyType || ""}`.toLowerCase();
   if (/steam/.test(t)) return { id: "steam", name: "Steam", badge: "Steam", redeem: (key) => `https://store.steampowered.com/account/registerkey?key=${encodeURIComponent(key)}` };
-  if (/epic/.test(t)) return { id: "epic", name: "Epic Games Store", badge: "Epic", redeem: () => "https://store.epicgames.com/redeem" };
+  // Unreal Engine assets (Fab) redeem through Epic, though Humble often types them as a "generic" key
+  if (/epic/.test(t) || (!/_keyless$/.test(t) && /\bunreal\b/i.test(k.name || ""))) return { id: "epic", name: "Epic Games Store", badge: "Epic", redeem: () => "https://store.epicgames.com/redeem" };
   if (/gog/.test(t)) return { id: "gog", name: "GOG.com", badge: "GOG", redeem: (key) => `https://www.gog.com/redeem/${encodeURIComponent(key)}` };
   if (/origin|^ea\b|ea_app/.test(t)) return { id: "origin", name: "EA app", badge: "EA" };
   if (/uplay|ubisoft/.test(t)) return { id: "uplay", name: "Ubisoft Connect", badge: "Ubi" };
