@@ -1,4 +1,7 @@
-# Releasing Humbler
+<h1 align="center">
+  <img src="resources/icon.png" width="64" alt=""><br>
+  Releasing Humbler
+</h1>
 
 ## What a release contains
 
