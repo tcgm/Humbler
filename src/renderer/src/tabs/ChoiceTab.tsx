@@ -5,6 +5,7 @@ import type { Bundle, ChoiceMonth, FileEntry, KeyEntry, LibraryIndex, Product } 
 import { ExportButton } from "../components/ExportDialog";
 import { FileButton } from "../components/FileButton";
 import { KeyField } from "../components/KeyField";
+import { KeyCheck, RevealSelected, useKeySelection } from "../components/KeySelect";
 import { BackLink, DeadlineBadge, ExtLink, HumbleLink, ResetButton, Tile } from "../components/ui";
 import { useRemembered, useRememberedScroll } from "../remember";
 import { useStore } from "../store";
@@ -227,6 +228,7 @@ function MonthPage({ m }: { m: Month }) {
   const { openChoiceMonth, openBundle } = useStore();
   const games = useGames(m);
   const keys = games.flatMap((g) => g.keys);
+  const sel = useKeySelection();
   return (
     <div className="hb-page">
       <BackLink onClick={() => openChoiceMonth(null)}>All Choice months</BackLink>
@@ -241,6 +243,7 @@ function MonthPage({ m }: { m: Month }) {
           <ExtLink href={`${SITE}/home/library`}>Open your library on Humble</ExtLink>
         </div>
         <div className="hb-controls">
+          <RevealSelected keys={keys} sel={sel} />
           <ExportButton scope={`${monthLabel(m.month)} Humble Choice`} keys={keys} />
         </div>
       </div>
@@ -258,7 +261,8 @@ function MonthPage({ m }: { m: Month }) {
                   </div>
                 )}
                 {g.keys.map((k) => (
-                  <div className="choice-key" key={k.id}>
+                  <div className={`choice-key${k.status === "unused" ? " selectable" : ""}`} key={k.id}>
+                    {k.status === "unused" && <KeyCheck k={k} sel={sel} />}
                     <KeyField k={k} />
                   </div>
                 ))}

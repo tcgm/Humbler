@@ -5,6 +5,7 @@ import type { Bundle, FileEntry } from "@shared/types";
 import { ExportButton } from "../components/ExportDialog";
 import { FileButton } from "../components/FileButton";
 import { KeyField } from "../components/KeyField";
+import { KeyCheck, RevealSelected, useKeySelection } from "../components/KeySelect";
 import { BackLink, BundleIcon, DeadlineBadge, ExtLink, HumbleLink, Pager, PlatformBadge, ResetButton, Tile, useOrderInfo } from "../components/ui";
 import { useRemembered, useRememberedScroll } from "../remember";
 import { api, useStore } from "../store";
@@ -169,6 +170,7 @@ function BundlePage({ id }: { id: string }) {
   const [platform, setPlatform] = useRemembered(`bundle.${id}.platform`, "");
   const b = lib.bundles.find((x) => x.gamekey === id);
   const info = useOrderInfo(b);
+  const sel = useKeySelection();
   if (!b) {
     return (
       <div className="hb-page">
@@ -233,7 +235,10 @@ function BundlePage({ id }: { id: string }) {
       {keys.length > 0 && (
         <div className="hb-section-head hb-fixed-head">
           <h3>Keys &amp; Entitlements</h3>
-          <ExportButton scope={b.name} keys={keys} />
+          <span className="hb-fixed-actions">
+            <RevealSelected keys={keys} sel={sel} />
+            <ExportButton scope={b.name} keys={keys} />
+          </span>
         </div>
       )}
       <div className="hb-scroll">
@@ -242,6 +247,7 @@ function BundlePage({ id }: { id: string }) {
             <div className="hb-panel">
               {keys.map((k) => (
                 <div className="hb-keyline" key={k.id}>
+                  <span className="key-check-cell">{k.status === "unused" && <KeyCheck k={k} sel={sel} />}</span>
                   <PlatformBadge k={k} />
                   <div className="hb-keyline-title">
                     <h4>{k.name}</h4>

@@ -47,7 +47,9 @@
      also mark a key yourself.
    - **Reveal** asks for two clicks, and that is deliberate: revealing claims
      the key to your account and removes the option to gift it. Select several
-     and use **Reveal selected** to do them in a throttled batch.
+     and use **Reveal selected** to do them in a throttled batch. Bundle
+     pages and Choice months have the same: tick unrevealed keys (or
+     **Select unrevealed**), then **Reveal selected**.
    - **Copy revealed** copies `Game: KEY` lines for the current view.
    - **Export…** is on every view with keys (Keys, the Bundles list and each
      bundle, the Choice index and each month, Library) and opens the export

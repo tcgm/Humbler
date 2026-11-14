@@ -3,7 +3,8 @@ import { useMemo, useState } from "react";
 import type { KeyEntry, KeyStatus } from "@shared/types";
 import { ExportButton } from "../components/ExportDialog";
 import { KeyField } from "../components/KeyField";
-import { ArmButton, ExtLink, HumbleLink, Pager, PlatformBadge, ResetButton } from "../components/ui";
+import { RevealSelected } from "../components/KeySelect";
+import { ExtLink, HumbleLink, Pager, PlatformBadge, ResetButton } from "../components/ui";
 import { useRemembered } from "../remember";
 import { api, useStore } from "../store";
 import { EXPIRING_DAYS, isExpiring, platformOf, steamUrl, uniqSorted } from "../util";
@@ -36,7 +37,7 @@ function matchesState(k: KeyEntry, st: StateFilter): boolean {
 }
 
 export function KeysTab() {
-  const { lib, busy } = useStore();
+  const { lib } = useStore();
   const [q, setQ] = useRemembered("keys.q", "");
   const [bundle, setBundle] = useRemembered("keys.bundle", "");
   const [type, setType] = useRemembered("keys.type", "");
@@ -74,8 +75,6 @@ export function KeysTab() {
   const pages = Math.max(1, Math.ceil(rows.length / PER_PAGE));
   const cur = Math.min(page, pages);
   const pageRows = rows.slice((cur - 1) * PER_PAGE, cur * PER_PAGE);
-  // selected keys that can be revealed now (not before Humble's release date for them)
-  const revealable = lib.keys.filter((k) => sel.has(k.id) && k.status === "unused" && !(k.availableFrom && Date.parse(k.availableFrom) > Date.now()));
 
   const keyBundles = useMemo(() => lib.bundles.filter((b) => b.keyCount), [lib.bundles]);
   const types = useMemo(() => uniqSorted(lib.keys.map((k) => k.keyType)), [lib.keys]);
@@ -157,17 +156,7 @@ export function KeysTab() {
           scope={`${bundle ? keyBundles.find((b) => b.gamekey === bundle)?.name || "this bundle" : "your keys"}${dirty ? " (matching the Keys tab's filters)" : ""}`}
           keys={rows}
         />
-        <ArmButton
-          className="hb-btn"
-          disabled={!revealable.length || busy}
-          armedText={`Reveal ${revealable.length} key(s)? Click again`}
-          onFire={async () => {
-            const res = await api.revealKeys(revealable.map((k) => k.id));
-            if (res?.results) setSel((s) => new Set([...s].filter((id) => !res.results!.some((r) => r.ok && r.id === id))));
-          }}
-        >
-          Reveal selected{revealable.length ? ` (${revealable.length})` : ""}
-        </ArmButton>
+        <RevealSelected keys={lib.keys} sel={[sel, setSel]} selectLinks={false} />
       </div>
       <div className="hb-summary">
         {rows.length ? `${from}-${from + pageRows.length - 1} of ` : ""}
