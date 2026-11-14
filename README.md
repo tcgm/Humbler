@@ -97,6 +97,12 @@ Vite's default 5173 is often inside one.
 4. **Downloads tab** lists every file across every bundle. Filter by bundle,
    platform (windows / mac / linux / ebook / audio / …), or format
    (PDF / EPUB / MOBI / …), then **Download selected** or **Download all shown**.
+   - Humble's 2026 library listing doesn't include files, so Sync fetches
+     each item's download links the way the site's Download button does.
+     The first Sync does this for every item with downloads, which takes a
+     while; after that only new items are fetched. Links expire, so
+     Humbler gets a fresh one per file when you download it. Sizes show
+     as "—" until a file is downloaded.
    - Files go to `<download folder>/<bundle>/<product>/<file>`. Change the
      folder with **Change…**. The naming dropdown switches between Humble's
      own file names (`thegreatbook_v2.pdf`) and readable ones
