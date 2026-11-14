@@ -1,5 +1,5 @@
 // Keys tab, modelled on the old humblebundle.com/home/keys page.
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { KeyEntry, KeyStatus } from "@shared/types";
 import { ExportButton } from "../components/ExportDialog";
 import { KeyField } from "../components/KeyField";
@@ -37,7 +37,7 @@ function matchesState(k: KeyEntry, st: StateFilter): boolean {
 }
 
 export function KeysTab() {
-  const { lib } = useStore();
+  const { lib, tab } = useStore();
   const [q, setQ] = useRemembered("keys.q", "");
   const [bundle, setBundle] = useRemembered("keys.bundle", "");
   const [type, setType] = useRemembered("keys.type", "");
@@ -70,7 +70,18 @@ export function KeysTab() {
         (!needle || `${k.name} ${k.bundle} ${k.key || ""} ${k.keyType}`.toLowerCase().includes(needle)),
     );
   }, [lib.keys, q, bundle, type]);
-  const rows = useMemo(() => base.filter((k) => matchesState(k, st)), [base, st]);
+  // A key you're looking at stays in the list when it changes (e.g. you reveal
+  // it with "Hide redeemed" on) until you change the filters or leave the tab;
+  // only then does the status filter drop it.
+  const shown = useRef<{ view: string; ids: Set<string> }>({ view: "", ids: new Set() });
+  const view = `${tab === "keys"}|${q}|${bundle}|${type}|${st}`;
+  const rows = useMemo(() => {
+    if (shown.current.view !== view) shown.current = { view, ids: new Set() };
+    const kept = shown.current.ids;
+    const out = base.filter((k) => matchesState(k, st) || kept.has(k.id));
+    for (const k of out) kept.add(k.id);
+    return out;
+  }, [base, st, view]);
 
   const pages = Math.max(1, Math.ceil(rows.length / PER_PAGE));
   const cur = Math.min(page, pages);

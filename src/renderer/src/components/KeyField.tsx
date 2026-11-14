@@ -7,7 +7,7 @@ import { formatDate, isExpiring, platformOf } from "../util";
 import { ArmButton, CopyButton } from "./ui";
 
 export function KeyField({ k }: { k: KeyEntry }) {
-  const { busy, beginRedeem, setRedeemed } = useStore();
+  const { busy, beginRedeem, setRedeemed, revealKeys, revealing } = useStore();
   const p = platformOf(k);
 
   let field;
@@ -67,11 +67,18 @@ export function KeyField({ k }: { k: KeyEntry }) {
       break;
     default: {
       const label = `Reveal your ${p.name ? `${p.name} ` : ""}key`;
-      field = (
-        <ArmButton className="keyfield" disabled={busy} armedText="Click again to reveal. It can't be gifted afterwards" onFire={() => api.revealKeys([k.id]).then(() => undefined)}>
-          {label}
-        </ArmButton>
-      );
+      const queue = revealing.indexOf(k.id); // 0 = being revealed now, >0 = waiting its turn
+      field =
+        queue >= 0 ? (
+          <div className={`keyfield revealing${queue > 0 ? " waiting" : ""}`} aria-busy="true">
+            <span className="spinner" aria-hidden />
+            {queue === 0 ? "Revealing…" : `Waiting to reveal (${queue} ahead)`}
+          </div>
+        ) : (
+          <ArmButton className="keyfield" disabled={busy} armedText="Click again to reveal. It can't be gifted afterwards" onFire={() => revealKeys([k.id]).then(() => undefined)}>
+            {label}
+          </ArmButton>
+        );
     }
   }
 

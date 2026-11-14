@@ -1,6 +1,6 @@
 // App-wide state, fed by the main process over the typed IPC API.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { ChoiceMonth, DownloadProgress, KeyEntry, LibraryIndex, Money, OrderItem, Status, Theme } from "@shared/types";
+import type { ChoiceMonth, DownloadProgress, KeyEntry, LibraryIndex, Money, OrderItem, RevealResult, Status, Theme } from "@shared/types";
 import { normTitle } from "./util";
 
 const api = window.humbler;
@@ -52,6 +52,11 @@ interface Store {
   redeemQuestion: PendingRedeem | null;
   answerRedeem(redeemed: boolean): void;
   setRedeemed(id: string, redeemed: boolean, platform?: string | null): Promise<void>;
+
+  /** Reveal keys (in order, one at a time); while it runs, `revealing` lists the ones not done yet. */
+  revealKeys(ids: string[]): Promise<RevealResult>;
+  /** keys being revealed, in order: the first is in progress, the rest are waiting */
+  revealing: string[];
 }
 
 const EMPTY: LibraryIndex = { bundles: [], keys: [], files: [], products: [], choiceGroups: [] };
@@ -146,6 +151,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const { tab, bundleId, choiceMonth } = nav;
   const [theme, setTheme] = useState<Theme>("dark");
   const [redeemQuestion, setRedeemQuestion] = useState<PendingRedeem | null>(null);
+  const [revealing, setRevealing] = useState<string[]>([]);
   const pendingRedeem = useRef<PendingRedeem | null>(null);
 
   const loadLibrary = useCallback(async () => setLib(await api.getLibrary()), []);
@@ -185,6 +191,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         loadChoice();
       }),
       api.onKeyUpdated(({ id, key }) => {
+        setRevealing((r) => (r.includes(id) ? r.filter((x) => x !== id) : r)); // done with this one (revealed or failed)
         if (!key) return;
         setLib((l) => ({ ...l, keys: l.keys.map((k) => (k.id === id ? { ...k, key, status: "revealed" } : k)) }));
       }),
@@ -254,6 +261,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       pendingRedeem.current = null;
       setRedeemQuestion(null);
       if (p && redeemed) void store.setRedeemed(p.id, true, p.platform);
+    },
+    revealing,
+    revealKeys: async (ids) => {
+      setRevealing((r) => [...r, ...ids.filter((id) => !r.includes(id))]);
+      try {
+        return await api.revealKeys(ids);
+      } finally {
+        setRevealing((r) => r.filter((id) => !ids.includes(id)));
+      }
     },
     setRedeemed: async (id, redeemed, platform) => {
       const rec = await api.markRedeemed(id, redeemed, platform);

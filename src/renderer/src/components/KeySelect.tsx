@@ -3,7 +3,7 @@
 // account (it can't be gifted afterwards), so it always takes two clicks.
 import { useState, type Dispatch, type SetStateAction } from "react";
 import type { KeyEntry } from "@shared/types";
-import { api, useStore } from "../store";
+import { useStore } from "../store";
 import { ArmButton } from "./ui";
 
 /** can be revealed now: unrevealed, and not before Humble's release date for it */
@@ -37,7 +37,7 @@ export function KeyCheck({ k, sel: [sel, setSel], title }: { k: KeyEntry; sel: S
 
 /** "Select unrevealed · Clear" and the two-click Reveal selected (N) button, for `keys` (the ones in view). */
 export function RevealSelected({ keys, sel: [sel, setSel], selectLinks = true }: { keys: KeyEntry[]; sel: Selection; selectLinks?: boolean }) {
-  const { busy } = useStore();
+  const { busy, revealKeys, revealing } = useStore();
   const revealable = keys.filter((k) => sel.has(k.id) && canReveal(k));
   const unrevealed = keys.filter(canReveal);
   const allOn = unrevealed.length > 0 && unrevealed.every((k) => sel.has(k.id));
@@ -60,11 +60,17 @@ export function RevealSelected({ keys, sel: [sel, setSel], selectLinks = true }:
         title="Reveals the selected keys one at a time. Revealed keys can't be gifted afterwards."
         armedText={`Reveal ${revealable.length} key${revealable.length === 1 ? "" : "s"}? Click again`}
         onFire={async () => {
-          const res = await api.revealKeys(revealable.map((k) => k.id));
+          const res = await revealKeys(revealable.map((k) => k.id));
           if (res?.results) setSel((s) => new Set([...s].filter((id) => !res.results!.some((r) => r.ok && r.id === id))));
         }}
       >
-        Reveal selected{revealable.length ? ` (${revealable.length})` : ""}
+        {revealing.length ? (
+          <>
+            <span className="spinner" aria-hidden /> Revealing… ({revealing.length} left)
+          </>
+        ) : (
+          `Reveal selected${revealable.length ? ` (${revealable.length})` : ""}`
+        )}
       </ArmButton>
     </span>
   );
