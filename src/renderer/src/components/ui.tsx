@@ -26,9 +26,14 @@ export function ExtLink({ href, children, title }: { href: string; children: Rea
  *  when they already are. */
 export function ResetButton({ dirty, onReset }: { dirty: boolean; onReset: () => void }) {
   return (
-    <button className="hb-reset" disabled={!dirty} title={dirty ? "Reset search, sort and filters" : "Search, sort and filters are at their defaults"} onClick={onReset}>
+    <button
+      className="hb-reset"
+      disabled={!dirty}
+      title={dirty ? "Reset search, sort and filters" : "Search, sort and filters are at their defaults"}
+      aria-label="Reset search, sort and filters"
+      onClick={onReset}
+    >
       <LuRotateCcw aria-hidden />
-      <span>Reset</span>
     </button>
   );
 }
