@@ -488,3 +488,10 @@ button.menu-item:disabled { opacity: 0.45; }
 /* files/bundles found on disk */
 .on-disk { margin: 2px 0 0; font-size: 11px; color: var(--hb-green, #4fbf6c); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hb-bundle-head-main .on-disk { white-space: normal; font-size: 12px; }
+
+/* what else Humble says about a key */
+.keymeta .disclaimer { font-style: italic; color: var(--hb-muted); }
+.key-details summary { cursor: pointer; color: var(--hb-muted); }
+.key-details table { border-collapse: collapse; margin: 4px 0 2px; font-size: 11px; }
+.key-details th { text-align: left; font-weight: 500; color: var(--hb-muted); padding: 1px 10px 1px 0; white-space: nowrap; vertical-align: top; }
+.key-details td { color: var(--hb-text); word-break: break-all; padding: 1px 0; }

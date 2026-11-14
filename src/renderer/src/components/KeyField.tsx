@@ -154,6 +154,41 @@ export function KeyField({ k }: { k: KeyEntry }) {
     );
   }
 
+  // ---- the rest of what Humble says about this key ----
+  if (k.status === "expired" && k.expiry) meta.push(<span key="ex">Expired {formatDate(k.expiry)}, never revealed</span>);
+  if (k.giftState === "claimed") meta.push(<span key="gc">Gift: claimed</span>);
+  else if (k.giftState === "gifted") meta.push(<span key="gs">Gift: sent{k.status === "gifted" ? ", waiting for or claimed by the recipient" : ""}</span>);
+  const future = (d?: string | null) => !!d && Date.parse(d) > Date.now();
+  if (future(k.availableFrom)) meta.push(<span key="af" className="soon">Can be revealed from {formatDate(k.availableFrom!)}</span>);
+  if (k.preOrdered) meta.push(<span key="po">Pre-order{k.releaseDate ? ` · releases ${formatDate(k.releaseDate)}` : ""}</span>);
+  else if (future(k.releaseDate)) meta.push(<span key="rd">Releases {formatDate(k.releaseDate!)}</span>);
+  if (k.notGiftable && k.status === "unused") meta.push(<span key="ng" className="tag">can&apos;t be gifted</span>);
+  if (k.cta && !links.some((l) => l.href === k.cta!.url))
+    meta.push(
+      <a key="cta" className="ext-out" title={k.cta.url} onClick={() => api.openExternal(k.cta!.url)}>
+        {k.cta.label} ↗
+      </a>,
+    );
+  // (it matters before you redeem; on every Steam key, so not after)
+  if (k.disclaimer && !k.platformRedeemed && (k.status === "unused" || k.status === "revealed")) meta.push(<span key="dis" className="disclaimer">{k.disclaimer}</span>);
+  const details = Object.entries(k.details || {});
+  if (details.length)
+    meta.push(
+      <details key="det" className="key-details">
+        <summary>Details</summary>
+        <table>
+          <tbody>
+            {details.map(([name, v]) => (
+              <tr key={name}>
+                <th>{name.replace(/^(item|key)\./, "")}</th>
+                <td>{String(v)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </details>,
+    );
+
   return (
     <div>
       <div className="keyrow">{field}</div>

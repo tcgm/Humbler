@@ -269,6 +269,26 @@ function autoRedeemed(k: any): { at: string; platform: string | null; auto: true
   return null;
 }
 
+// "$D2026-01-01..." dates and "$undefined" from RSC, as plain values
+const clean = (v: any): any => (v === "$undefined" || v === undefined ? null : typeof v === "string" && v.startsWith("$D") ? v.slice(2) : v);
+
+/** Everything Humble sent for a key and its item, flattened for display (never the key value). */
+function keyDetails(it: any, k: any): Record<string, string | number | boolean | null> {
+  const out: Record<string, string | number | boolean | null> = {};
+  const put = (name: string, v: any) => {
+    v = clean(v);
+    if (v === null || v === "" || (Array.isArray(v) && !v.length)) return;
+    out[name] = Array.isArray(v) ? v.join(", ") : typeof v === "object" ? JSON.stringify(v) : v;
+  };
+  for (const f of ["itemType", "type", "contentId", "id", "productEntitlementId", "collection", "deliveryMethods", "preOrder", "releaseDate", "choiceDate"]) put(`item.${f}`, it[f]);
+  for (const [f, v] of Object.entries<any>(k || {})) {
+    if (f === "redemptionData" && v && typeof v === "object") {
+      for (const [rf, rv] of Object.entries<any>(v)) if (rf !== "keyFormatted") put(`key.redemptionData.${rf}`, rv);
+    } else if (f !== "instructionsHtml" && f !== "title" && f !== "subTitle") put(`key.${f}`, v);
+  }
+  return out;
+}
+
 function keyStatus(k: any): KeyStatus {
   const revealed = !!(und(k.redemptionData?.keyFormatted) || und(k.redeemedAt));
   if (k.giftStatus && k.giftStatus !== "unassigned") return "gifted";
@@ -406,6 +426,15 @@ export function buildIndexV2(items: any[], { downloadDir, naming = "original" }:
         expiry,
         daysLeft: status === "unused" ? daysUntil(expiry) : null,
         notGiftable: !!k.notGiftable,
+        disclaimer: clean(k.customDisclaimer) || null,
+        cta: clean(k.customCtaLabel) && clean(k.customCtaUrl) ? { label: k.customCtaLabel, url: k.customCtaUrl } : null,
+        availableFrom: clean(k.unavailableBefore),
+        preOrdered: !!(k.preOrdered || clean(it.preOrder)),
+        giftState: clean(k.giftStatus),
+        redeemable: k.redeemable !== false,
+        releaseDate: clean(it.releaseDate),
+        deliveryMethods: Array.isArray(it.deliveryMethods) ? it.deliveryMethods : [],
+        details: keyDetails(it, k),
         contentUrl: product.url,
         choiceMonth,
         itemId: it.id,

@@ -41,6 +41,17 @@ export interface KeyEntry {
   itemId?: string;
   /** set when Humble redeemed it to your platform account (the key, if any, is Humble's redemption code) */
   autoRedeemed?: PlatformRedeemed | null;
+  // more of what Humble says about the key (2026 site)
+  disclaimer?: string | null; // e.g. "Steam will not provide extra giftable copies of games you already own."
+  cta?: { label: string; url: string } | null; // Humble's own button ("Steam Instructions" -> support article)
+  availableFrom?: string | null; // can't be revealed before this
+  preOrdered?: boolean;
+  giftState?: string | null; // unassigned | gifted | claimed
+  redeemable?: boolean; // false: nothing left to do (expired unrevealed, gifted, sold out)
+  releaseDate?: string | null;
+  deliveryMethods?: string[];
+  /** every field Humble sent for this key and its item (except the key itself), for the Details view */
+  details?: Record<string, string | number | boolean | null>;
 }
 
 export interface FileEntry {
