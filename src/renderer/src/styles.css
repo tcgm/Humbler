@@ -480,10 +480,14 @@ button.menu-item:disabled { opacity: 0.45; }
 .ask.folders h4 a.active { color: var(--hb-text); text-decoration: underline; }
 .ask.folders h4 .hb-search { margin-left: auto; min-width: 180px; padding: 4px 8px; }
 .folder-dirs { overflow: auto; min-height: 80px; display: flex; flex-direction: column; gap: 3px; }
-.folder-dir { display: flex; align-items: center; gap: 8px; font-size: 12px; }
-.folder-dir .folder-name { flex: 1 1 45%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; color: var(--hb-text); }
+/* name + what's in it | which bundle | linked; the select can't grow past its column
+   (a <select> is otherwise as wide as its longest option, i.e. the longest bundle name) */
+.folder-dir { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: center; gap: 4px 10px; font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--hb-line); }
+.folder-info { min-width: 0; display: flex; flex-direction: column; }
+.folder-dir .folder-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; color: var(--hb-text); font-weight: 600; }
 .folder-dir .folder-name:hover { text-decoration: underline; }
-.folder-dir select { flex: 1 1 55%; max-width: none; }
+.folder-sub { font-size: 11px; color: var(--hb-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-dir select { width: 100%; min-width: 0; max-width: none; }
 
 /* files/bundles found on disk */
 .on-disk { margin: 2px 0 0; font-size: 11px; color: var(--hb-green, #4fbf6c); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

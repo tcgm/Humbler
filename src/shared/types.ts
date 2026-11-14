@@ -138,7 +138,7 @@ export interface FoldersInfo {
   scanning: boolean;
   scan: { at: string; files: number; dirs: number; ms: number; missing: string[]; truncated: boolean } | null;
   /** every bundle folder found, and the bundles it's matched to */
-  bundleDirs: { path: string; name: string; root: string; gamekeys: string[]; linked: boolean }[];
+  bundleDirs: { path: string; name: string; root: string; gamekeys: string[]; linked: boolean; files: number; folders: number }[];
 }
 
 export interface ChoiceGroup {

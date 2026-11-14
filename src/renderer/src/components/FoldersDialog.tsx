@@ -108,9 +108,16 @@ export function FoldersDialog({ onClose }: { onClose: () => void }) {
         <div className="folder-dirs">
           {dirs.map((d) => (
             <div className="folder-dir" key={d.path}>
-              <a className="folder-name" title={d.path} onClick={() => api.openFolder(d.path)}>
-                {d.name}
-              </a>
+              <div className="folder-info">
+                <a className="folder-name" title={`Open ${d.path}`} onClick={() => api.openFolder(d.path)}>
+                  {d.name}
+                </a>
+                <span className="folder-sub" title={d.path}>
+                  {d.files.toLocaleString()} file{d.files === 1 ? "" : "s"}
+                  {d.folders ? `, ${d.folders.toLocaleString()} folder${d.folders === 1 ? "" : "s"}` : ""} · in {d.root}
+                  {d.gamekeys.length > 0 && <> · {d.gamekeys.map((g) => nameOf.get(g) || g).filter((n, i, a) => a.indexOf(n) === i).join(", ")}</>}
+                </span>
+              </div>
               <select
                 value={d.gamekeys.length === 1 ? d.gamekeys[0] : d.linked && !d.gamekeys.length ? "__none" : ""}
                 title={d.gamekeys.map((g) => nameOf.get(g)).join("\n") || "Which bundle is this?"}

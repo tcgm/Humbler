@@ -184,12 +184,22 @@ async function rescanFolders(reason: string) {
 function foldersInfo(): FoldersInfo {
   const byDir = new Map<string, string[]>();
   for (const [gk, dirs] of bundleDirMatch) for (const d of dirs) byDir.set(d, [...(byDir.get(d) || []), gk]);
+  // what each bundle folder holds (as far as the scan reads)
+  const counts = new Map<string, { files: number; folders: number }>();
+  for (const list of diskScan?.byName.values() || [])
+    for (const e of list) {
+      if (!e.bundleDir || e.path === e.bundleDir) continue;
+      const c = counts.get(e.bundleDir) || { files: 0, folders: 0 };
+      if (e.dir) c.folders += 1;
+      else c.files += 1;
+      counts.set(e.bundleDir, c);
+    }
   return {
     downloadDir: settings.downloadDir,
     folders: settings.folders.filter((f) => path.resolve(f) !== path.resolve(settings.downloadDir)),
     scanning,
     scan: diskScan ? { at: diskScan.at, files: diskScan.files, dirs: diskScan.dirs, ms: diskScan.ms, missing: diskScan.missingRoots, truncated: diskScan.truncated } : null,
-    bundleDirs: (diskScan?.bundleDirs || []).map((d) => ({ path: d.path, name: d.name, root: d.root, gamekeys: byDir.get(d.path) || [], linked: d.path in settings.folderLinks })),
+    bundleDirs: (diskScan?.bundleDirs || []).map((d) => ({ path: d.path, name: d.name, root: d.root, gamekeys: byDir.get(d.path) || [], linked: d.path in settings.folderLinks, ...(counts.get(d.path) || { files: 0, folders: 0 }) })),
   };
 }
 
