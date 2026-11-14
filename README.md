@@ -159,7 +159,11 @@ Vite's default 5173 is often inside one.
      current month; other games get placeholder tiles.
 8. **Back and forward** work like a browser: your **mouse's back/forward
    buttons** (or Alt+← / Alt+→) step through tabs, bundle pages and Choice
-   months you've visited. Each tab keeps its filters and scroll position.
+   months you've visited. Every list remembers its search, sort, filters
+   and page (and the Bundles and Choice lists their scroll position): open
+   a bundle, go back, and the list is as you left it, even after a restart.
+   The **↺ Reset** button next to the filters puts them back to the
+   defaults.
 9. **Dark mode** is the default everywhere. The ☀ button in the top bar
    switches to light mode (☾ switches back), and the choice is remembered.
 10. Anything else Humbler doesn't handle, such as gifting, still works in the
