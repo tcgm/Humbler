@@ -149,7 +149,7 @@ function MonthIndex({ months }: { months: Month[] }) {
     needle && !monthLabel(x.m.month).toLowerCase().includes(needle) ? x.games.filter((g) => g.title.toLowerCase().includes(needle)).map((g) => g.title) : [];
 
   return (
-    <div className="hb-page hb-scroll" ref={scrollRef}>
+    <div className="hb-page">
       <div className="hb-head">
         <h2>Humble Choice</h2>
         <div className="hb-controls">
@@ -177,15 +177,17 @@ function MonthIndex({ months }: { months: Month[] }) {
         {needle || filter !== "all" ? ` of ${all.length}` : ""} · Humble no longer serves its Choice pages. These are rebuilt from your library (each month&apos;s games, keys
         and downloads) and from the current month as listed on your library page.
       </p>
-      {list.length ? (
-        <div className="hb-cards months">
-          {list.map((x) => (
-            <MonthCard key={x.m.month} s={x} matches={matchesOf(x)} />
-          ))}
-        </div>
-      ) : (
-        <div className="hb-empty">{all.length ? "No months match." : "No Choice months yet. Sync your library, or open it on the right."}</div>
-      )}
+      <div className="hb-scroll" ref={scrollRef}>
+        {list.length ? (
+          <div className="hb-cards months">
+            {list.map((x) => (
+              <MonthCard key={x.m.month} s={x} matches={matchesOf(x)} />
+            ))}
+          </div>
+        ) : (
+          <div className="hb-empty">{all.length ? "No months match." : "No Choice months yet. Sync your library, or open it on the right."}</div>
+        )}
+      </div>
     </div>
   );
 }
@@ -223,7 +225,7 @@ function MonthPage({ m }: { m: Month }) {
   const { openChoiceMonth, openBundle } = useStore();
   const games = useGames(m);
   return (
-    <div className="hb-page hb-scroll">
+    <div className="hb-page">
       <BackLink onClick={() => openChoiceMonth(null)}>All Choice months</BackLink>
       <div className="hb-head">
         <h2>{monthLabel(m.month)} Humble Choice</h2>
@@ -237,39 +239,41 @@ function MonthPage({ m }: { m: Month }) {
         </div>
       </div>
       <p className="hb-summary">{games.length ? plural(games.length, "game") : "No games from this month in your library."}</p>
-      <div className="choice-grid">
-        {games.map((g, i) => (
-          <div key={`${i}|${g.title}`} className={`choice-card${g.inLibrary ? "" : " missing"}`}>
-            {g.image ? <img className="choice-art" src={g.image} alt="" loading="lazy" /> : <Tile title={g.title} size="art" />}
-            <div className="choice-body">
-              <h4>{g.title}</h4>
-              {g.product && (
-                <div className="row-links">
-                  <HumbleLink of={g.product} />
-                </div>
-              )}
-              {g.keys.map((k) => (
-                <div className="choice-key" key={k.id}>
-                  <KeyField k={k} />
-                </div>
-              ))}
-              {g.files.length > 0 && (
-                <div className="choice-files">
-                  {g.files.map((f) => (
-                    <FileButton key={f.id} f={f} />
-                  ))}
-                </div>
-              )}
-              {!g.inLibrary ? (
-                <div className="choice-missing">
-                  Not in your library yet. <ExtLink href={`${SITE}/home/library`}>Claim it in your library</ExtLink>
-                </div>
-              ) : (
-                !g.keys.length && !g.files.length && <p className="muted-line">No key or download listed</p>
-              )}
+      <div className="hb-scroll">
+        <div className="choice-grid">
+          {games.map((g, i) => (
+            <div key={`${i}|${g.title}`} className={`choice-card${g.inLibrary ? "" : " missing"}`}>
+              {g.image ? <img className="choice-art" src={g.image} alt="" loading="lazy" /> : <Tile title={g.title} size="art" />}
+              <div className="choice-body">
+                <h4>{g.title}</h4>
+                {g.product && (
+                  <div className="row-links">
+                    <HumbleLink of={g.product} />
+                  </div>
+                )}
+                {g.keys.map((k) => (
+                  <div className="choice-key" key={k.id}>
+                    <KeyField k={k} />
+                  </div>
+                ))}
+                {g.files.length > 0 && (
+                  <div className="choice-files">
+                    {g.files.map((f) => (
+                      <FileButton key={f.id} f={f} />
+                    ))}
+                  </div>
+                )}
+                {!g.inLibrary ? (
+                  <div className="choice-missing">
+                    Not in your library yet. <ExtLink href={`${SITE}/home/library`}>Claim it in your library</ExtLink>
+                  </div>
+                ) : (
+                  !g.keys.length && !g.files.length && <p className="muted-line">No key or download listed</p>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );

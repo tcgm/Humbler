@@ -208,7 +208,8 @@ html[data-theme="light"] .hb {
   --hb-link: #3f7fbf;
 }
 .hb-page { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 16px 18px 10px; gap: 10px; }
-.hb-scroll { overflow-y: auto; display: block; }
+/* the only part of a page that scrolls: its header and footer stay put */
+.hb-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 .hb-scroll > * + * { margin-top: 12px; }
 .hb-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
 .hb-head h2, .hb-bundle-head h2 { margin: 0; font-size: 22px; font-weight: 600; color: var(--hb-text); letter-spacing: 0.01em; }

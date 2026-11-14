@@ -84,7 +84,7 @@ function BundleList() {
   };
 
   return (
-    <div className="hb-page hb-scroll" ref={scrollRef}>
+    <div className="hb-page">
       <div className="hb-head">
         <h2>Your Bundles</h2>
         <div className="hb-controls">
@@ -116,15 +116,17 @@ function BundleList() {
           ? ` · purchase details for ${orders.size}${ordersTotal ? ` of ${ordersTotal} orders` : ""}${ordersTotal && orders.size < ordersTotal ? " (Sync fetches the rest)" : ""}`
           : " · Sync to add bundle icons and purchase dates"}
       </div>
-      {list.length ? (
-        <div className="hb-list">
-          {shown.map((b) => (
-            <BundleRow key={b.gamekey} b={b} dl={deadlines.get(b.gamekey) ?? null} soldOut={soldOut.get(b.gamekey) || 0} onOpen={() => openBundle(b.gamekey)} />
-          ))}
-        </div>
-      ) : (
-        <div className="hb-empty">{lib.bundles.length ? "No bundles match." : "No bundles yet. Click Sync."}</div>
-      )}
+      <div className="hb-scroll" ref={scrollRef}>
+        {list.length ? (
+          <div className="hb-list">
+            {shown.map((b) => (
+              <BundleRow key={b.gamekey} b={b} dl={deadlines.get(b.gamekey) ?? null} soldOut={soldOut.get(b.gamekey) || 0} onOpen={() => openBundle(b.gamekey)} />
+            ))}
+          </div>
+        ) : (
+          <div className="hb-empty">{lib.bundles.length ? "No bundles match." : "No bundles yet. Click Sync."}</div>
+        )}
+      </div>
       <Pager page={cur} pages={pages} onPage={setPage} />
     </div>
   );
@@ -163,7 +165,7 @@ function BundlePage({ id }: { id: string }) {
   const info = useOrderInfo(b);
   if (!b) {
     return (
-      <div className="hb-page hb-scroll">
+      <div className="hb-page">
         <BackLink onClick={() => openBundle(null)}>All bundles</BackLink>
         <div className="hb-empty">This bundle isn't in your library any more.</div>
       </div>
@@ -180,7 +182,7 @@ function BundlePage({ id }: { id: string }) {
   for (const f of visible) byProduct.set(f.product, [...(byProduct.get(f.product) || []), f]);
 
   return (
-    <div className="hb-page hb-scroll">
+    <div className="hb-page">
       <BackLink onClick={() => openBundle(null)}>All bundles</BackLink>
       <div className="hb-bundle-head">
         <BundleIcon b={b} size="lg" />
@@ -222,89 +224,91 @@ function BundlePage({ id }: { id: string }) {
         <DeadlineBadge dl={deadlineOf(keys, info?.keyExpiration)} />
       </div>
 
-      {keys.length > 0 && (
-        <section className="hb-section">
-          <h3>Keys &amp; Entitlements</h3>
-          <div className="hb-panel">
-            {keys.map((k) => (
-              <div className="hb-keyline" key={k.id}>
-                <PlatformBadge k={k} />
-                <div className="hb-keyline-title">
-                  <h4>{k.name}</h4>
-                  <HumbleLink of={k} />
+      <div className="hb-scroll">
+        {keys.length > 0 && (
+          <section className="hb-section">
+            <h3>Keys &amp; Entitlements</h3>
+            <div className="hb-panel">
+              {keys.map((k) => (
+                <div className="hb-keyline" key={k.id}>
+                  <PlatformBadge k={k} />
+                  <div className="hb-keyline-title">
+                    <h4>{k.name}</h4>
+                    <HumbleLink of={k} />
+                  </div>
+                  <div className="hb-keyline-field">
+                    <KeyField k={k} />
+                  </div>
                 </div>
-                <div className="hb-keyline-field">
-                  <KeyField k={k} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+              ))}
+            </div>
+          </section>
+        )}
 
-      {files.length > 0 && (
-        <section className="hb-section">
-          <div className="hb-section-head">
-            <h3>Downloads</h3>
-            <button
-              className="hb-btn"
-              disabled={!fetchable.length}
-              title={fetchable.length ? `${fmtBytes(fetchable.reduce((s, f) => s + (f.size || 0), 0))} to Humbler's download folder` : ""}
-              onClick={() => api.enqueueDownloads(fetchable.map((f) => f.id))}
-            >
-              {fetchable.length ? `Download all${pl ? ` ${PLATFORM_LABELS[pl] || pl}` : ""} (${fetchable.length})` : "Everything here is downloaded"}
-            </button>
-          </div>
-          <div className="plat-tabs">
-            {["", ...platforms].map((p) => (
-              <button key={p || "all"} className={p === pl ? "active" : ""} onClick={() => setPlatform(p)}>
-                {p ? PLATFORM_LABELS[p] || p : "All platforms"}
+        {files.length > 0 && (
+          <section className="hb-section">
+            <div className="hb-section-head">
+              <h3>Downloads</h3>
+              <button
+                className="hb-btn"
+                disabled={!fetchable.length}
+                title={fetchable.length ? `${fmtBytes(fetchable.reduce((s, f) => s + (f.size || 0), 0))} to Humbler's download folder` : ""}
+                onClick={() => api.enqueueDownloads(fetchable.map((f) => f.id))}
+              >
+                {fetchable.length ? `Download all${pl ? ` ${PLATFORM_LABELS[pl] || pl}` : ""} (${fetchable.length})` : "Everything here is downloaded"}
               </button>
-            ))}
-          </div>
-          <div className="hb-panel">
-            {[...byProduct.entries()].map(([title, fs]) => {
-              const multi = new Set(fs.map((f) => f.platform)).size > 1;
-              return (
-                <div className="hb-dlrow" key={title}>
-                  <Tile title={title} size="sm" />
-                  <div className="hb-dlrow-title">
-                    <h4>{title}</h4>
-                    <p>{[...new Set(fs.map((f) => PLATFORM_LABELS[f.platform] || f.platform))].join(" · ")}</p>
-                    <HumbleLink of={fs[0]} />
+            </div>
+            <div className="plat-tabs">
+              {["", ...platforms].map((p) => (
+                <button key={p || "all"} className={p === pl ? "active" : ""} onClick={() => setPlatform(p)}>
+                  {p ? PLATFORM_LABELS[p] || p : "All platforms"}
+                </button>
+              ))}
+            </div>
+            <div className="hb-panel">
+              {[...byProduct.entries()].map(([title, fs]) => {
+                const multi = new Set(fs.map((f) => f.platform)).size > 1;
+                return (
+                  <div className="hb-dlrow" key={title}>
+                    <Tile title={title} size="sm" />
+                    <div className="hb-dlrow-title">
+                      <h4>{title}</h4>
+                      <p>{[...new Set(fs.map((f) => PLATFORM_LABELS[f.platform] || f.platform))].join(" · ")}</p>
+                      <HumbleLink of={fs[0]} />
+                    </div>
+                    <div className="hb-dlrow-files">
+                      {fs.map((f) => (
+                        // with "All platforms" showing, say which platform each file is for
+                        <FileButton key={f.id} f={f} showPlatform={!pl && multi} />
+                      ))}
+                    </div>
                   </div>
-                  <div className="hb-dlrow-files">
-                    {fs.map((f) => (
-                      // with "All platforms" showing, say which platform each file is for
-                      <FileButton key={f.id} f={f} showPlatform={!pl && multi} />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
+                );
+              })}
+            </div>
+          </section>
+        )}
 
-      {linkOnly.length > 0 && (
-        <section className="hb-section">
-          <h3>Other items</h3>
-          <div className="hb-panel">
-            {linkOnly.map((p) => (
-              <div className="hb-dlrow" key={p.id}>
-                <Tile title={p.title} size="sm" />
-                <div className="hb-dlrow-title">
-                  <h4>{p.title}</h4>
-                  <p>No key or download in the library data</p>
+        {linkOnly.length > 0 && (
+          <section className="hb-section">
+            <h3>Other items</h3>
+            <div className="hb-panel">
+              {linkOnly.map((p) => (
+                <div className="hb-dlrow" key={p.id}>
+                  <Tile title={p.title} size="sm" />
+                  <div className="hb-dlrow-title">
+                    <h4>{p.title}</h4>
+                    <p>No key or download in the library data</p>
+                  </div>
+                  <div>
+                    <HumbleLink of={p} />
+                  </div>
                 </div>
-                <div>
-                  <HumbleLink of={p} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
     </div>
   );
 }
