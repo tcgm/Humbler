@@ -134,6 +134,13 @@ export class ActionRegistry {
     this.save();
   }
 
+  // The most recently learned action with this function name.
+  findByName(name: string): (ActionInfo & { id: string }) | null {
+    let best: (ActionInfo & { id: string }) | null = null;
+    for (const [id, a] of Object.entries(this.data.actions)) if (a.name === name && (!best || a.lastSeen > best.lastSeen)) best = { id, ...a };
+    return best;
+  }
+
   // Seed from the live-scout catalog (endpoints.json), which already holds
   // scrubbed request bodies for actions seen before this registry existed.
   // catalog: endpoints.json contents (untyped JSON)

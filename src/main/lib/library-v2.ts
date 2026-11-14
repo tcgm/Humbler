@@ -101,6 +101,7 @@ export function parseLibraryResponse(text: unknown): any {
 // also accept a bare struct list or an object keyed by platform.
 export function downloadStructs(ent: any): { d: any; st: any }[] {
   let groups = ent.downloads;
+  if (!groups && ent.signedUrls) return structsFromSignedUrls(ent.signedUrls);
   if (groups && !Array.isArray(groups) && typeof groups === "object") groups = Object.values(groups);
   if (!Array.isArray(groups)) return [];
   const out: { d: any; st: any }[] = [];
@@ -110,6 +111,99 @@ export function downloadStructs(ent: any): { d: any; st: any }[] {
     else if (g.url || g.md5) out.push({ d: { platform: g.platform || ent.platform }, st: g });
   }
   return out;
+}
+
+// ---- download links (getSignedUrlsForEntitlements) -------------------------
+//
+// The 2026 library listing leaves `downloads` and `signedUrls` null; the
+// site's Download button calls the getSignedUrlsForEntitlements action with
+// [entitlementId] and gets { ok, data: { signedUrls, expiresAt } }, where
+// signedUrls[productMachineName][downloadKey][fileName] = a signed URL.
+// Sync fetches that for each download entitlement and stores it on the
+// entitlement; the file list is built from it.
+
+export const SIGNED_URLS_ACTION = "getSignedUrlsForEntitlements";
+
+const platformOfKey = (k: string): string => {
+  const s = k.toLowerCase();
+  if (/win/.test(s)) return "windows";
+  if (/mac|osx/.test(s)) return "mac";
+  if (/linux|deb|rpm/.test(s)) return "linux";
+  if (/android|apk/.test(s)) return "android";
+  if (/ebook|pdf|epub|mobi|cbz|book/.test(s)) return "ebook";
+  if (/audio|mp3|flac|wav|ogg|soundtrack/.test(s)) return "audio";
+  if (/video|mp4|mkv/.test(s)) return "video";
+  return s || "other";
+};
+const formatOfName = (name: string): string => (path.extname(name).slice(1) || "file").toUpperCase();
+
+/** Files described by a signedUrls value: [product][downloadKey][fileName] -> url. */
+export function structsFromSignedUrls(su: any): { d: any; st: any }[] {
+  const out: { d: any; st: any }[] = [];
+  if (!su || typeof su !== "object") return out;
+  const isUrl = (v: unknown): v is string => typeof v === "string" && /^https?:\/\//.test(v);
+  const nameOf = (u: string): string => {
+    try {
+      return decodeURIComponent(path.posix.basename(new URL(u).pathname));
+    } catch {
+      return "";
+    }
+  };
+  for (const [machine, byKey] of Object.entries<any>(su)) {
+    if (!byKey || typeof byKey !== "object") continue;
+    for (const [dkey, byName] of Object.entries<any>(byKey)) {
+      const entries: [string, string][] = isUrl(byName)
+        ? [[nameOf(byName), byName]]
+        : byName && typeof byName === "object"
+          ? Object.entries<any>(byName).filter((e): e is [string, string] => isUrl(e[1]))
+          : [];
+      for (const [fileName, url] of entries) {
+        out.push({
+          d: { platform: platformOfKey(dkey) },
+          st: { id: `${machine}/${dkey}/${fileName}`, name: formatOfName(fileName), fileName, url: { web: url } },
+        });
+      }
+    }
+  }
+  return out;
+}
+
+/** Source for executeJavaScript: call a server action with JSON arguments (as the site does). */
+export function jsonActionCallScript(actionId: string, pagePath: string, args: unknown[]): string {
+  return `
+    (async () => {
+      const r = await fetch(${JSON.stringify(pagePath)}, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Next-Action": ${JSON.stringify(actionId)}, Accept: "text/x-component", "Content-Type": "text/plain;charset=UTF-8" },
+        body: ${JSON.stringify(JSON.stringify(args))},
+      });
+      return { status: r.status, contentType: r.headers.get("content-type") || "", text: await r.text() };
+    })()
+  `;
+}
+
+/** The getSignedUrlsForEntitlements reply: { ok, data: { signedUrls, expiresAt } }. */
+export function parseSignedUrlsReply(text: unknown): { ok: boolean; signedUrls: any; expiresAt: string | null } | null {
+  const v = resolvedFlightData(text).find((x) => x && typeof x === "object" && "ok" in x && ("data" in x || "error" in x));
+  if (!v) return null;
+  return { ok: !!v.ok, signedUrls: v.data?.signedUrls ?? null, expiresAt: und(v.data?.expiresAt) ?? null };
+}
+
+/** Keep download links already fetched for entitlements of re-synced items. */
+export function carryOverDownloadLinks(fresh: any[], known: Map<string, any>): void {
+  for (const it of fresh) {
+    const old = known.get(it.id);
+    if (!old) continue;
+    const oldEnts = new Map<string, any>((old.entitlements?.downloads || []).map((e: any) => [e.id, e]));
+    for (const ent of it.entitlements?.downloads || []) {
+      const o = oldEnts.get(ent.id);
+      if (!o?.signedUrlsFetchedAt || ent.signedUrls) continue;
+      ent.signedUrls = o.signedUrls;
+      ent.signedUrlsExpiresAt = o.signedUrlsExpiresAt;
+      ent.signedUrlsFetchedAt = o.signedUrlsFetchedAt;
+    }
+  }
 }
 
 // Map of every absolute URL inside a signedUrls value, keyed every way a
@@ -261,7 +355,7 @@ export function buildIndexV2(items: any[], { downloadDir, naming = "original" }:
       publisher: null,
       icon: null,
       url: `${SITE}/home/library/content/${it.id}`,
-      platforms: [...new Set<string>((it.entitlements?.downloads || []).map((d: any) => d.platform).filter(Boolean))],
+      platforms: [...new Set<string>((it.entitlements?.downloads || []).flatMap((e: any) => downloadStructs(e).map(({ d }) => d.platform)).filter(Boolean))],
       fileCount: 0,
       keyCount: 0,
       links: [],
@@ -320,7 +414,7 @@ export function buildIndexV2(items: any[], { downloadDir, naming = "original" }:
       const signed = signedUrlLookup(ent.signedUrls);
       for (const { d, st } of downloadStructs(ent)) {
         const web: string = st.url?.web || "";
-        const webName = web ? decodeURIComponent(path.posix.basename(web.split("?")[0])) : "";
+        const webName = st.fileName || (web ? decodeURIComponent(path.posix.basename(web.split("?")[0])) : "");
         const fname = lib.safeName(webName || `${it.contentId || it.id}-${st.name || d.platform}`, 120);
         let rel = path.join(lib.safeName(bundleName), lib.safeName(it.title), naming === "title" ? lib.safeName(`${it.title}${path.extname(fname)}`, 120) : fname);
         if (usedDest.has(rel.toLowerCase())) rel = path.join(path.dirname(rel), lib.safeName(d.platform || "other"), path.basename(rel));
@@ -362,6 +456,8 @@ export function buildIndexV2(items: any[], { downloadDir, naming = "original" }:
           contentUrl: product.url,
           choiceMonth,
           itemId: it.id, // for refreshing an expired signed link
+          entitlementId: ent.id,
+          urlExpiresAt: und(ent.signedUrlsExpiresAt) ?? null,
           v2: true,
         });
         product.fileCount += 1;

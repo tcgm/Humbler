@@ -43,7 +43,8 @@ const KEY_PATTERN = /(?<![A-Za-z0-9-])[A-Z0-9]{4,6}(?:-[A-Z0-9]{4,6}){2,7}(?![A-
 // URL query parameters: gamekeys get aliased (skipping ones already
 // aliased), tokens redacted.
 const QS_GAMEKEY = /([?&](?:key|gamekey|gamekeys)=)(?!gamekey#)([^&"'\s<>#\\]+)/gi;
-const QS_TOKEN = /([?&](?:t|ttl|token|sig|signature|auth|hash|expires|Policy|Key-Pair-Id)=)([^&"'\s<>#\\]+)/g;
+// (signed download links: CloudFront, S3, GCS and Akamai token styles)
+const QS_TOKEN = /([?&](?:t|ttl|token|sig|signature|auth|hash|expires|policy|key-pair-id|hdnts|gdo|x-(?:amz|goog)-[a-z-]+)=)([^&"'\s<>#\\]+)/gi;
 const ORDER_PATH = /(\/api\/v1\/order\/)([A-Za-z0-9]{8,})/g;
 
 // Field names inside text, which the JSON walk can't see: JSON in a <script>,

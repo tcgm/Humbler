@@ -66,6 +66,8 @@ export interface FileEntry {
   contentUrl?: string;
   choiceMonth?: string | null;
   itemId?: string;
+  entitlementId?: string; // the download entitlement (for fresh signed links)
+  urlExpiresAt?: string | null; // when the signed link stops working
   v2?: boolean;
 }
 

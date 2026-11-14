@@ -22,7 +22,7 @@ import * as settingsStore from "./lib/settings";
 import * as lib from "./lib/library";
 import { HumbleApi, NotLoggedInError, BASE } from "./lib/humble-api";
 import { Downloader, type DownloadItem } from "./lib/downloader";
-import { politeDelay } from "./lib/throttle";
+import { politeDelay, sleep } from "./lib/throttle";
 import { applyKeyUpdates, applyRevealReply } from "./lib/key-updates";
 
 const env = (name: string, fallback: number) => Number(process.env[name] ?? fallback);
@@ -209,12 +209,29 @@ interface QueueItem extends DownloadItem {
   label: string;
   v2: boolean;
   itemId?: string;
+  entitlementId?: string;
+  urlExpiresAt?: string | null;
   product: string;
 }
 
 // A signed download link expired: search the library for the item to get
 // fresh links.
 async function refreshV2File(item: QueueItem): Promise<string> {
+  if (item.entitlementId) {
+    // Fresh signed links for just this entitlement (what the site's Download button does).
+    const cache = getLiveCache();
+    const it = cache?.items?.find((x: RawItem) => x.id === item.itemId);
+    const ent = it?.entitlements?.downloads?.find((e: RawItem) => e.id === item.entitlementId);
+    if (it && ent) {
+      await fetchDownloadLinks(ent);
+      libraryV2.saveCache(cache);
+      const fresh = libraryV2.buildIndexV2([it], { downloadDir: settings.downloadDir, naming: settings.naming }).files.find((f) => f.id === item.id);
+      if (fresh?.url) {
+        item.urlExpiresAt = fresh.urlExpiresAt;
+        return fresh.url;
+      }
+    }
+  }
   await ensureHumblePageLoaded();
   const data = await withLibraryAction((a) => callLibraryAction(a, 1, 20, Date.now() % 100000, item.product));
   const it = data?.results?.find((x: RawItem) => x.id === item.itemId);
@@ -295,6 +312,109 @@ async function relearnLibraryAction(staleId: string | null): Promise<Action | nu
   }
   log("  Couldn't identify the new library action automatically. On the right, go to page 2 of your library (or search it) once, then Sync again.");
   return null;
+}
+
+// ---- download links (getSignedUrlsForEntitlements) -------------------------
+
+/** Find a server action by its function name: from the registry, else by
+ *  scanning the scripts of a page that uses it (opened in the pane). */
+async function actionByName(name: string, pageUrl: string | null, staleId?: string): Promise<Action | null> {
+  if (staleId) actionRegistry.forget(staleId);
+  const known = actionRegistry.findByName(name);
+  if (known) return known;
+  const wc = hv();
+  if (pageUrl && wc.getURL() !== pageUrl) {
+    await new Promise<void>((resolve) => {
+      const t = setTimeout(resolve, 30000);
+      wc.once("did-finish-load", () => {
+        clearTimeout(t);
+        resolve();
+      });
+      void wc.loadURL(pageUrl);
+    });
+    await sleep(1500); // let the page load its code
+  }
+  let found: { id: string; name: string | null }[] = [];
+  try {
+    found = await wc.executeJavaScript(SCAN_ACTIONS_SCRIPT);
+  } catch (err) {
+    log(`  Couldn't scan the site's scripts: ${errMsg(err)}`);
+  }
+  // Learn every named action seen (names and ids only), for next time.
+  for (const a of found) if (a.name && !actionRegistry.data.actions[a.id]) actionRegistry.learn(a.id, [], new URL(wc.getURL()).pathname, a.name);
+  return actionRegistry.findByName(name);
+}
+
+/** Fetch one download entitlement's signed links into the entitlement (in place). */
+async function fetchDownloadLinks(ent: RawItem, pageUrl?: string): Promise<boolean> {
+  let action = await actionByName(libraryV2.SIGNED_URLS_ACTION, pageUrl || null);
+  if (!action) throw new Error(`couldn't find Humble's ${libraryV2.SIGNED_URLS_ACTION} action`);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const r = await hv().executeJavaScript(libraryV2.jsonActionCallScript(action.id, action.page || "/home/library", [[ent.id]]));
+    if (isStaleActionReply(r.status, r.text) && attempt === 0) {
+      action = await actionByName(libraryV2.SIGNED_URLS_ACTION, pageUrl || null, action.id);
+      if (!action) throw new Error(`Humble updated its site and ${libraryV2.SIGNED_URLS_ACTION} wasn't found again`);
+      continue;
+    }
+    const reply = /x-component/i.test(r.contentType) ? libraryV2.parseSignedUrlsReply(r.text) : null;
+    if (!reply) {
+      const snippet = String(r.text || "").replace(/\s+/g, " ").slice(0, 120).replace(/[A-Za-z0-9]{12,}/g, "…");
+      throw new Error(`download links: HTTP ${r.status}, ${r.contentType || "no content-type"}: ${JSON.stringify(snippet)}`);
+    }
+    ent.signedUrlsFetchedAt = new Date().toISOString();
+    ent.signedUrls = reply.ok ? reply.signedUrls : null;
+    ent.signedUrlsExpiresAt = reply.expiresAt;
+    return reply.ok;
+  }
+  return false;
+}
+
+async function syncDownloadLinks({ full }: { full: boolean }) {
+  // Share the in-memory cache with live key updates, so neither saves over the other.
+  const cache = getLiveCache();
+  if (!cache?.items?.length) return;
+  const todo: { it: RawItem; ent: RawItem }[] = [];
+  for (const it of cache.items) for (const ent of it.entitlements?.downloads || []) if (!ent.downloads && (full || !ent.signedUrlsFetchedAt)) todo.push({ it, ent });
+  if (!todo.length) return;
+  log(`Downloads: fetching download links for ${todo.length} item(s)${todo.length > 200 ? " (the first time takes a while; later Syncs only fetch new ones)" : ""}…`);
+  // The action's code loads on item pages: open one to find it.
+  const pageUrl = `${BASE}/home/library/content/${todo[0].it.id}`;
+  let ok = 0;
+  let none = 0;
+  let failed = 0;
+  let shapeLogged = false;
+  let next = 0;
+  const worker = async () => {
+    while (next < todo.length && failed < 10) {
+      const { ent } = todo[next++];
+      try {
+        if (await fetchDownloadLinks(ent, pageUrl)) ok += 1;
+        else none += 1;
+        if (!shapeLogged && ent.signedUrls) {
+          shapeLogged = true;
+          log(`  Download links reply (field names only): ${JSON.stringify(libraryV2.shapeOnly(ent.signedUrls)).slice(0, 400)}`);
+        }
+      } catch (err) {
+        failed += 1;
+        log(`  ${errMsg(err)}`);
+      }
+      const done = ok + none + failed;
+      if (done % 250 === 0) {
+        libraryV2.saveCache(cache);
+        log(`  download links: ${done}/${todo.length}`);
+      }
+      await politeDelay(150, 400);
+    }
+  };
+  // Find the action once before the workers start.
+  await actionByName(libraryV2.SIGNED_URLS_ACTION, pageUrl);
+  await Promise.all([worker(), worker(), worker()]);
+  libraryV2.saveCache(cache);
+  rebuildIndex();
+  log(
+    `Downloads: links for ${ok} of ${todo.length} item(s)${none ? `, ${none} with none` : ""}${failed ? `, ${failed} failed${failed >= 10 ? " (stopped)" : ""}` : ""}. ` +
+      `${index.files.length} files, ${index.files.filter((f) => f.downloadable).length} downloadable.`,
+  );
 }
 
 /** Run `fn` with the library action, relearning it once if Humble redeployed. */
@@ -401,6 +521,7 @@ async function syncLibrary({ full }: { full: boolean }): Promise<InvokeChannels[
 
     // Incremental: new/updated items first, then everything cached we didn't refetch.
     const items = [...fetched.values()];
+    libraryV2.carryOverDownloadLinks(items, known); // the listing has no download links; keep the ones fetched before
     if (incremental) for (const [id, it] of known) if (!fetched.has(id)) items.push(it);
     libraryV2.saveCache({ format: V2_CACHE_FORMAT, fetchedAt: new Date().toISOString(), actionId: action.id, totalDocs, items });
     liveCache = null; // live key updates reload the fresh cache
@@ -414,6 +535,9 @@ async function syncLibrary({ full }: { full: boolean }): Promise<InvokeChannels[
     // Purchases (bundle icons, purchase dates, prices, key deadlines). A
     // failure here doesn't fail the library sync.
     await syncPurchases().catch((err) => log(`Purchases: ${errMsg(err)}`));
+    // Download links: the listing doesn't include them, so fetch each
+    // download entitlement's (new ones only after the first time).
+    await syncDownloadLinks({ full }).catch((err) => log(`Downloads: ${errMsg(err)}`));
     return { ok: true, fetched: fetched.size };
   } catch (err) {
     log(`Sync failed: ${errMsg(err)}`);
@@ -552,7 +676,8 @@ async function resolveUrl(item: QueueItem, { force }: { force: boolean }): Promi
   if (item.v2) {
     // New-site files: use the signed link from sync; on 401/403/404/410
     // (force), fetch a fresh one.
-    if (!force && item.url) return item.url;
+    const expired = item.urlExpiresAt ? Date.parse(item.urlExpiresAt) < Date.now() + 5 * 60 * 1000 : false;
+    if (!force && item.url && !expired) return item.url;
     item.url = await refreshV2File(item);
     return item.url;
   }
@@ -606,6 +731,8 @@ function enqueueDownloads(ids: string[]) {
       label: `${f.product} [${f.format || f.platform}] ${f.filename}`,
       v2: !!f.v2,
       itemId: f.itemId,
+      entitlementId: f.entitlementId,
+      urlExpiresAt: f.urlExpiresAt,
       product: f.product,
     }));
   const added = downloader.enqueue(items);
