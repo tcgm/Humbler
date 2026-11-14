@@ -629,3 +629,33 @@ input.key-check { margin: 0; cursor: pointer; }
 .keyfield.revealing.waiting { opacity: 0.7; }
 .reveal-selected .hb-btn .spinner { margin-right: 4px; }
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2s; } }
+
+/* ---- table headers: sort by clicking, resize by dragging the right edge ---- */
+.grid th, .hb-keys th { position: sticky; } /* also the anchor for the resize handle */
+button.th-sort {
+  all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 4px; max-width: 100%;
+  cursor: pointer; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+button.th-sort:hover, button.th-sort:focus-visible { color: var(--hb-text, var(--text)); text-decoration: underline; }
+th.num button.th-sort { justify-content: flex-end; width: 100%; }
+.sort-mark { font-size: 9px; opacity: 0.45; }
+th[aria-sort="ascending"] .sort-mark, th[aria-sort="descending"] .sort-mark { opacity: 1; color: var(--hb-red, var(--accent)); }
+.col-resize {
+  position: absolute; top: 0; right: -3px; bottom: 0; width: 7px; z-index: 2;
+  cursor: col-resize; touch-action: none;
+}
+.col-resize::after { content: ""; position: absolute; top: 25%; bottom: 25%; left: 3px; width: 1px; background: var(--hb-line, var(--line)); }
+th:hover .col-resize::after, .col-resize:hover::after { background: var(--hb-muted, var(--muted)); width: 2px; }
+th:last-child .col-resize { right: 0; }
+body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-select: none !important; }
+
+/* ---- automatic column widths: names take the room, everything else only what it needs ----
+   (the header cells carry the widths: 1% = shrink to content, grow columns share the rest;
+   the old fixed widths of cells below are for the fixed layout and don't apply here) */
+.grid.cols-auto td, .hb-keys.cols-auto td { width: auto; }
+.grid.cols-auto th, .hb-keys.cols-auto th { white-space: nowrap; }
+.grid.cols-auto .grow, .hb-keys.cols-auto .grow { max-width: 0; } /* fill the leftover space, cut off with … when there's none */
+.grid.cols-auto td.status { min-width: 120px; } /* room for the progress bar */
+.hb-keys.cols-auto td.keycol { min-width: 360px; } /* a key with its Redeem and Copy buttons on one line */
+.hb-keys.cols-auto td.platform { white-space: nowrap; }

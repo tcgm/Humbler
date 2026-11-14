@@ -170,7 +170,12 @@
    and page (and the Bundles and Choice lists their scroll position): open
    a bundle, go back, and the list is as you left it, even after a restart.
    The **↺ Reset** button next to the filters puts them back to the
-   defaults.
+   defaults. In the Keys, Downloads and Library tables, **click a column
+   header** to sort by it (again to reverse, a third time for the default
+   order), and **drag a header's right edge** to resize the column: the
+   table scrolls sideways when the columns are wider than the window, and
+   a double-click on an edge goes back to the automatic widths. Both are
+   remembered.
 9. **Dark mode** is the default everywhere. The ☀ button in the top bar
    switches to light mode (☾ switches back), and the choice is remembered.
    **Settings** (☰ menu) gathers the options: theme, tab counts, whether

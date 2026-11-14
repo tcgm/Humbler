@@ -1,6 +1,7 @@
 // Downloads: every file across every bundle, with filters and a queue.
 import { memo, useMemo, useState } from "react";
 import type { DownloadProgress, FileEntry, Naming } from "@shared/types";
+import { byNumber, byText, useTable, type Col } from "../components/Table";
 import { ExtLink, HumbleLink, ResetButton } from "../components/ui";
 import { useRemembered } from "../remember";
 import { api, useStore } from "../store";
@@ -40,11 +41,40 @@ export function DownloadsTab() {
     );
   }, [lib.files, q, bundle, platform, format, hideDone, hideDupes, progress]);
 
+  // where a file is: downloading first, then queued, failed, to get, not downloadable, done
+  const stage = (f: FileEntry) => {
+    const p = progress[f.id]?.state;
+    return p === "downloading" ? 0 : p === "queued" ? 1 : p === "error" ? 2 : f.downloaded ? 5 : f.downloadable ? 3 : 4;
+  };
+  const allOn = selectableOf(rows).length > 0 && selectableOf(rows).every((f) => sel.has(f.id));
+  const cols: Col<FileEntry>[] = [
+    {
+      id: "chk",
+      className: "chk",
+      fixed: true,
+      label: (
+        <input
+          type="checkbox"
+          title="Select all shown"
+          checked={allOn}
+          onChange={(e) =>
+            setSel((s) => (e.target.checked ? new Set([...s, ...selectableOf(rows).map((f) => f.id)]) : new Set([...s].filter((id) => !selectableOf(rows).some((f) => f.id === id)))))
+          }
+        />
+      ),
+    },
+    { id: "title", label: "Title", grow: 1, sort: byText((f) => f.product) },
+    { id: "platform", label: "Platform", sort: byText((f) => (f.platforms || [f.platform]).join(", ")) },
+    { id: "format", label: "Format", sort: byText((f) => f.format) },
+    { id: "size", label: "Size", className: "num", sort: byNumber((f) => f.size || null) },
+    { id: "status", label: "Status", className: "statcol", sort: (a, b) => stage(a) - stage(b) },
+  ];
+  const table = useTable("downloads", cols, rows);
+
   const fileBundles = useMemo(() => lib.bundles.filter((b) => b.fileCount), [lib.bundles]);
   const platforms = useMemo(() => uniqSorted(lib.files.flatMap((f) => f.platforms || [f.platform])), [lib.files]);
   const formats = useMemo(() => uniqSorted(lib.files.map((f) => f.format)), [lib.files]);
   const toGet = rows.reduce((s, f) => s + (f.downloaded ? 0 : f.size || 0), 0);
-  const selectable = rows.filter((f) => f.downloadable);
 
   const toggle = (id: string, on: boolean) =>
     setSel((s) => {
@@ -118,26 +148,12 @@ export function DownloadsTab() {
         <button onClick={() => api.chooseDownloadDir()}>Change…</button>
       </div>
       <div className="tableWrap">
-        <table className="grid">
+        <table className={`grid ${table.tableClass}`} style={table.tableStyle}>
           <thead>
-            <tr>
-              <th className="chk">
-                <input
-                  type="checkbox"
-                  title="Select all shown"
-                  checked={selectable.length > 0 && selectable.every((f) => sel.has(f.id))}
-                  onChange={(e) => setSel((s) => (e.target.checked ? new Set([...s, ...selectable.map((f) => f.id)]) : new Set([...s].filter((id) => !selectable.some((f) => f.id === id)))))}
-                />
-              </th>
-              <th>Title</th>
-              <th>Platform</th>
-              <th>Format</th>
-              <th className="num">Size</th>
-              <th className="statcol">Status</th>
-            </tr>
+            <tr>{table.headers}</tr>
           </thead>
           <tbody>
-            {rows.slice(0, ROW_LIMIT).map((f) => (
+            {table.rows.slice(0, ROW_LIMIT).map((f) => (
               <FileRow key={f.id} f={f} p={progress[f.id]} selected={sel.has(f.id)} onSelect={toggle} />
             ))}
           </tbody>
@@ -147,6 +163,8 @@ export function DownloadsTab() {
     </section>
   );
 }
+
+const selectableOf = (rows: FileEntry[]) => rows.filter((f) => f.downloadable);
 
 // Memoised: a progress tick re-renders only the row whose file it's about.
 const FileRow = memo(function FileRow({
@@ -165,7 +183,7 @@ const FileRow = memo(function FileRow({
       <td className="chk">
         <input type="checkbox" checked={selected} disabled={!f.downloadable} onChange={(e) => onSelect(f.id, e.target.checked)} />
       </td>
-      <td title={`${f.product}\n${f.bundle}\n${f.filename}`}>
+      <td className="grow" title={`${f.product}\n${f.bundle}\n${f.filename}`}>
         {f.product}
         <span className="sub">
           {f.bundle} · {f.filename} · <HumbleLink of={f} />

@@ -1,7 +1,9 @@
 // Library: everything you own (Humble Librarian's list), including
 // links-only items.
 import { useMemo } from "react";
+import type { Product } from "@shared/types";
 import { ExportButton } from "../components/ExportDialog";
+import { byNumber, byText, useTable, type Col } from "../components/Table";
 import { ExtLink, HumbleLink, ResetButton } from "../components/ui";
 import { useRemembered } from "../remember";
 import { api, useStore } from "../store";
@@ -37,6 +39,14 @@ export function LibraryTab() {
   }, [lib.products, q, bundle, kind]);
   const bundleOf = useMemo(() => new Map(lib.bundles.map((b) => [b.gamekey, b])), [lib.bundles]);
   const linksOnly = rows.filter((p) => !p.fileCount && !p.keyCount).length;
+  const cols: Col<Product>[] = [
+    { id: "icon", className: "iconcol", fixed: true, label: null },
+    { id: "title", label: "Title", grow: 3, sort: byText((p) => p.title) },
+    { id: "bundle", label: "Bundle", grow: 2, sort: byText((p) => p.bundle) },
+    { id: "has", label: "Has", className: "whatcol", title: "Sort by how many files, then keys", sort: (a, b) => byNumber((p: Product) => -(p.fileCount || 0))(a, b) || byNumber((p: Product) => -(p.keyCount || 0))(a, b) },
+    { id: "act", className: "actcol", fixed: true, label: null },
+  ];
+  const table = useTable("library", cols, rows);
   // the keys of the items shown (by item id; older data by bundle + title, as the Choice pages do)
   const rowKeys = useMemo(() => {
     const ids = new Set(rows.map((p) => p.id));
@@ -79,18 +89,12 @@ export function LibraryTab() {
         />
       </div>
       <div className="tableWrap">
-        <table className="grid">
+        <table className={`grid ${table.tableClass}`} style={table.tableStyle}>
           <thead>
-            <tr>
-              <th className="iconcol" />
-              <th>Title</th>
-              <th>Bundle</th>
-              <th className="whatcol">Has</th>
-              <th className="actcol" />
-            </tr>
+            <tr>{table.headers}</tr>
           </thead>
           <tbody>
-            {rows.slice(0, ROW_LIMIT).map((p) => {
+            {table.rows.slice(0, ROW_LIMIT).map((p) => {
               const b = bundleOf.get(p.gamekey);
               const when = b?.created ? b.created.slice(0, 10) : "";
               const paid = b?.amount != null && b.amount !== "" ? ` · ${b.amount}${b.currency ? ` ${b.currency}` : ""}` : "";
@@ -114,11 +118,11 @@ export function LibraryTab() {
               return (
                 <tr key={p.id}>
                   <td className="iconcol">{p.icon ? <img className="icon" src={p.icon} loading="lazy" alt="" /> : <div className="icon" />}</td>
-                  <td title={p.title}>
+                  <td className="grow" title={p.title}>
                     {p.title}
                     <span className="sub">{p.publisher || ""}</span>
                   </td>
-                  <td title={p.bundle}>
+                  <td className="grow" title={p.bundle}>
                     {p.bundle}
                     <span className="sub">
                       {when}

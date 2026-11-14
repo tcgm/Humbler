@@ -4,6 +4,7 @@ import type { KeyEntry, KeyStatus } from "@shared/types";
 import { ExportButton } from "../components/ExportDialog";
 import { KeyField } from "../components/KeyField";
 import { RevealSelected } from "../components/KeySelect";
+import { byText, useTable, type Col } from "../components/Table";
 import { ExtLink, HumbleLink, Pager, PlatformBadge, ResetButton } from "../components/ui";
 import { useRemembered } from "../remember";
 import { api, useStore } from "../store";
@@ -11,6 +12,7 @@ import { EXPIRING_DAYS, isExpiring, platformOf, steamUrl, uniqSorted } from "../
 
 const PER_PAGE = 50;
 type StateFilter = "all" | "unused" | "revealed" | "notredeemed" | "platformredeemed" | "gifted" | "expiring" | "expired" | "soldout";
+const KEY_ORDER: Record<KeyStatus, number> = { unused: 0, revealed: 1, gifted: 2, link: 3, expired: 4, "sold-out": 5 };
 const LABELS: Record<KeyStatus, string> = { unused: "unrevealed", revealed: "revealed", gifted: "gifted", link: "redeem links", expired: "expired", "sold-out": "sold out" };
 
 function matchesState(k: KeyEntry, st: StateFilter): boolean {
@@ -83,9 +85,35 @@ export function KeysTab() {
     return out;
   }, [base, st, view]);
 
+  const cols: Col<KeyEntry>[] = [
+    {
+      id: "chk",
+      className: "chk",
+      fixed: true,
+      label: (
+        <input
+          type="checkbox"
+          title="Select every key matching the filters"
+          checked={rows.length > 0 && rows.every((k) => sel.has(k.id))}
+          onChange={(e) => setSel((s) => (e.target.checked ? new Set([...s, ...rows.map((k) => k.id)]) : new Set([...s].filter((id) => !rows.some((k) => k.id === id)))))}
+        />
+      ),
+    },
+    { id: "platform", label: "Platform", className: "platform", sort: byText((k) => platformOf(k).name || platformOf(k).badge) },
+    { id: "game", label: "Game", grow: 1, sort: byText((k) => k.name) },
+    {
+      id: "key",
+      label: "Key",
+      className: "keycol",
+      title: "Sort by state: unrevealed (soonest deadline first), revealed, gifted, expired, sold out",
+      sort: (a, b) => KEY_ORDER[a.status] - KEY_ORDER[b.status] || (Date.parse(a.expiry || "") || Infinity) - (Date.parse(b.expiry || "") || Infinity),
+    },
+  ];
+  const table = useTable("keys", cols, rows);
+
   const pages = Math.max(1, Math.ceil(rows.length / PER_PAGE));
   const cur = Math.min(page, pages);
-  const pageRows = rows.slice((cur - 1) * PER_PAGE, cur * PER_PAGE);
+  const pageRows = table.rows.slice((cur - 1) * PER_PAGE, cur * PER_PAGE);
 
   const keyBundles = useMemo(() => lib.bundles.filter((b) => b.keyCount), [lib.bundles]);
   const types = useMemo(() => uniqSorted(lib.keys.map((k) => k.keyType)), [lib.keys]);
@@ -184,21 +212,9 @@ export function KeysTab() {
         )}
       </div>
       <div className="hb-tablewrap">
-        <table className="hb-keys">
+        <table className={`hb-keys ${table.tableClass}`} style={table.tableStyle}>
           <thead>
-            <tr>
-              <th className="chk">
-                <input
-                  type="checkbox"
-                  title="Select every key matching the filters"
-                  checked={rows.length > 0 && rows.every((k) => sel.has(k.id))}
-                  onChange={(e) => setSel((s) => (e.target.checked ? new Set([...s, ...rows.map((k) => k.id)]) : new Set([...s].filter((id) => !rows.some((k) => k.id === id)))))}
-                />
-              </th>
-              <th className="platform">Platform</th>
-              <th>Game</th>
-              <th className="keycol">Key</th>
-            </tr>
+            <tr>{table.headers}</tr>
           </thead>
           <tbody>
             {pageRows.map((k) => (
@@ -209,7 +225,7 @@ export function KeysTab() {
                 <td className="platform">
                   <PlatformBadge k={k} />
                 </td>
-                <td className="hb-game">
+                <td className="hb-game grow">
                   <h4 title={k.name}>{k.name}</h4>
                   <p title={k.bundle}>{k.bundle}</p>
                   <span className="row-links">
@@ -217,7 +233,7 @@ export function KeysTab() {
                     {(platformOf(k).id === "steam" || k.steamAppId) && <ExtLink href={steamUrl(k.name, k.steamAppId)}>View on Steam</ExtLink>}
                   </span>
                 </td>
-                <td>
+                <td className="keycol">
                   <KeyField k={k} />
                 </td>
               </tr>
