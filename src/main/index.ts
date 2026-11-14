@@ -1642,7 +1642,16 @@ handle("folders:link", ({ path: dir, gamekey }) => {
   rebuildIndex(); // matching only, no rescan needed
   send("folders-updated");
 });
-handle("folders:open", (dir) => void shell.openPath(dir));
+handle("folders:open", async (dir) => {
+  // The default download folder may not exist until the first download.
+  if (path.resolve(dir) === path.resolve(settings.downloadDir)) fs.mkdirSync(dir, { recursive: true });
+  if (!fs.existsSync(dir)) {
+    log(`Can't open ${dir}: it doesn't exist (moved, renamed, or a drive that isn't connected?)`);
+    return;
+  }
+  const err = await shell.openPath(dir);
+  if (err) log(`Couldn't open ${dir}: ${err}`);
+});
 handle("browser:toggle", () => setBrowserVisible(!browserVisible));
 handle("browser:go", (where) => {
   const routes: Record<string, string> = {
