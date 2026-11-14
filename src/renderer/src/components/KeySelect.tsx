@@ -35,29 +35,45 @@ export function KeyCheck({ k, sel: [sel, setSel], title }: { k: KeyEntry; sel: S
   );
 }
 
-/** "Select unrevealed · Clear" and the two-click Reveal selected (N) button, for `keys` (the ones in view). */
+/** "Select all · Select unrevealed · Clear" and the two-click Reveal selected (N) button, for `keys` (the ones in view).
+ *  The selection also feeds Export (see selectedOr). */
 export function RevealSelected({ keys, sel: [sel, setSel], selectLinks = true }: { keys: KeyEntry[]; sel: Selection; selectLinks?: boolean }) {
   const { busy, revealKeys, revealing } = useStore();
   const revealable = keys.filter((k) => sel.has(k.id) && canReveal(k));
   const unrevealed = keys.filter(canReveal);
-  const allOn = unrevealed.length > 0 && unrevealed.every((k) => sel.has(k.id));
+  const selectedHere = keys.filter((k) => sel.has(k.id)).length;
+  const only = (ks: KeyEntry[]) => setSel(new Set(ks.map((k) => k.id)));
   return (
     <span className="reveal-selected">
-      {selectLinks && unrevealed.length > 0 && (
+      {selectLinks && keys.length > 0 && (
         <>
-          <a
-            title="Select every key here that can be revealed"
-            onClick={() => setSel((s) => (allOn ? new Set([...s].filter((id) => !unrevealed.some((k) => k.id === id))) : new Set([...s, ...unrevealed.map((k) => k.id)])))}
-          >
-            {allOn ? "Unselect unrevealed" : `Select unrevealed (${unrevealed.length})`}
-          </a>
-          {sel.size > 0 && !allOn && <a onClick={() => setSel(new Set())}>Clear</a>}
+          {selectedHere < keys.length && (
+            <a title="Select every key here (for Export, or Reveal selected)" onClick={() => only(keys)}>
+              Select all ({keys.length})
+            </a>
+          )}
+          {unrevealed.length > 0 && !(selectedHere === unrevealed.length && unrevealed.every((k) => sel.has(k.id))) && (
+            <a title="Select only the keys here that can be revealed" onClick={() => only(unrevealed)}>
+              Select unrevealed ({unrevealed.length})
+            </a>
+          )}
+          {selectedHere > 0 && (
+            <a title="Unselect everything" onClick={() => setSel(new Set())}>
+              Clear ({selectedHere})
+            </a>
+          )}
         </>
       )}
       <ArmButton
         className="hb-btn"
         disabled={!revealable.length || busy}
-        title="Reveals the selected keys one at a time. Revealed keys can't be gifted afterwards."
+        title={
+          !unrevealed.length
+            ? "Every key here is already revealed (or can't be revealed yet)"
+            : !revealable.length
+              ? "Tick the unrevealed keys to reveal (or Select unrevealed)"
+              : "Reveals the selected keys one at a time. Revealed keys can't be gifted afterwards."
+        }
         armedText={`Reveal ${revealable.length} key${revealable.length === 1 ? "" : "s"}? Click again`}
         onFire={async () => {
           const res = await revealKeys(revealable.map((k) => k.id));
@@ -74,4 +90,10 @@ export function RevealSelected({ keys, sel: [sel, setSel], selectLinks = true }:
       </ArmButton>
     </span>
   );
+}
+
+/** For Export: the selected keys when any are selected, else all of them. */
+export function selectedOr(keys: KeyEntry[], sel: Set<string>, scope: string): { keys: KeyEntry[]; scope: string } {
+  const picked = keys.filter((k) => sel.has(k.id));
+  return picked.length ? { keys: picked, scope: `the ${picked.length} selected key${picked.length === 1 ? "" : "s"} in ${scope}` } : { keys, scope };
 }

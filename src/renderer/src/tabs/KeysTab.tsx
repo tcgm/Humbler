@@ -3,7 +3,7 @@ import { useMemo, useRef, useState } from "react";
 import type { KeyEntry, KeyStatus } from "@shared/types";
 import { ExportButton } from "../components/ExportDialog";
 import { KeyField } from "../components/KeyField";
-import { RevealSelected } from "../components/KeySelect";
+import { RevealSelected, selectedOr } from "../components/KeySelect";
 import { byText, useTable, type Col } from "../components/Table";
 import { ExtLink, HumbleLink, Pager, PlatformBadge, ResetButton } from "../components/ui";
 import { useRemembered } from "../remember";
@@ -192,8 +192,7 @@ export function KeysTab() {
           {copied != null ? `Copied ${copied}` : "Copy revealed"}
         </button>
         <ExportButton
-          scope={`${bundle ? keyBundles.find((b) => b.gamekey === bundle)?.name || "this bundle" : "your keys"}${dirty ? " (matching the Keys tab's filters)" : ""}`}
-          keys={rows}
+          {...selectedOr(rows, sel, `${bundle ? keyBundles.find((b) => b.gamekey === bundle)?.name || "this bundle" : "your keys"}${dirty ? " (matching the Keys tab's filters)" : ""}`)}
         />
         <RevealSelected keys={lib.keys} sel={[sel, setSel]} selectLinks={false} />
       </div>

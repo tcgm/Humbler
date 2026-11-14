@@ -5,7 +5,7 @@ import type { Bundle, FileEntry } from "@shared/types";
 import { ExportButton } from "../components/ExportDialog";
 import { FileButton } from "../components/FileButton";
 import { KeyField } from "../components/KeyField";
-import { KeyCheck, RevealSelected, useKeySelection } from "../components/KeySelect";
+import { KeyCheck, RevealSelected, selectedOr, useKeySelection } from "../components/KeySelect";
 import { BackLink, BundleIcon, DeadlineBadge, ExtLink, HumbleLink, Pager, PlatformBadge, ResetButton, Tile, useOrderInfo } from "../components/ui";
 import { useRemembered, useRememberedScroll } from "../remember";
 import { api, useStore } from "../store";
@@ -237,7 +237,7 @@ function BundlePage({ id }: { id: string }) {
           <h3>Keys &amp; Entitlements</h3>
           <span className="hb-fixed-actions">
             <RevealSelected keys={keys} sel={sel} />
-            <ExportButton scope={b.name} keys={keys} />
+            <ExportButton {...selectedOr(keys, sel[0], b.name)} />
           </span>
         </div>
       )}
@@ -247,7 +247,9 @@ function BundlePage({ id }: { id: string }) {
             <div className="hb-panel">
               {keys.map((k) => (
                 <div className="hb-keyline" key={k.id}>
-                  <span className="key-check-cell">{k.status === "unused" && <KeyCheck k={k} sel={sel} />}</span>
+                  <span className="key-check-cell">
+                    <KeyCheck k={k} sel={sel} />
+                  </span>
                   <PlatformBadge k={k} />
                   <div className="hb-keyline-title">
                     <h4>{k.name}</h4>

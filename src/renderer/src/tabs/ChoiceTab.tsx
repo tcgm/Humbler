@@ -5,7 +5,7 @@ import type { Bundle, ChoiceMonth, FileEntry, KeyEntry, LibraryIndex, Product } 
 import { ExportButton } from "../components/ExportDialog";
 import { FileButton } from "../components/FileButton";
 import { KeyField } from "../components/KeyField";
-import { KeyCheck, RevealSelected, useKeySelection } from "../components/KeySelect";
+import { KeyCheck, RevealSelected, selectedOr, useKeySelection } from "../components/KeySelect";
 import { BackLink, DeadlineBadge, ExtLink, HumbleLink, ResetButton, Tile } from "../components/ui";
 import { useRemembered, useRememberedScroll } from "../remember";
 import { useStore } from "../store";
@@ -244,7 +244,7 @@ function MonthPage({ m }: { m: Month }) {
         </div>
         <div className="hb-controls">
           <RevealSelected keys={keys} sel={sel} />
-          <ExportButton scope={`${monthLabel(m.month)} Humble Choice`} keys={keys} />
+          <ExportButton {...selectedOr(keys, sel[0], `${monthLabel(m.month)} Humble Choice`)} />
         </div>
       </div>
       <p className="hb-summary">{games.length ? plural(games.length, "game") : "No games from this month in your library."}</p>
@@ -261,8 +261,8 @@ function MonthPage({ m }: { m: Month }) {
                   </div>
                 )}
                 {g.keys.map((k) => (
-                  <div className={`choice-key${k.status === "unused" ? " selectable" : ""}`} key={k.id}>
-                    {k.status === "unused" && <KeyCheck k={k} sel={sel} />}
+                  <div className="choice-key selectable" key={k.id}>
+                    <KeyCheck k={k} sel={sel} />
                     <KeyField k={k} />
                   </div>
                 ))}
