@@ -232,7 +232,18 @@ export class Downloader<T extends DownloadItem = DownloadItem> extends EventEmit
         throw new Error(`checksum mismatch (expected ${expected}, got ${actual}) — partial file deleted`);
       }
     }
-    fs.rmSync(dest, { force: true });
+    // A different file already there (an older version, or someone else's
+    // copy): never delete it. Move it aside as "<name> (older <date>).<ext>".
+    if (fs.existsSync(dest)) {
+      const old = fs.statSync(dest);
+      const ext = path.extname(dest);
+      const stem = dest.slice(0, dest.length - ext.length);
+      const day = old.mtime.toISOString().slice(0, 10);
+      let aside = `${stem} (older ${day})${ext}`;
+      for (let i = 2; fs.existsSync(aside); i++) aside = `${stem} (older ${day}, ${i})${ext}`;
+      fs.renameSync(dest, aside);
+      this.emit("kept-older", item, aside);
+    }
     fs.renameSync(part, dest);
     return false;
   }

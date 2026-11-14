@@ -903,6 +903,7 @@ const downloader = new Downloader<QueueItem>({
 });
 
 downloader.on("progress", (p) => send("download-progress", p));
+downloader.on("kept-older", (item: QueueItem, aside: string) => log(`Kept the older ${item.filename} on disk as ${path.basename(aside)}`));
 downloader.on("completed", (item: QueueItem, { skipped }: { skipped: boolean }) => {
   lib.recordDownloaded({ id: item.id, rel: item.rel, size: item.size, md5: item.md5, at: new Date().toISOString() });
   const f = index.files.find((x) => x.id === item.id);
