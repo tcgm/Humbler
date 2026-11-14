@@ -22,7 +22,7 @@ export interface InvokeChannels {
   "scout:open-folder": [[], string];
   "scout:open-live": [[], string];
   "status:get": [[], void];
-  "library:sync": [[{ full: boolean }], OkResult & { fetched?: number }];
+  "library:sync": [[{ full: boolean; focus?: string[] }], OkResult & { fetched?: number }];
   "keys:reveal": [[string[]], RevealResult];
   "keys:export": [[string[] | null], OkResult & { count?: number; filePath?: string }];
   "downloads:enqueue": [[string[]], OkResult & { added?: number }];
@@ -73,7 +73,8 @@ export interface HumblerApi {
   openReconFolder(): Promise<string>;
   openLiveCatalog(): Promise<string>;
   requestStatus(): Promise<void>;
-  sync(full: boolean): Promise<InvokeChannels["library:sync"][1]>;
+  /** `focus`: bundle ids (purchases) you're looking at, refreshed first */
+  sync(full: boolean, focus?: string[]): Promise<InvokeChannels["library:sync"][1]>;
   revealKeys(ids: string[]): Promise<RevealResult>;
   exportKeys(ids: string[] | null): Promise<InvokeChannels["keys:export"][1]>;
   enqueueDownloads(ids: string[]): Promise<InvokeChannels["downloads:enqueue"][1]>;

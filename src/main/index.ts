@@ -500,23 +500,71 @@ async function fetchDownloadLinks(ent: RawItem, pageUrl?: string): Promise<boole
 // file list of every item in it: names, sizes, md5/sha1, web/torrent file
 // names. One background request per purchase (the pane isn't touched).
 
-async function fetchPurchaseFileLists(peId: string): Promise<Map<string, RawItem[]>> {
+function getPurchasePage(peId: string, rsc: boolean): Promise<{ status: number; type: string; text: string }> {
   const url = `/home/library/${encodeURIComponent(peId)}`;
-  const get = (rsc: boolean): Promise<{ status: number; type: string; text: string }> =>
-    hv().executeJavaScript(`
-      (async () => {
-        const r = await fetch(${JSON.stringify(url)}, { credentials: "include", headers: ${rsc ? '{ RSC: "1" }' : "{}"} });
-        return { status: r.status, type: r.headers.get("content-type") || "", text: await r.text() };
-      })()
-    `);
-  let r = await get(true);
+  return hv().executeJavaScript(`
+    (async () => {
+      const r = await fetch(${JSON.stringify(url)}, { credentials: "include", headers: ${rsc ? '{ RSC: "1" }' : "{}"} });
+      return { status: r.status, type: r.headers.get("content-type") || "", text: await r.text() };
+    })()
+  `);
+}
+
+async function fetchPurchaseFileLists(peId: string): Promise<Map<string, RawItem[]>> {
+  let r = await getPurchasePage(peId, true);
   let lists = /x-component/i.test(r.type) ? libraryV2.extractDownloadLists(resolvedFlightData(r.text)) : new Map<string, RawItem[]>();
   if (!lists.size) {
-    r = await get(false); // the full page, with its data embedded
+    r = await getPurchasePage(peId, false); // the full page, with its data embedded
     lists = libraryV2.extractDownloadLists(resolvedFlightData(flightFromHtml(r.text)));
   }
   if (!lists.size && r.status >= 400) throw new Error(`purchase page ${peId.slice(0, 8)}…: HTTP ${r.status}`);
   return lists;
+}
+
+// ---- focused refresh: the bundle you're looking at, first -------------------
+// Sync's incremental pass only re-reads recently added items, so a key you
+// revealed on Humble for an older purchase wouldn't show up. Sync first
+// re-reads the purchase page of whatever bundle (or Choice month) is open in
+// Humbler: every key's current state, plus its file lists.
+
+async function refreshPurchases(peIds: string[]) {
+  const cache = getLiveCache();
+  if (!cache?.items?.length || !peIds.length) return;
+  const known = new Set(cache.items.map((it: RawItem) => String(it.productEntitlementId || it.id)));
+  const todo = peIds.filter((id) => known.has(id)); // 2026-site purchases only (not legacy gamekeys)
+  for (const pe of todo) {
+    const name = cache.items.find((it: RawItem) => String(it.productEntitlementId || it.id) === pe)?.subTitle || pe.slice(0, 8);
+    try {
+      let r = await getPurchasePage(pe, true);
+      let value = /x-component/i.test(r.type) ? resolvedFlightData(r.text) : [];
+      let keys = applyKeyUpdates(cache.items, value);
+      let lists = libraryV2.extractDownloadLists(value);
+      if (!lists.size && !keys.changed) {
+        r = await getPurchasePage(pe, false); // the full page, with its data embedded
+        value = resolvedFlightData(flightFromHtml(r.text));
+        keys = applyKeyUpdates(cache.items, value);
+        lists = libraryV2.extractDownloadLists(value);
+      }
+      if (r.status >= 400) throw new Error(`HTTP ${r.status}`);
+      let files = 0;
+      for (const it of cache.items) {
+        if (String(it.productEntitlementId || it.id) !== pe) continue;
+        for (const ent of it.entitlements?.downloads || []) {
+          const list = lists.get(ent.id);
+          if (!list) continue;
+          ent.downloads = list;
+          ent.downloadsFetchedAt = new Date().toISOString();
+          files += 1;
+        }
+      }
+      if (files && !keys.changed) libraryV2.saveCache(cache);
+      commitKeyUpdates(keys, cache); // saves, logs reveals, rebuilds the index
+      if (files && !keys.changed) rebuildIndex();
+      log(`Refreshed "${name}" first: ${keys.revealed.length ? `${keys.revealed.length} newly revealed key(s)` : keys.changed ? "key states updated" : "keys unchanged"}${files ? `, ${files} file list(s)` : ""}.`);
+    } catch (err) {
+      log(`Couldn't refresh "${name}" first: ${errMsg(err)}`);
+    }
+  }
 }
 
 async function syncFileLists({ full }: { full: boolean }) {
@@ -661,7 +709,7 @@ async function withLibraryAction<T>(fn: (a: Action) => Promise<T>): Promise<T> {
   }
 }
 
-async function syncLibrary({ full }: { full: boolean }): Promise<InvokeChannels["library:sync"][1]> {
+async function syncLibrary({ full, focus }: { full: boolean; focus?: string[] }): Promise<InvokeChannels["library:sync"][1]> {
   if (busy) return { ok: false, reason: `busy (${busy})` };
   let action = actionRegistry.find(libraryV2.LIBRARY_ACTION_ARGS, /^\/home\/library/);
   if (!action) {
@@ -678,6 +726,8 @@ async function syncLibrary({ full }: { full: boolean }): Promise<InvokeChannels[
       log("Not logged in. Log in on the right, then sync again.");
       return { ok: false, reason: "not-logged-in" };
     }
+    // What you're looking at first (before the cache below is read, so the pass keeps it).
+    if (focus?.length) await refreshPurchases(focus);
     const cache = libraryV2.loadCache();
     const known = new Map<string, RawItem>((cache?.items || []).map((it: RawItem) => [it.id, it]));
     // Caches from before RSC references were resolved hold "$…" stubs where
@@ -1621,6 +1671,7 @@ function createWindow() {
       const flight: string = await wc.executeJavaScript(PAGE_FLIGHT_SCRIPT).catch(() => "");
       if (flight) {
         harvestOrders({ kind: "rsc", text: flight }); // orders embedded in the first load
+        applyLiveKeyUpdates({ kind: "rsc", text: flight }); // keys, e.g. a purchase page showing keys revealed elsewhere
         if (settings.liveScout) liveScout.record({ kind: "rsc", method: "PAGE", url, status: 200, text: flight }, url);
       }
     }
@@ -1742,7 +1793,7 @@ handle("scout:open-folder", () => {
   return shell.openPath(RECON_DIR);
 });
 handle("status:get", () => pushStatus());
-handle("library:sync", (opts) => syncLibrary({ full: !!opts?.full }));
+handle("library:sync", (opts) => syncLibrary({ full: !!opts?.full, focus: Array.isArray(opts?.focus) ? opts.focus.filter((x: unknown): x is string => typeof x === "string").slice(0, 20) : undefined }));
 handle("keys:reveal", (ids) => revealKeys(idList(ids)));
 handle("keys:export", (ids) => exportKeys(Array.isArray(ids) ? idList(ids) : null));
 handle("downloads:enqueue", (ids) => enqueueDownloads(idList(ids)));

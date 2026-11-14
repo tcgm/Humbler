@@ -4,8 +4,10 @@
    sign-in pop-ups generally refuse to run inside embedded browsers. The pill
    at the top turns green once you're logged in.
 2. **Sync** pages through your library on the new site, newest first, and
-   stops once it reaches items it already has. **Full refresh** re-fetches
-   everything. (See [How Humbler talks to Humble](humble-api.md). The first sync of a large
+   stops once it reaches items it already has. If a bundle page or Choice
+   month is open, Sync re-reads that purchase first, so keys you revealed
+   on Humble's site for it show up even though it isn't new. **Full
+   refresh** re-fetches everything. (See [How Humbler talks to Humble](humble-api.md). The first sync of a large
    library takes a minute or two, with polite pauses between pages.)
 3. **Keys tab**, laid out like the old humblebundle.com keys page. It shows
    every key by default (50 per page, newest first); filter by status to

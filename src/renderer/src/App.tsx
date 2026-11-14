@@ -30,6 +30,15 @@ export function App() {
     setTab(t);
   };
 
+  // what you're looking at: Sync refreshes it first
+  const focus =
+    tab === "bundles" && s.bundleId
+      ? [s.bundleId]
+      : tab === "choice" && s.choiceMonth
+        ? lib.bundles.filter((b) => b.choiceMonth === s.choiceMonth).map((b) => b.gamekey)
+        : [];
+  const focusName = tab === "bundles" && s.bundleId ? lib.bundles.find((b) => b.gamekey === s.bundleId)?.name : tab === "choice" && s.choiceMonth ? "this Choice month" : null;
+
   const unrevealed = lib.keys.filter((k) => k.status === "unused").length;
   const pending = lib.files.filter((f) => f.downloadable && !f.downloaded && !f.duplicateOf).length;
   const months = new Set([
@@ -67,7 +76,7 @@ export function App() {
           )}
         </div>
         <div className="actions">
-          <button className="primary" disabled={s.busy} title="Fetch items added since your last sync" onClick={() => api.sync(false)}>
+          <button className="primary" disabled={s.busy} title={`${focusName && focus.length ? `Refresh ${focusName} first, then fetch` : "Fetch"} items added since your last sync`} onClick={() => api.sync(false, focus)}>
             Sync
           </button>
           <button
@@ -80,7 +89,7 @@ export function App() {
           </button>
           <Menu
             items={[
-              { label: "Full refresh", title: "Re-fetch your whole library (and every download link)", disabled: s.busy, onPick: () => void api.sync(true) },
+              { label: "Full refresh", title: "Re-fetch your whole library (and every download link)", disabled: s.busy, onPick: () => void api.sync(true, focus) },
               { label: status?.browserVisible === false ? "Show browser" : "Hide browser", title: "The Humble pane on the right", onPick: () => void api.toggleBrowser() },
               "-",
               { label: "Download folders…", title: "Where your downloads are, and where new ones go", onPick: () => setFoldersOpen(true) },
