@@ -110,7 +110,8 @@ function rebuildIndex() {
   index = { ...built, choiceGroups: built.choiceGroups || [] } as LibraryIndex;
   // Your own record of which keys you've activated on Steam/GOG/...
   const redeemedMap = redeemedStore.load();
-  for (const k of index.keys) k.platformRedeemed = redeemedMap[k.id] || null;
+  // ...or, for keys Humble redeemed to your account itself, that.
+  for (const k of index.keys) k.platformRedeemed = redeemedMap[k.id] || k.autoRedeemed || null;
   ownedTitles = null;
   liveScrubber = null; // new keys may be known now (sync / reveal)
   send("library-updated");
@@ -928,7 +929,8 @@ function commitKeyUpdates(r: ReturnType<typeof applyKeyUpdates>, cache: NonNulla
   for (const k of r.revealed) {
     // Write it down before anything else can go wrong, like reveals made in Humbler.
     lib.recordRevealedKey({ id: `v2|${k.keyId}`, gamekey: k.bundleId, name: k.title, bundle: k.bundle, keyType: k.keyType, key: k.key, revealedAt: new Date().toISOString() });
-    log(`Key revealed on Humble: ${k.title} (picked up live, no Sync needed)`);
+    if (/_keyless$/i.test(k.keyType)) log(`${k.title}: redeemed to your account by Humble (picked up live, no Sync needed; Humble's redemption code kept)`);
+    else log(`Key revealed on Humble: ${k.title} (picked up live, no Sync needed)`);
     for (const [itemId] of watchedItems) if (itemId === k.itemId) watchedItems.delete(itemId);
   }
   rebuildIndex();
@@ -1361,7 +1363,7 @@ handle("orders:get", () => {
 handle("redeem:mark", ({ id, redeemed, platform }) => {
   const key = index.keys.find((k) => k.id === id);
   if (!key) return null;
-  key.platformRedeemed = redeemedStore.mark(id, { redeemed: !!redeemed, platform: platform ?? null });
+  key.platformRedeemed = redeemedStore.mark(id, { redeemed: !!redeemed, platform: platform ?? null }) || key.autoRedeemed || null;
   log(`${key.name}: ${redeemed ? `marked as redeemed on ${platform || "its platform"}` : "marked as not redeemed"}.`);
   return key.platformRedeemed;
 });

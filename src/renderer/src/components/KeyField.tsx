@@ -11,8 +11,23 @@ export function KeyField({ k }: { k: KeyEntry }) {
   const p = platformOf(k);
 
   let field;
+  const auto = k.status === "revealed" ? k.autoRedeemed : null;
   switch (k.status) {
     case "revealed":
+      // Humble redeemed it to your account itself: nothing to activate. Any
+      // value is Humble's redemption code, kept (and copyable) for the record.
+      if (auto) {
+        const where = auto.platform || p.name || "platform";
+        field = (
+          <>
+            <div className="keyfield redeemed auto" title={`Humble redeemed this to your ${where} account${auto.account ? ` (${auto.account})` : ""}`}>
+              ✓ Redeemed to your {where} account{auto.account ? ` (${auto.account})` : ""}
+            </div>
+            {k.key && <CopyButton text={k.key} label="Copy code" />}
+          </>
+        );
+        break;
+      }
       field = (
         <>
           <div className="keyfield redeemed" title="Click the key to select it">
@@ -66,7 +81,21 @@ export function KeyField({ k }: { k: KeyEntry }) {
   }
 
   const meta = [];
-  if (k.status === "revealed") {
+  if (auto && (!k.platformRedeemed || k.platformRedeemed.auto)) {
+    meta.push(
+      <span key="r" className="redeemed-ok">
+        ✓ Redeemed automatically by Humble{auto.at ? ` · ${formatDate(auto.at)}` : ""}
+        {k.key && (
+          <>
+            {" · code "}
+            <span className="auto-code" title="Humble's redemption code (not a key you need to enter)">
+              {k.key}
+            </span>
+          </>
+        )}
+      </span>,
+    );
+  } else if (k.status === "revealed") {
     meta.push(
       k.platformRedeemed ? (
         <span key="r" className="redeemed-ok">

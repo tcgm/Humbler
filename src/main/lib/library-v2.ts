@@ -145,6 +145,36 @@ export function shapeOnly(v: any, depth = 0): any {
   return v === null ? "null" : typeof v;
 }
 
+const PLATFORM_NAMES: [RegExp, string][] = [
+  [/epic/, "Epic Games Store"],
+  [/gog/, "GOG.com"],
+  [/blizzard|battle/, "Battle.net"],
+  [/uplay|ubisoft/, "Ubisoft Connect"],
+  [/origin|ea_app/, "EA app"],
+  [/steam/, "Steam"],
+];
+const platformName = (type: string): string | null => PLATFORM_NAMES.find(([re]) => re.test(type))?.[1] || null;
+
+/**
+ * Keys Humble redeems to your account itself, so there's nothing for you to
+ * activate: "keyless" Epic/GOG/Battle.net items (their "key" is Humble's
+ * redemption code, or a sentence like "Redeemed to Epic Games Account …"),
+ * Ubisoft direct redeems, and anything claimed with no key at all.
+ */
+function autoRedeemed(k: any): { at: string; platform: string | null; auto: true; account: string | null } | null {
+  const type = String(k.keyIntegrationId || k.type || "").toLowerCase();
+  const value = und(k.redemptionData?.keyFormatted);
+  const at = und(k.redeemedAt);
+  const account = und(k.redemptionData?.externalAccountName) || null;
+  const completed = und(k.redemptionData?.externalOrderStatus) === "completed";
+  if (k.giftStatus && k.giftStatus !== "unassigned") return null;
+  const keyless = /_keyless$/.test(type);
+  if ((keyless && (value || at || completed || account)) || (k.directRedeem === true && at) || (at && !value)) {
+    return { at: at || "", platform: platformName(type), auto: true, account };
+  }
+  return null;
+}
+
 function keyStatus(k: any): KeyStatus {
   const revealed = !!(und(k.redemptionData?.keyFormatted) || und(k.redeemedAt));
   if (k.giftStatus && k.giftStatus !== "unassigned") return "gifted";
@@ -248,6 +278,10 @@ export function buildIndexV2(items: any[], { downloadDir, naming = "original" }:
       const logged = revealedLog.get(`v2|${raw.id}`);
       const k = logged && !und(raw.redemptionData?.keyFormatted) ? { ...raw, redemptionData: { ...(raw.redemptionData || {}), keyFormatted: logged } } : raw;
       const status = keyStatus(k);
+      const auto = status === "revealed" ? autoRedeemed(k) : null;
+      // "Redeemed to Epic Games Account …" is a message, not a code
+      const rawKey = status === "revealed" ? und(k.redemptionData?.keyFormatted) : null;
+      const keyValue = auto && rawKey && /\s/.test(rawKey) ? null : rawKey;
       const expiry = und(k.unavailableAfter) || und(k.redemptionExpiryDate);
       keys.push({
         id: `v2|${k.id}`,
@@ -258,7 +292,8 @@ export function buildIndexV2(items: any[], { downloadDir, naming = "original" }:
         machineName: it.contentId || it.id,
         keyindex: 0,
         keyType: k.keyIntegrationId || k.type || "",
-        key: status === "revealed" ? und(k.redemptionData?.keyFormatted) : null,
+        key: keyValue,
+        autoRedeemed: auto,
         status,
         expired: status === "expired",
         soldOut: status === "sold-out",

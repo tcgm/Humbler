@@ -63,6 +63,11 @@ Vite's default 5173 is often inside one.
      a ⚠ count in the summary, a warning on the key with a link to Humble
      support, and a badge on their bundle and Choice month. Keys that
      expire within 30 days are flagged, and "Expiring soon" filters to them.
+   - Keys **Humble redeems to your account itself** (keyless Epic, GOG and
+     Battle.net items, Ubisoft direct activations) show as "✓ Redeemed to
+     your Epic Games Store account" and count as redeemed on that platform
+     automatically. The code Humble returns when you redeem one is kept
+     (shown small, with Copy) and logged like any revealed key.
    - Every key, download and product has a **Humble page** link that opens
      it on Humble (right): the item's own page for new-site items, the
      purchase for older ones.

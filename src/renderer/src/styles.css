@@ -337,6 +337,9 @@ button.keyfield:disabled { opacity: 0.55; cursor: default; }
 .hb-flag.red { color: #fff; background: var(--hb-red); border-radius: 3px; padding: 0 5px; }
 .keyfield.soldout { background: color-mix(in srgb, var(--hb-red) 18%, var(--hb-card)); color: var(--hb-red); font-weight: 600; border: 1px solid color-mix(in srgb, var(--hb-red) 45%, transparent); }
 .soldout-note { color: var(--hb-muted); }
+/* redeemed to your account by Humble itself (keyless Epic etc.) */
+.keyfield.redeemed.auto { font-family: inherit; font-weight: 600; color: var(--hb-green, #5cb85c); letter-spacing: 0; }
+.auto-code { font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: var(--hb-muted); user-select: all; word-break: break-all; }
 .warn-link { color: var(--hb-red); font-weight: 600; cursor: pointer; }
 .warn-link:hover { text-decoration: underline; }
 .month-matches { font-size: 11px; color: var(--hb-muted); margin: 2px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -7,6 +7,9 @@ export type KeyStatus = "unused" | "revealed" | "gifted" | "link" | "expired" | 
 export interface PlatformRedeemed {
   at: string;
   platform: string | null;
+  /** Humble redeemed it to your linked account itself (keyless Epic/GOG/Battle.net, Ubisoft direct) */
+  auto?: boolean;
+  account?: string | null; // the linked account's name, when Humble says
 }
 
 export interface KeyEntry {
@@ -36,6 +39,8 @@ export interface KeyEntry {
   contentUrl?: string;
   choiceMonth?: string | null;
   itemId?: string;
+  /** set when Humble redeemed it to your platform account (the key, if any, is Humble's redemption code) */
+  autoRedeemed?: PlatformRedeemed | null;
 }
 
 export interface FileEntry {
