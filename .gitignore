@@ -10,4 +10,6 @@ data/
 .env
 *.log
 out/
+out-release/
+release/
 *.tsbuildinfo

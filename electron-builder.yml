@@ -1,0 +1,92 @@
+# Packaging (electron-builder). Run through scripts/package.mjs:
+#   npm run dist          this OS
+#   npm run dist:win      Windows: full setup, one-click setup, zip
+#   npm run dist:linux    Linux: AppImage, tar.gz
+#   npm run dist:mac      macOS: dmg, zip (x64 + arm64); needs a Mac
+# Output goes to release/<version>/. Builds are unsigned for now; signing
+# turns on by adding the certificate secrets in CI (see RELEASING.md).
+appId: dev.tcgm.humbler
+productName: Humbler
+copyright: Copyright © 2026 TCGM
+
+directories:
+  output: release/${version}
+  buildResources: resources
+
+# Only the built app goes in. Never data/ (your login, keys, downloads).
+# scripts/package.mjs builds into out-release/ (out/ belongs to dev mode).
+extraMetadata:
+  main: out-release/main/index.js
+files:
+  - out-release/**
+  - resources/icon.*
+  - package.json
+  - "!**/*.map"
+
+asar: true
+
+# Hardening (Electron fuses), so an installed Humbler can't be turned into
+# something else: no running as plain Node, no NODE_OPTIONS or --inspect, app
+# code only from its own asar. Cookies (your Humble login) are stored
+# encrypted with the OS's per-user key, like the keys in your library.
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  onlyLoadAppFromAsar: true
+  enableEmbeddedAsarIntegrityValidation: true
+  # unsigned macOS builds must keep a valid ad-hoc signature after the fuses
+  # are flipped, or Apple Silicon refuses to start them
+  resetAdHocDarwinSignature: true
+
+# CI uploads the files itself (GitHub and Gitea), so electron-builder never publishes.
+publish: null
+
+win:
+  icon: resources/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: zip
+      arch: [x64]
+  artifactName: Humbler-${version}-win-${arch}.${ext}
+
+# The full setup: choose where to install, and for just you or everyone.
+# scripts/package.mjs also builds the one-click setup from the same app
+# (oneClick: true, installs for you without questions).
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Humbler
+  # your data (%APPDATA%\Humbler: login, keys, settings) is kept on uninstall
+  deleteAppDataOnUninstall: false
+  artifactName: Humbler-Setup-${version}.${ext}
+
+linux:
+  icon: resources/icon.png
+  category: Utility
+  synopsis: Your Humble Bundle library, keys and downloads
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: tar.gz
+      arch: [x64]
+  artifactName: Humbler-${version}-linux-${arch}.${ext}
+
+mac:
+  icon: resources/icon.png
+  category: public.app-category.utilities
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]
+  artifactName: Humbler-${version}-mac-${arch}.${ext}
+  # unsigned (ad-hoc) until an Apple Developer ID is added: CSC_LINK /
+  # CSC_KEY_PASSWORD, plus APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID
+  # for notarization (see RELEASING.md)

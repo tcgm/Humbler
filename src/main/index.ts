@@ -1,13 +1,18 @@
 // Humbler main process: the window (Humbler UI + the real humblebundle.com),
 // sync, keys, downloads, scouting/harvesting, and the IPC API the UI uses
 // (typed in src/shared/api.ts).
-import "dotenv/config";
+import dotenv from "dotenv";
 import { app, BaseWindow, WebContentsView, ipcMain, session, dialog, shell, clipboard, safeStorage, type Session, type WebContents } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import type { InvokeChannels } from "../shared/api";
 import type { Busy, FolderInspect, FoldersInfo, KeyEntry, LibraryIndex, RevealResult, SettingsPatch } from "../shared/types";
 import { USERDATA_DIR, LOG_PATH, RECON_DIR } from "./lib/paths";
+import { checkForUpdate, type UpdateInfo } from "./lib/updates";
+
+// .env tuning (DOWNLOAD_CONCURRENCY etc.) is for running from source; an
+// installed app ignores any .env in whatever folder it was started from.
+if (!app.isPackaged) dotenv.config();
 import { INJECT_SOURCE } from "./lib/inject-capture";
 import * as harvest from "./lib/harvest";
 import { ownedMarkerSource } from "./lib/owned-marker";
@@ -268,7 +273,28 @@ async function pushStatus() {
     busy,
     busyDetail,
     queue: downloader.summary(),
+    version: app.getVersion(),
+    update: updateAvailable,
   });
+}
+
+// ---- new-version notice (notify only; nothing is downloaded) --------------
+let updateAvailable: UpdateInfo | null = null;
+async function updateCheck() {
+  try {
+    const u = await checkForUpdate(app.getVersion());
+    if (u && u.version !== updateAvailable?.version) log(`Humbler ${u.version} is available (you have ${app.getVersion()}): ${u.url}`);
+    updateAvailable = u;
+    void pushStatus();
+  } catch {
+    // offline, or no release yet: try again later
+  }
+}
+function startUpdateChecks() {
+  // installed builds only (or HUMBLER_CHECK_UPDATES=1 to try it from source)
+  if (!app.isPackaged && process.env.HUMBLER_CHECK_UPDATES !== "1") return;
+  setTimeout(() => void updateCheck(), 15_000);
+  setInterval(() => void updateCheck(), 12 * 60 * 60 * 1000);
 }
 let busyDetail: string | null = null;
 
@@ -1909,6 +1935,7 @@ void app.whenReady().then(async () => {
   if (unopenable)
     log(`${unopenable} stored key(s) couldn't be decrypted (saved under another Windows account or PC). ☰ → Full refresh fetches them again from Humble.`);
   void rescanFolders("startup"); // what's already on disk
+  startUpdateChecks();
 });
 
 // Write cookies (your login) to disk before exiting. Quitting waits for the

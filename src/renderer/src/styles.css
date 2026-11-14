@@ -536,3 +536,14 @@ button.pick-row.active { background: var(--hb-input); border-color: var(--hb-red
 .preview-items li { display: flex; flex-direction: column; padding: 3px 0; border-bottom: 1px solid var(--hb-line); }
 .picker-actions { margin-top: 10px; align-items: center; }
 .picker-actions .spacer { flex: 1; }
+
+/* a newer release is out (notify only) */
+button.pill.update {
+  cursor: pointer;
+  border: 1px solid var(--ok);
+  color: var(--ok);
+  background: transparent;
+}
+button.pill.update:hover {
+  background: color-mix(in srgb, var(--ok) 15%, transparent);
+}

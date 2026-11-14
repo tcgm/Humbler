@@ -1,8 +1,14 @@
 {
   "name": "humbler",
+  "productName": "Humbler",
   "private": true,
   "version": "0.1.0",
   "description": "A local Electron client for your Humble Bundle library: collect keys, reveal them, and bulk-download your files, using your real logged-in session.",
+  "author": "TCGM",
+  "license": "UNLICENSED",
+  "humbler": {
+    "releaseFeeds": []
+  },
   "main": "out/main/index.js",
   "scripts": {
     "start": "node scripts/run.js dev --watch",
@@ -10,13 +16,14 @@
     "prod": "node scripts/run.js start",
     "build": "node scripts/run.js build",
     "typecheck": "tsc -b",
-    "scrub-data": "tsx scripts/scrub-data.ts"
+    "scrub-data": "tsx scripts/scrub-data.ts",
+    "dist": "node scripts/package.mjs",
+    "dist:win": "node scripts/package.mjs win",
+    "dist:linux": "node scripts/package.mjs linux",
+    "dist:mac": "node scripts/package.mjs mac"
   },
   "dependencies": {
-    "dotenv": "16.4.5",
-    "react": "^19.1.10",
-    "react-dom": "^19.1.10",
-    "react-icons": "^5.5.0"
+    "dotenv": "16.4.5"
   },
   "devDependencies": {
     "@electron/fuses": "2.1.3",
@@ -25,7 +32,11 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "electron": "44.10.0",
+    "electron-builder": "26.18.1",
     "electron-vite": "^6.0.0",
+    "react": "^19.1.10",
+    "react-dom": "^19.1.10",
+    "react-icons": "^5.5.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.5"

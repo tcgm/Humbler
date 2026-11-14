@@ -194,6 +194,10 @@ export interface Status {
   /** what the busy job is doing right now, e.g. "download links 120/3834" */
   busyDetail?: string | null;
   queue: { queued: number; active: number };
+  /** this build's version */
+  version?: string;
+  /** a newer release, when one is out (notify only) */
+  update?: { version: string; url: string; name: string } | null;
 }
 
 export interface SettingsPatch {

@@ -57,6 +57,11 @@ export function App() {
           <h1>Humbler</h1>
           <span className={`pill ${status ? (status.loggedIn ? "ok" : "bad") : ""}`}>{status ? (status.loggedIn ? "logged in" : "not logged in") : "checking…"}</span>
           {busyParts.length > 0 && <span className="pill busy">{busyParts.join(" · ")}</span>}
+          {status?.update && (
+            <button className="pill update" title={`${status.update.name}: open the release page to download it`} onClick={() => void api.openExternal(status.update!.url)}>
+              Update: v{status.update.version}
+            </button>
+          )}
         </div>
         <div className="actions">
           <button className="primary" disabled={s.busy} title="Fetch items added since your last sync" onClick={() => api.sync(false)}>
@@ -76,6 +81,10 @@ export function App() {
               { label: status?.browserVisible === false ? "Show browser" : "Hide browser", title: "The Humble pane on the right", onPick: () => void api.toggleBrowser() },
               "-",
               { label: "Download folders…", title: "Where your downloads are, and where new ones go", onPick: () => setFoldersOpen(true) },
+              "-",
+              status?.update
+                ? { label: `Get Humbler ${status.update.version}…`, title: "Open the release page", onPick: () => void api.openExternal(status.update!.url) }
+                : { label: `Humbler ${status?.version ? `v${status.version}` : ""}`, title: "You're on the latest version (or no release feed is set)", disabled: true, onPick: () => {} },
             ]}
           />
         </div>

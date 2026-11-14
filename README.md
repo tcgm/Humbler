@@ -9,7 +9,27 @@ on the left, and the real humblebundle.com runs on the right, where you log in
 normally. Humbler then loads your library the way Humble's own pages do,
 from inside your logged-in session, so it only ever sees your own account.
 
-## Setup
+## Install
+
+Download the file for your system from the latest release:
+
+| System | File |
+|---|---|
+| Windows | `Humbler-Setup-<version>.exe` (choose where to install, for you or everyone), or `Humbler-QuickSetup-<version>.exe` (one click, installs for you), or the `.zip` (no installer) |
+| macOS | `Humbler-<version>-mac-arm64.dmg` (Apple Silicon) or `-x64.dmg` (Intel) |
+| Linux | `Humbler-<version>-linux-x86_64.AppImage` (make it executable and run it), or the `.tar.gz` |
+
+Builds aren't signed yet. On Windows, SmartScreen may say "Windows protected
+your PC": choose More info → Run anyway. On macOS, right-click the app and
+choose Open the first time.
+
+An installed Humbler keeps your data (login, keys, settings, log) in
+`%APPDATA%\Humbler` on Windows, `~/Library/Application Support/Humbler` on
+macOS, and `~/.config/Humbler` on Linux. Uninstalling keeps it. It tells you
+when a newer version is out (☰ menu and an Update pill) but never updates
+itself. Building and publishing releases: see [RELEASING.md](RELEASING.md).
+
+## Setup (from source)
 
 ```
 npm install
@@ -29,6 +49,7 @@ Node and no window opens.
 | `npm run prod` | Build, then run the built app (no watching, no DevTools). |
 | `npm run build` | Build to `out/` only. |
 | `npm run typecheck` | Type-check everything (`tsc -b`, strict). |
+| `npm run dist` (`dist:win`, `dist:linux`, `dist:mac`) | Build the installers and archives into `release/<version>/` (see RELEASING.md). |
 | `npm run scrub-data` | Re-scrub existing scout dumps (see Scrubbing). |
 
 The dev server binds to `127.0.0.1` and picks a free port at startup

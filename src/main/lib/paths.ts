@@ -13,9 +13,20 @@ function projectRoot(): string {
 }
 
 export const ROOT = projectRoot();
-// HUMBLER_DATA_DIR points a run (tests, a second profile) at a different
-// data folder, so it can never touch your real login, keys or downloads.
-export const DATA_DIR = process.env.HUMBLER_DATA_DIR ? path.resolve(process.env.HUMBLER_DATA_DIR) : path.join(ROOT, "data");
+
+// Where Humbler keeps your data. From source (npm run dev / prod): data/ in
+// the project. Installed (a packaged build, whose program folder is
+// read-only): the per-user app data folder, i.e. %APPDATA%\Humbler on
+// Windows, ~/Library/Application Support/Humbler on macOS, ~/.config/Humbler
+// on Linux. HUMBLER_DATA_DIR points a run (tests, a second profile) at a
+// different folder, so it can never touch your real login, keys or downloads.
+function dataDir(): string {
+  if (process.env.HUMBLER_DATA_DIR) return path.resolve(process.env.HUMBLER_DATA_DIR);
+  const app = (electron as any).app as { isPackaged?: boolean; getPath?: (name: string) => string } | undefined;
+  if (process.versions.electron && app?.isPackaged && app.getPath) return path.join(app.getPath("appData"), "Humbler");
+  return path.join(ROOT, "data");
+}
+export const DATA_DIR = dataDir();
 
 export const USERDATA_DIR = path.join(DATA_DIR, "electron-userdata");
 export const ORDERS_DIR = path.join(DATA_DIR, "orders");

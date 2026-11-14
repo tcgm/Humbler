@@ -1,0 +1,86 @@
+# Push a version tag (v1.2.3, matching package.json) to build and publish a
+# Gitea release:
+#   Windows  Humbler-Setup-<v>.exe (full), Humbler-QuickSetup-<v>.exe (one-click), zip
+#            built on Linux, in electron-builder's image with Wine
+#   Linux    AppImage, tar.gz
+#   macOS    dmg + zip, only if you have a Mac runner: set the repository
+#            variable MAC_RUNNER to its label (e.g. "macos")
+#
+# Needs a repository secret RELEASE_TOKEN: a Gitea access token with write
+# access to this repository (Settings → Applications → Generate token,
+# scope "repository: read and write"). Signing secrets as on GitHub (see
+# RELEASING.md).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  windows-linux:
+    runs-on: ubuntu-latest
+    container:
+      image: electronuserland/builder:wine
+    env:
+      TAG: ${{ gitea.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tag matches package.json version
+        shell: bash
+        run: |
+          v=$(node -p "require('./package.json').version")
+          [ "v$v" = "$TAG" ] || { echo "tag $TAG doesn't match package.json version $v"; exit 1; }
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Package for Linux
+        run: node scripts/package.mjs linux
+      - name: Package for Windows
+        run: node scripts/package.mjs win
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+      - name: Publish to the release
+        shell: bash
+        env:
+          GITEA_URL: ${{ gitea.server_url }}
+          GITEA_REPO: ${{ gitea.repository }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          shopt -s nullglob
+          files=(release/*/*.exe release/*/*.zip release/*/*.AppImage release/*/*.tar.gz)
+          (cd "$(dirname "${files[0]}")" && sha256sum $(for f in "${files[@]}"; do basename "$f"; done) > SHA256SUMS-windows-linux.txt)
+          node scripts/gitea-release.mjs "$TAG" "${files[@]}" "$(dirname "${files[0]}")/SHA256SUMS-windows-linux.txt"
+
+  mac:
+    if: ${{ vars.MAC_RUNNER != '' }}
+    runs-on: ${{ vars.MAC_RUNNER }}
+    env:
+      TAG: ${{ gitea.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Package for macOS
+        run: node scripts/package.mjs mac
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Publish to the release
+        shell: bash
+        env:
+          GITEA_URL: ${{ gitea.server_url }}
+          GITEA_REPO: ${{ gitea.repository }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          shopt -s nullglob
+          files=(release/*/*.dmg release/*/*.zip)
+          (cd "$(dirname "${files[0]}")" && shasum -a 256 $(for f in "${files[@]}"; do basename "$f"; done) > SHA256SUMS-mac.txt)
+          node scripts/gitea-release.mjs "$TAG" "${files[@]}" "$(dirname "${files[0]}")/SHA256SUMS-mac.txt"
