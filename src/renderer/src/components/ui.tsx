@@ -1,5 +1,6 @@
 // Small shared UI pieces.
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { LuRotateCcw } from "react-icons/lu";
 import type { Bundle, KeyEntry } from "@shared/types";
 import { api, useStore, type OrderInfo } from "../store";
 import { formatDate, humblePageOf, normTitle, platformOf, plural, tileLook, type Deadline } from "../util";
@@ -18,6 +19,17 @@ export function ExtLink({ href, children, title }: { href: string; children: Rea
     >
       {children}
     </a>
+  );
+}
+
+/** Puts a list's search, sort and filters back to their defaults. Disabled
+ *  when they already are. */
+export function ResetButton({ dirty, onReset }: { dirty: boolean; onReset: () => void }) {
+  return (
+    <button className="hb-reset" disabled={!dirty} title={dirty ? "Reset search, sort and filters" : "Search, sort and filters are at their defaults"} onClick={onReset}>
+      <LuRotateCcw aria-hidden />
+      <span>Reset</span>
+    </button>
   );
 }
 

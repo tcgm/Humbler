@@ -230,6 +230,15 @@ html[data-theme="light"] .hb {
 .hb-btn:disabled { opacity: 0.45; cursor: default; }
 .hb-btn.ghost { background: var(--hb-input); color: var(--hb-text); border-color: var(--hb-input-border); font-weight: 500; }
 .hb-btn.ghost:hover:not(:disabled) { background: var(--hb-field); }
+/* Reset (search, sort, filters): quiet until there's something to reset */
+button.hb-reset {
+  display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; font-size: 12px; line-height: 1;
+  background: var(--hb-input, transparent); color: var(--hb-text, inherit); border: 1px solid var(--hb-input-border, currentColor); border-radius: 3px; cursor: pointer;
+}
+button.hb-reset svg { width: 13px; height: 13px; flex: none; }
+button.hb-reset:hover:not(:disabled) { color: var(--hb-red, inherit); border-color: var(--hb-red, currentColor); }
+button.hb-reset:hover:not(:disabled) svg { transform: rotate(-60deg); transition: transform 0.2s; }
+button.hb-reset:disabled { opacity: 0.4; cursor: default; }
 .hb-btn.armed { background: var(--hb-red-dark); }
 .hb-btn.small { padding: 4px 9px; font-size: 11px; }
 .hb-summary { font-size: 12px; color: var(--hb-muted); margin: 0; }

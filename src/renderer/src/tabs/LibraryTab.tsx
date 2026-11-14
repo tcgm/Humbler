@@ -1,7 +1,8 @@
 // Library: everything you own (Humble Librarian's list), including
 // links-only items.
-import { useMemo, useState } from "react";
-import { ExtLink, HumbleLink } from "../components/ui";
+import { useMemo } from "react";
+import { ExtLink, HumbleLink, ResetButton } from "../components/ui";
+import { useRemembered } from "../remember";
 import { api, useStore } from "../store";
 import { SITE, steamUrl } from "../util";
 
@@ -10,9 +11,15 @@ type Kind = "" | "files" | "keys" | "links";
 
 export function LibraryTab() {
   const { lib, status } = useStore();
-  const [q, setQ] = useState("");
-  const [bundle, setBundle] = useState("");
-  const [kind, setKind] = useState<Kind>("");
+  const [q, setQ] = useRemembered("library.q", "");
+  const [bundle, setBundle] = useRemembered("library.bundle", "");
+  const [kind, setKind] = useRemembered<Kind>("library.kind", "");
+  const dirty = q !== "" || bundle !== "" || kind !== "";
+  const resetAll = () => {
+    setQ("");
+    setBundle("");
+    setKind("");
+  };
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -48,6 +55,7 @@ export function LibraryTab() {
           <option value="keys">Has keys</option>
           <option value="links">Links / instructions only</option>
         </select>
+        <ResetButton dirty={dirty} onReset={resetAll} />
         <label className="check" title="Highlight things you already own on Humble's store, bundle and Choice pages">
           <input type="checkbox" checked={!!status?.markOwned} onChange={(e) => api.setSettings({ markOwned: e.target.checked })} /> Mark owned on Humble pages
         </label>

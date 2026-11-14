@@ -1,10 +1,11 @@
 // Bundles: your bundles as a list (icon, purchase, deadline), and a bundle
 // page modelled on the old humblebundle.com /downloads?key=... page.
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { Bundle, FileEntry } from "@shared/types";
 import { FileButton } from "../components/FileButton";
 import { KeyField } from "../components/KeyField";
-import { BackLink, BundleIcon, DeadlineBadge, ExtLink, HumbleLink, Pager, PlatformBadge, Tile, useOrderInfo } from "../components/ui";
+import { BackLink, BundleIcon, DeadlineBadge, ExtLink, HumbleLink, Pager, PlatformBadge, ResetButton, Tile, useOrderInfo } from "../components/ui";
+import { useRemembered, useRememberedScroll } from "../remember";
 import { api, useStore } from "../store";
 import { bundleUrl, deadlineOf, fmtBytes, formatDate, formatMoney, monthLabel, normTitle, PLATFORM_LABELS, plural } from "../util";
 
@@ -22,10 +23,18 @@ export function BundlesTab() {
 
 function BundleList() {
   const { lib, orders, ordersTotal, openBundle } = useStore();
-  const [q, setQ] = useState("");
-  const [sort, setSort] = useState<Sort>("recent");
-  const [filter, setFilter] = useState<Filter>("all");
-  const [page, setPage] = useState(1);
+  const [q, setQ] = useRemembered("bundles.q", "");
+  const [sort, setSort] = useRemembered<Sort>("bundles.sort", "recent");
+  const [filter, setFilter] = useRemembered<Filter>("bundles.filter", "all");
+  const [page, setPage] = useRemembered("bundles.page", 1);
+  const scrollRef = useRememberedScroll<HTMLDivElement>("bundles");
+  const dirty = q !== "" || sort !== "recent" || filter !== "all";
+  const resetAll = () => {
+    setQ("");
+    setSort("recent");
+    setFilter("all");
+    setPage(1);
+  };
 
   // Deadline per bundle: soonest expiry among its unrevealed keys, else the
   // order's bundle-wide key deadline.
@@ -73,7 +82,7 @@ function BundleList() {
   };
 
   return (
-    <div className="hb-page hb-scroll">
+    <div className="hb-page hb-scroll" ref={scrollRef}>
       <div className="hb-head">
         <h2>Your Bundles</h2>
         <div className="hb-controls">
@@ -93,6 +102,7 @@ function BundleList() {
             <option value="choice">Humble Choice months</option>
             <option value="nochoice">Everything but Choice</option>
           </select>
+          <ResetButton dirty={dirty} onReset={resetAll} />
         </div>
       </div>
       <div className="hb-summary">
@@ -139,7 +149,7 @@ function BundleRow({ b, dl, soldOut, onOpen }: { b: Bundle; dl: ReturnType<typeo
 
 function BundlePage({ id }: { id: string }) {
   const { lib, openBundle, openChoiceMonth } = useStore();
-  const [platform, setPlatform] = useState("");
+  const [platform, setPlatform] = useRemembered(`bundle.${id}.platform`, "");
   const b = lib.bundles.find((x) => x.gamekey === id);
   const info = useOrderInfo(b);
   if (!b) {

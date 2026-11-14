@@ -2,7 +2,8 @@
 import { useMemo, useState } from "react";
 import type { KeyEntry, KeyStatus } from "@shared/types";
 import { KeyField } from "../components/KeyField";
-import { ArmButton, ExtLink, HumbleLink, Pager, PlatformBadge } from "../components/ui";
+import { ArmButton, ExtLink, HumbleLink, Pager, PlatformBadge, ResetButton } from "../components/ui";
+import { useRemembered } from "../remember";
 import { api, useStore } from "../store";
 import { EXPIRING_DAYS, isExpiring, platformOf, steamUrl, uniqSorted } from "../util";
 
@@ -35,11 +36,19 @@ function matchesState(k: KeyEntry, st: StateFilter): boolean {
 
 export function KeysTab() {
   const { lib, busy } = useStore();
-  const [q, setQ] = useState("");
-  const [bundle, setBundle] = useState("");
-  const [type, setType] = useState("");
-  const [st, setSt] = useState<StateFilter>("all");
-  const [page, setPage] = useState(1);
+  const [q, setQ] = useRemembered("keys.q", "");
+  const [bundle, setBundle] = useRemembered("keys.bundle", "");
+  const [type, setType] = useRemembered("keys.type", "");
+  const [st, setSt] = useRemembered<StateFilter>("keys.status", "all");
+  const [page, setPage] = useRemembered("keys.page", 1);
+  const dirty = q !== "" || bundle !== "" || type !== "" || st !== "all";
+  const resetAll = () => {
+    setQ("");
+    setBundle("");
+    setType("");
+    setSt("all");
+    setPage(1);
+  };
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState<number | null>(null);
 
@@ -128,6 +137,7 @@ export function KeysTab() {
           <option value="expired">Expired</option>
           <option value="soldout">Sold out</option>
         </select>
+        <ResetButton dirty={dirty} onReset={resetAll} />
         <span className="spacer" />
         <button
           className="hb-btn ghost"

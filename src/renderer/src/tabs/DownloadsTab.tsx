@@ -1,7 +1,8 @@
 // Downloads: every file across every bundle, with filters and a queue.
 import { memo, useMemo, useState } from "react";
 import type { DownloadProgress, FileEntry, Naming } from "@shared/types";
-import { ExtLink, HumbleLink } from "../components/ui";
+import { ExtLink, HumbleLink, ResetButton } from "../components/ui";
+import { useRemembered } from "../remember";
 import { api, useStore } from "../store";
 import { fmtBytes, uniqSorted } from "../util";
 
@@ -9,12 +10,21 @@ const ROW_LIMIT = 1500;
 
 export function DownloadsTab() {
   const { lib, progress, status } = useStore();
-  const [q, setQ] = useState("");
-  const [bundle, setBundle] = useState("");
-  const [platform, setPlatform] = useState("");
-  const [format, setFormat] = useState("");
-  const [hideDone, setHideDone] = useState(true);
-  const [hideDupes, setHideDupes] = useState(true);
+  const [q, setQ] = useRemembered("downloads.q", "");
+  const [bundle, setBundle] = useRemembered("downloads.bundle", "");
+  const [platform, setPlatform] = useRemembered("downloads.platform", "");
+  const [format, setFormat] = useRemembered("downloads.format", "");
+  const [hideDone, setHideDone] = useRemembered("downloads.hideDone", true);
+  const [hideDupes, setHideDupes] = useRemembered("downloads.hideDupes", true);
+  const dirty = q !== "" || bundle !== "" || platform !== "" || format !== "" || !hideDone || !hideDupes;
+  const resetAll = () => {
+    setQ("");
+    setBundle("");
+    setPlatform("");
+    setFormat("");
+    setHideDone(true);
+    setHideDupes(true);
+  };
   const [sel, setSel] = useState<Set<string>>(new Set());
 
   const rows = useMemo(() => {
@@ -74,6 +84,7 @@ export function DownloadsTab() {
         <label className="check">
           <input type="checkbox" checked={hideDupes} onChange={(e) => setHideDupes(e.target.checked)} /> Hide duplicates
         </label>
+        <ResetButton dirty={dirty} onReset={resetAll} />
       </div>
       <div className="toolbar">
         <span className="muted">

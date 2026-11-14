@@ -1,10 +1,11 @@
 // Humble Choice, rebuilt (Humble no longer serves these pages): an index of
 // every month, and a month page modelled on the old /membership/<month> grid.
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { Bundle, ChoiceMonth, FileEntry, KeyEntry, LibraryIndex, Product } from "@shared/types";
 import { FileButton } from "../components/FileButton";
 import { KeyField } from "../components/KeyField";
-import { BackLink, DeadlineBadge, ExtLink, HumbleLink, Tile } from "../components/ui";
+import { BackLink, DeadlineBadge, ExtLink, HumbleLink, ResetButton, Tile } from "../components/ui";
+import { useRemembered, useRememberedScroll } from "../remember";
 import { useStore } from "../store";
 import { deadlineOf, monthLabel, normTitle, plural, SITE, type Deadline } from "../util";
 
@@ -111,9 +112,16 @@ export function ChoiceTab() {
 
 function MonthIndex({ months }: { months: Month[] }) {
   const { lib } = useStore();
-  const [q, setQ] = useState("");
-  const [sort, setSort] = useState<Sort>("recent");
-  const [filter, setFilter] = useState<Filter>("all");
+  const [q, setQ] = useRemembered("choice.q", "");
+  const [sort, setSort] = useRemembered<Sort>("choice.sort", "recent");
+  const [filter, setFilter] = useRemembered<Filter>("choice.filter", "all");
+  const scrollRef = useRememberedScroll<HTMLDivElement>("choice");
+  const dirty = q !== "" || sort !== "recent" || filter !== "all";
+  const resetAll = () => {
+    setQ("");
+    setSort("recent");
+    setFilter("all");
+  };
   const all = useMemo(() => months.map((m) => summarize(m, lib)), [months, lib]);
   const needle = q.trim().toLowerCase();
 
@@ -141,7 +149,7 @@ function MonthIndex({ months }: { months: Month[] }) {
     needle && !monthLabel(x.m.month).toLowerCase().includes(needle) ? x.games.filter((g) => g.title.toLowerCase().includes(needle)).map((g) => g.title) : [];
 
   return (
-    <div className="hb-page hb-scroll">
+    <div className="hb-page hb-scroll" ref={scrollRef}>
       <div className="hb-head">
         <h2>Humble Choice</h2>
         <div className="hb-controls">
@@ -161,6 +169,7 @@ function MonthIndex({ months }: { months: Month[] }) {
             <option value="files">With downloads</option>
             <option value="empty">No games in your library</option>
           </select>
+          <ResetButton dirty={dirty} onReset={resetAll} />
         </div>
       </div>
       <p className="hb-summary">
