@@ -19,8 +19,15 @@ const run = (args, opts = {}) => spawnSync(bin, args, { cwd: ROOT, env, stdio: "
 if (mode === "start") {
   const built = run(["build"]);
   if (built.status !== 0) process.exit(built.status ?? 1);
-  const child = spawn(bin, ["preview", ...rest], { cwd: ROOT, env, stdio: "inherit", shell: process.platform === "win32" });
-  child.on("exit", (code) => process.exit(code ?? 0));
+  // encrypted cookie store (your login); see scripts/fuses.mjs
+  import("./fuses.mjs")
+    .then((m) => m.ensureCookieEncryption())
+    .catch(() => false)
+    .then((state) => {
+      const childEnv = state === "flipped" ? { ...env, HUMBLER_RESEAL_COOKIES: "1" } : env;
+      const child = spawn(bin, ["preview", ...rest], { cwd: ROOT, env: childEnv, stdio: "inherit", shell: process.platform === "win32" });
+      child.on("exit", (code) => process.exit(code ?? 0));
+    });
 } else if (!mode || mode === "dev") {
   // our own dev runner: batched, idle-only, graceful main-process restarts
   const child = spawn(process.execPath, [path.join(__dirname, "dev.mjs")], { cwd: ROOT, env, stdio: "inherit" });

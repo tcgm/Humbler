@@ -1864,8 +1864,42 @@ function setUpKeySealing() {
   }
 }
 
-void app.whenReady().then(() => {
+// The launcher just turned on cookie encryption (scripts/fuses.mjs): cookies
+// already on disk stay plain until rewritten, so re-save each one now, with
+// all its attributes, which stores it encrypted.
+async function resealCookies() {
+  if (process.env.HUMBLER_RESEAL_COOKIES !== "1") return;
+  delete process.env.HUMBLER_RESEAL_COOKIES;
+  const s = session.fromPartition(PARTITION);
+  let n = 0;
+  let failed = 0;
+  for (const c of await s.cookies.get({})) {
+    if (c.session) continue; // never written to disk
+    const host = (c.domain || "").replace(/^\./, "");
+    try {
+      await s.cookies.set({
+        url: `${c.secure ? "https" : "http"}://${host}${c.path || "/"}`,
+        name: c.name,
+        value: c.value,
+        path: c.path,
+        secure: c.secure,
+        httpOnly: c.httpOnly,
+        ...(c.hostOnly ? {} : { domain: c.domain }),
+        ...(c.expirationDate ? { expirationDate: c.expirationDate } : {}),
+        ...(c.sameSite && c.sameSite !== "unspecified" ? { sameSite: c.sameSite } : {}),
+      });
+      n += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+  await s.cookies.flushStore();
+  log(`Cookie encryption is on: re-saved ${n} stored cookie(s) encrypted${failed ? ` (${failed} couldn't be; they're encrypted when Humble next updates them)` : ""}.`);
+}
+
+void app.whenReady().then(async () => {
   setUpKeySealing();
+  await resealCookies().catch((err) => log(`Couldn't re-save cookies encrypted: ${errMsg(err)}`));
   seedOrdersFromRecon();
   rebuildIndex();
   createWindow();

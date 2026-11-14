@@ -12,6 +12,7 @@
 // Renderer changes are still hot-reloaded (Vite HMR), preload changes still
 // reload the window. Closing the app ends dev mode.
 import { spawn } from "node:child_process";
+import { ensureCookieEncryption } from "./fuses.mjs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -48,16 +49,18 @@ let app = null; // the running Electron process
 let restartTimer = null;
 let restartRequested = false;
 
-function startApp() {
+async function startApp() {
   restartRequested = false;
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
+  // encrypted cookie store (your login); can only be switched while the app is closed
+  if ((await ensureCookieEncryption()) === "flipped") env.HUMBLER_RESEAL_COOKIES = "1";
   app = spawn(electronPath, ["."], { cwd: ROOT, env, stdio: ["inherit", "inherit", "inherit", "ipc"] });
   app.on("exit", (code, signal) => {
     app = null;
     if (code === RESTART_CODE) {
       say("restarting the app with the new main-process code…");
-      startApp();
+      void startApp();
     } else {
       say(`app closed (${signal || code}); stopping dev mode`);
       process.exit(code ?? 0);
@@ -92,7 +95,7 @@ await server.listen();
 const { host, port } = server.config.server;
 process.env.ELECTRON_RENDERER_URL = `http://${host || "127.0.0.1"}:${port}`;
 server.printUrls();
-startApp();
+await startApp();
 
 say('type "rs" + Enter to restart the app (when idle)');
 process.stdin.setEncoding("utf8");

@@ -361,6 +361,14 @@ next start. If keys can't be decrypted (another PC or account, or
 fetches them again from Humble. Legacy `data/orders/` caches (pre-2026
 site) are not encrypted.
 
+Your login (the cookie store in `data/electron-userdata/`) is encrypted
+the same way: `scripts/fuses.mjs` turns on Electron's EnableCookieEncryption
+fuse in `node_modules/electron` before each launch (reinstalling Electron
+resets it). It can only be switched while Humbler is closed; on the launch
+that switches it, the app re-saves its existing cookies so they're stored
+encrypted too. One-way: turning the fuse off again would mean logging in
+again.
+
 ## How it talks to Humble
 
 ### 2026 site (current)
