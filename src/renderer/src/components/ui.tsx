@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { LuRotateCcw } from "react-icons/lu";
 import type { Bundle, KeyEntry } from "@shared/types";
+import { PREFS, usePref } from "../remember";
 import { api, useStore, type OrderInfo } from "../store";
 import { formatDate, humblePageOf, normTitle, platformOf, plural, tileLook, type Deadline } from "../util";
 
@@ -127,7 +128,18 @@ export function CopyButton({ text, label = "Copy", className = "hb-btn ghost sma
   );
 }
 
-export function Pager({ page, pages, onPage }: { page: number; pages: number; onPage: (n: number) => void }) {
+export function Pager({ page, pages, onPage: setPage }: { page: number; pages: number; onPage: (n: number) => void }) {
+  const [scrollTop] = usePref(...PREFS.pageScrollTop);
+  const ref = useRef<HTMLDivElement>(null);
+  // Settings > "Back to the top when changing pages": the list this pager belongs to
+  // is the scrolling element just before it.
+  const onPage = (n: number) => {
+    setPage(n);
+    if (!scrollTop) return;
+    let el = ref.current?.previousElementSibling as HTMLElement | null;
+    while (el && !el.classList.contains("hb-scroll") && !el.classList.contains("hb-tablewrap")) el = el.previousElementSibling as HTMLElement | null;
+    el?.scrollTo({ top: 0 });
+  };
   if (pages <= 1) return null;
   const shown = [...new Set([1, pages, page - 2, page - 1, page, page + 1, page + 2])].filter((n) => n >= 1 && n <= pages).sort((a, b) => a - b);
   const items: ReactNode[] = [];
@@ -142,7 +154,7 @@ export function Pager({ page, pages, onPage }: { page: number; pages: number; on
     last = n;
   }
   return (
-    <div className="hb-pager">
+    <div className="hb-pager" ref={ref}>
       <button disabled={page === 1} onClick={() => onPage(page - 1)}>
         ‹ Prev
       </button>

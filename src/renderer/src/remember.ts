@@ -5,7 +5,7 @@
 // Values live in memory (instant, also across hot reloads) and in
 // localStorage (across restarts). Storage failures are ignored: worst case,
 // settings are remembered only until Humbler closes.
-import { useCallback, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore, type Dispatch, type SetStateAction } from "react";
 
 const PREFIX = "humbler.ui.";
 const mem: Map<string, unknown> = import.meta.hot?.data.uiMem ?? new Map();
@@ -67,3 +67,36 @@ export function useRememberedScroll<E extends HTMLElement>(key: string) {
   }, [k]);
   return ref;
 }
+
+// ---- preferences (Settings) ---------------------------------------------------
+// Like useRemembered, but every component using the same key sees changes at
+// once (the Settings dialog and whatever the setting affects).
+
+const listeners = new Map<string, Set<() => void>>();
+
+/** A remembered preference shared by every component that uses `key`. */
+export function usePref<T>(key: string, initial: T): [T, (v: T) => void] {
+  const subscribe = useCallback(
+    (cb: () => void) => {
+      const set = listeners.get(key) ?? new Set();
+      listeners.set(key, set);
+      set.add(cb);
+      return () => set.delete(cb);
+    },
+    [key],
+  );
+  const value = useSyncExternalStore(subscribe, () => load(key, initial));
+  const set = useCallback(
+    (v: T) => {
+      store(key, v);
+      for (const cb of listeners.get(key) ?? []) cb();
+    },
+    [key],
+  );
+  return [value, set];
+}
+
+export const PREFS: Record<"tabCounts" | "pageScrollTop", [key: string, initial: boolean]> = {
+  tabCounts: ["tabCounts", true], // counts next to the tab names
+  pageScrollTop: ["pageScrollTop", true], // changing pages scrolls the list back to the top
+};

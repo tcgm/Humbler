@@ -150,6 +150,10 @@
    defaults.
 9. **Dark mode** is the default everywhere. The ☀ button in the top bar
    switches to light mode (☾ switches back), and the choice is remembered.
+   **Settings** (☰ menu) gathers the options: theme, tab counts, whether
+   changing pages scrolls the list back to the top (on by default),
+   download folder and file naming, marking owned items on Humble's pages,
+   and live scouting.
 10. Anything else Humbler doesn't handle, such as gifting, still works in the
    right-hand pane. **Hide browser** gives the UI the full window.
 

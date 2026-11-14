@@ -2,7 +2,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { FoldersDialog } from "./components/FoldersDialog";
 import { Menu } from "./components/Menu";
 import { RedeemAsk } from "./components/RedeemAsk";
-import { useRemembered } from "./remember";
+import { SettingsDialog } from "./components/SettingsDialog";
+import { PREFS, usePref } from "./remember";
 import { api, useStore, type TabId } from "./store";
 import { BundlesTab } from "./tabs/BundlesTab";
 import { ChoiceTab } from "./tabs/ChoiceTab";
@@ -20,7 +21,8 @@ export function App() {
   const [visited, setVisited] = useState<Set<TabId>>(new Set([tab]));
   const [foldersOpen, setFoldersOpen] = useState(false);
   // the counts next to the tab names (off for screenshots, say)
-  const [showCounts, setShowCounts] = useRemembered("tabCounts", true);
+  const [showCounts] = usePref(...PREFS.tabCounts);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   useEffect(() => setVisited((v) => (v.has(tab) ? v : new Set([...v, tab]))), [tab]);
 
   const go = (t: TabId) => {
@@ -93,11 +95,7 @@ export function App() {
               { label: status?.browserVisible === false ? "Show browser" : "Hide browser", title: "The Humble pane on the right", onPick: () => void api.toggleBrowser() },
               "-",
               { label: "Download folders…", title: "Where your downloads are, and where new ones go", onPick: () => setFoldersOpen(true) },
-              {
-                label: showCounts ? "Hide tab counts" : "Show tab counts",
-                title: "The numbers next to the tab names (how many keys, bundles, downloads...)",
-                onPick: () => setShowCounts((v) => !v),
-              },
+              { label: "Settings…", title: "Display, downloads and Humble pane options", onPick: () => setSettingsOpen(true) },
               "-",
               status?.update
                 ? { label: `Get Humbler ${status.update.version}…`, title: "Open the release page", onPick: () => void api.openExternal(status.update!.url) }
@@ -135,6 +133,7 @@ export function App() {
 
       <RedeemAsk />
       {foldersOpen && <FoldersDialog onClose={() => setFoldersOpen(false)} />}
+      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} onFolders={() => setFoldersOpen(true)} />}
     </>
   );
 }

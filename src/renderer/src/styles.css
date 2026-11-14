@@ -548,3 +548,16 @@ button.pill.update {
 button.pill.update:hover {
   background: color-mix(in srgb, var(--ok) 15%, transparent);
 }
+
+/* ---- Settings dialog ---- */
+.ask.settings { width: min(560px, 94vw); max-height: 88vh; overflow: auto; }
+.ask.settings h4 { margin: 16px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--hb-muted); }
+.settings-row { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--hb-line); cursor: default; }
+label.settings-row { cursor: pointer; }
+.settings-row input[type="checkbox"] { margin-top: 2px; flex: none; }
+.settings-row > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.settings-row small { font-size: 11px; color: var(--hb-muted); }
+.settings-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.settings-actions { display: flex; gap: 6px; flex: none; }
+.ask.settings .ask-actions { margin-top: 14px; }
+
