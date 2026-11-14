@@ -262,9 +262,11 @@ async function pushStatus() {
     theme: settings.theme,
     live: liveScout.summary(),
     busy,
+    busyDetail,
     queue: downloader.summary(),
   });
 }
+let busyDetail: string | null = null;
 
 // ---- sync, 2026 site (library server action) ----------------------------
 
@@ -476,14 +478,27 @@ async function syncDownloadLinks({ full }: { full: boolean }) {
   let ok = 0;
   let none = 0;
   let failed = 0;
+  let filesSeen = 0;
   let shapeLogged = false;
   let next = 0;
+  const t0 = Date.now();
+  let lastLog = t0;
+  let lastSave = 0;
+  const progress = (final = false) => {
+    const done = ok + none + failed;
+    const rate = done / Math.max(1, (Date.now() - t0) / 1000);
+    const left = rate > 0 ? Math.round((todo.length - done) / rate) : 0;
+    busyDetail = `download links ${done}/${todo.length}`;
+    void pushStatus();
+    if (!final) log(`  download links: ${done}/${todo.length} · ${filesSeen} files so far · ~${left >= 120 ? `${Math.round(left / 60)} min` : `${left}s`} left`);
+  };
   const worker = async () => {
     while (next < todo.length && failed < 10) {
       const { ent } = todo[next++];
       try {
         if (await fetchDownloadLinks(ent, pageUrl)) ok += 1;
         else none += 1;
+        filesSeen += libraryV2.structsFromSignedUrls(ent.signedUrls).length;
         // (the first reply with files in it: some items have none, e.g. coupons)
         if (!shapeLogged && ent.signedUrls && libraryV2.structsFromSignedUrls(ent.signedUrls).length) {
           shapeLogged = true;
@@ -494,9 +509,15 @@ async function syncDownloadLinks({ full }: { full: boolean }) {
         log(`  ${errMsg(err)}`);
       }
       const done = ok + none + failed;
-      if (done % 250 === 0) {
+      if (Date.now() - lastLog > 15000) {
+        lastLog = Date.now();
+        progress();
+      }
+      // save and show what's found so far, every 250 items
+      if (done - lastSave >= 250) {
+        lastSave = done;
         libraryV2.saveCache(cache);
-        log(`  download links: ${done}/${todo.length}`);
+        rebuildIndex();
       }
       await politeDelay(150, 400);
     }
@@ -504,6 +525,8 @@ async function syncDownloadLinks({ full }: { full: boolean }) {
   // Find the action once before the workers start.
   await actionByName(libraryV2.SIGNED_URLS_ACTION, pageUrl);
   await Promise.all([worker(), worker(), worker()]);
+  busyDetail = null;
+  void pushStatus();
   libraryV2.saveCache(cache);
   rebuildIndex();
   log(

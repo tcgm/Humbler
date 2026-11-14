@@ -181,6 +181,8 @@ export interface Status {
   theme: Theme;
   live: { endpoints: number; samples: number };
   busy: Busy;
+  /** what the busy job is doing right now, e.g. "download links 120/3834" */
+  busyDetail?: string | null;
   queue: { queued: number; active: number };
 }
 

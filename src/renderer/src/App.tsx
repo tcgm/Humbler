@@ -36,7 +36,7 @@ export function App() {
   ]).size;
 
   const busyParts = [
-    status?.busy === "sync" ? "syncing…" : null,
+    status?.busy === "sync" ? `syncing…${status.busyDetail ? ` (${status.busyDetail})` : ""}` : null,
     status?.busy === "reveal" ? "revealing keys…" : null,
     status?.queue && (status.queue.active || status.queue.queued) ? `downloading ${status.queue.active} · ${status.queue.queued} queued` : null,
   ].filter(Boolean);
