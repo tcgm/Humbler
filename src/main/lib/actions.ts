@@ -20,7 +20,38 @@ export interface ActionInfo {
   page: string;
   firstSeen: string;
   lastSeen: string;
+  name?: string; // the action's function name, when known from the site's scripts
 }
+
+/** The server no longer knows this action id (Humble deployed a new build). */
+export class StaleActionError extends Error {}
+export const isStaleActionReply = (status: number, text: string): boolean => (status === 404 || status === 409) && /server action/i.test(text || "");
+
+// Page source (for executeJavaScript): every server action referenced by the
+// page's loaded scripts, as {id, name}. Next.js client bundles call
+// createServerReference("<id>", callServer, void 0, findSourceMapURL, "<name>").
+export const SCAN_ACTIONS_SCRIPT = `
+  (async () => {
+    const srcs = new Set([...document.scripts].map((s) => s.src).filter(Boolean));
+    for (const e of performance.getEntriesByType("resource")) if (/\\.js(\\?|$)/.test(e.name)) srcs.add(e.name);
+    const out = [];
+    const seen = new Set();
+    for (const src of srcs) {
+      if (!src.startsWith(location.origin + "/_next/")) continue;
+      let text = "";
+      try { text = await (await fetch(src)).text(); } catch { continue; }
+      const re = /createServerReference\\)?\\(\\s*["']([0-9a-f]{40,})["']([^)]{0,300})\\)/g;
+      let m;
+      while ((m = re.exec(text))) {
+        if (seen.has(m[1])) continue;
+        seen.add(m[1]);
+        const names = m[2].match(/["']([A-Za-z_$][\\w$]*)["']/g);
+        out.push({ id: m[1], name: names ? names[names.length - 1].slice(1, -1) : null });
+      }
+    }
+    return out;
+  })()
+`;
 
 interface ActionsFile {
   actions: Record<string, ActionInfo>;
@@ -88,6 +119,19 @@ export class ActionRegistry {
       if (!best || a.lastSeen > best.lastSeen) best = { id, ...a };
     }
     return best;
+  }
+
+  // An id the server no longer knows (Humble redeployed): drop it.
+  forget(id: string): void {
+    delete this.data.actions[id];
+    this.save();
+  }
+
+  // An action found by scanning the site's scripts and verified by calling it.
+  learn(id: string, args: string[], page: string, name?: string | null): void {
+    const now = new Date().toISOString();
+    this.data.actions[id] = { args, page, firstSeen: now, lastSeen: now, ...(name ? { name } : {}) };
+    this.save();
   }
 
   // Seed from the live-scout catalog (endpoints.json), which already holds

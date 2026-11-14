@@ -13,7 +13,7 @@ import * as harvest from "./lib/harvest";
 import { ownedMarkerSource } from "./lib/owned-marker";
 import { makeScrubber } from "./lib/scrub";
 import { LiveScout, LIVE_DIR, endpointOf } from "./lib/live-scout";
-import { ActionRegistry } from "./lib/actions";
+import { ActionRegistry, SCAN_ACTIONS_SCRIPT, StaleActionError, isStaleActionReply } from "./lib/actions";
 import * as libraryV2 from "./lib/library-v2";
 import * as redeemedStore from "./lib/redeemed";
 import * as ordersV2 from "./lib/orders-v2";
@@ -214,13 +214,8 @@ interface QueueItem extends DownloadItem {
 // A signed download link expired: search the library for the item to get
 // fresh links.
 async function refreshV2File(item: QueueItem): Promise<string> {
-  const action = actionRegistry.find(libraryV2.LIBRARY_ACTION_ARGS, /^\/home\/library/);
-  if (!action) throw new Error("can't refresh the download link: library action unknown (open your library once)");
   await ensureHumblePageLoaded();
-  const r = await hv().executeJavaScript(
-    libraryV2.actionCallScript(action.id, action.page || "/home/library", libraryV2.libraryFields({ page: 1, limit: 20, requestId: Date.now() % 100000, query: item.product })),
-  );
-  const data = libraryV2.parseLibraryResponse(r.text);
+  const data = await withLibraryAction((a) => callLibraryAction(a, 1, 20, Date.now() % 100000, item.product));
   const it = data?.results?.find((x: RawItem) => x.id === item.itemId);
   if (!it) throw new Error("couldn't find this item again to refresh its download link");
   const fresh = libraryV2.buildIndexV2([it], { downloadDir: settings.downloadDir, naming: settings.naming }).files.find((f) => f.id === item.id);
@@ -230,9 +225,10 @@ async function refreshV2File(item: QueueItem): Promise<string> {
 
 type Action = NonNullable<ReturnType<ActionRegistry["find"]>>;
 
-async function callLibraryAction(action: Action, page: number, limit: number, requestId: number) {
-  const r = await hv().executeJavaScript(libraryV2.actionCallScript(action.id, action.page || "/home/library", libraryV2.libraryFields({ page, limit, requestId })));
+async function callLibraryAction(action: Action, page: number, limit: number, requestId: number, query = "") {
+  const r = await hv().executeJavaScript(libraryV2.actionCallScript(action.id, action.page || "/home/library", libraryV2.libraryFields({ page, limit, requestId, query })));
   const data = /x-component/i.test(r.contentType) ? libraryV2.parseLibraryResponse(r.text) : null;
+  if (!data && isStaleActionReply(r.status, r.text)) throw new StaleActionError(`library action ${action.id.slice(0, 10)}… is gone (HTTP ${r.status}): Humble has updated its site`);
   if (!data) {
     const snippet = String(r.text || "")
       .replace(/\s+/g, " ")
@@ -244,9 +240,79 @@ async function callLibraryAction(action: Action, page: number, limit: number, re
   return data;
 }
 
+// Humble deployed a new build and the library action's id changed. Find the
+// new one: wait briefly in case the library page calls it itself, then scan
+// the page's scripts for server actions and try the ones named like a
+// library listing (only those: other actions may change things).
+const LIBRARY_ACTION_FN = "filterUserLibrary"; // its function name in the site's code (stable across deploys)
+const LIBRARY_ACTION_NAME = /librar|search|list|filter|query/i;
+const MUTATION_NAME = /pay|redeem|record|gift|claim|purchase|cancel|delete|remove|update|^set|create|refresh|save|submit|send|subscribe|reveal|action$/i;
+
+async function relearnLibraryAction(staleId: string | null): Promise<Action | null> {
+  if (staleId) actionRegistry.forget(staleId);
+  log("  Humble has updated its site; looking up the library action's new id…");
+  const wc = hv();
+  if (!new URL(wc.getURL() || "about:blank").pathname.startsWith("/home/library") || wc.isLoading()) {
+    await new Promise<void>((resolve) => {
+      const t = setTimeout(resolve, 30000);
+      wc.once("did-finish-load", () => {
+        clearTimeout(t);
+        resolve();
+      });
+      void wc.loadURL(`${BASE}/home/library`);
+    });
+  }
+  const fresh = () => actionRegistry.find(libraryV2.LIBRARY_ACTION_ARGS, /^\/home\/library/);
+  for (let i = 0; i < 6 && !fresh(); i++) await new Promise((r) => setTimeout(r, 500));
+  if (fresh()) return fresh();
+
+  let found: { id: string; name: string | null }[] = [];
+  try {
+    found = await wc.executeJavaScript(SCAN_ACTIONS_SCRIPT);
+  } catch (err) {
+    log(`  Couldn't scan the site's scripts: ${errMsg(err)}`);
+  }
+  const named = found.filter((a) => a.name);
+  log(`  Site scripts reference ${found.length} server actions${named.length ? ` (${named.map((a) => a.name).join(", ").slice(0, 300)})` : ""}.`);
+  const rank = (n: string) => (n === LIBRARY_ACTION_FN ? 0 : /librar/i.test(n) ? 1 : 2);
+  const tryOrder = named
+    .filter((a) => a.name === LIBRARY_ACTION_FN || (LIBRARY_ACTION_NAME.test(a.name!) && !MUTATION_NAME.test(a.name!)))
+    .sort((a, b) => rank(a.name!) - rank(b.name!))
+    .slice(0, 6);
+  for (const c of tryOrder) {
+    const candidate: Action = { id: c.id, args: libraryV2.LIBRARY_ACTION_ARGS, page: "/home/library", firstSeen: "", lastSeen: "" };
+    try {
+      const data = await callLibraryAction(candidate, 1, 5, 1);
+      if (Array.isArray(data?.results)) {
+        actionRegistry.learn(c.id, ["cursor", "dateExpires", "hideExpired", "hideRevealed", "limit", "page", "query", "requestId", "sort"], "/home/library", c.name);
+        log(`  Found it: ${c.name} (${c.id.slice(0, 10)}…).`);
+        return fresh();
+      }
+    } catch {
+      // not this one
+    }
+  }
+  log("  Couldn't identify the new library action automatically. On the right, go to page 2 of your library (or search it) once, then Sync again.");
+  return null;
+}
+
+/** Run `fn` with the library action, relearning it once if Humble redeployed. */
+async function withLibraryAction<T>(fn: (a: Action) => Promise<T>): Promise<T> {
+  const action = actionRegistry.find(libraryV2.LIBRARY_ACTION_ARGS, /^\/home\/library/);
+  if (!action) throw new Error("library action unknown (open your library once)");
+  try {
+    return await fn(action);
+  } catch (err) {
+    if (!(err instanceof StaleActionError)) throw err;
+    const next = await relearnLibraryAction(action.id);
+    if (!next) throw err;
+    return fn(next);
+  }
+}
+
 async function syncLibrary({ full }: { full: boolean }): Promise<InvokeChannels["library:sync"][1]> {
   if (busy) return { ok: false, reason: `busy (${busy})` };
-  const action = actionRegistry.find(libraryV2.LIBRARY_ACTION_ARGS, /^\/home\/library/);
+  let action = actionRegistry.find(libraryV2.LIBRARY_ACTION_ARGS, /^\/home\/library/);
   if (!action) {
     log("Sync: Humbler hasn't yet seen how Humble's new library page loads your items.");
     log("  Open your library on the right (Humble library link above), let it load, then Sync again.");
@@ -275,10 +341,22 @@ async function syncLibrary({ full }: { full: boolean }): Promise<InvokeChannels[
     let requestId = 1;
     let limit: number | null = null;
     let first: RawItem = null;
-    for (const L of V2_LIMITS) {
+    let relearned = false;
+    for (let li = 0; li < V2_LIMITS.length; li++) {
+      const L = V2_LIMITS[li];
       try {
         first = await callLibraryAction(action, 1, L, requestId++);
       } catch (err) {
+        if (err instanceof StaleActionError && !relearned) {
+          relearned = true;
+          log(`  ${errMsg(err)}`);
+          const next = await relearnLibraryAction(action.id);
+          if (!next) return { ok: false, reason: "action-unknown" };
+          action = next;
+          li -= 1; // same page size again, with the new id
+          continue;
+        }
+        if (err instanceof StaleActionError) throw err;
         log(`  page size ${L}: ${errMsg(err)}`);
         continue;
       }
@@ -892,19 +970,15 @@ function refreshWatchedSoon() {
 }
 
 async function refreshWatched() {
-  const action = actionRegistry.find(libraryV2.LIBRARY_ACTION_ARGS, /^\/home\/library/);
   const cache = getLiveCache();
-  if (!action || !cache?.items?.length) return;
+  if (!cache?.items?.length) return;
   for (const [itemId, w] of [...watchedItems]) {
     if (Date.now() > w.until) {
       watchedItems.delete(itemId);
       continue;
     }
     try {
-      const r = await hv().executeJavaScript(
-        libraryV2.actionCallScript(action.id, action.page || "/home/library", libraryV2.libraryFields({ page: 1, limit: 20, requestId: Date.now() % 100000, query: w.title })),
-      );
-      const data = libraryV2.parseLibraryResponse(r.text);
+      const data = await withLibraryAction((a) => callLibraryAction(a, 1, 20, Date.now() % 100000, w.title));
       const r2 = data ? applyKeyUpdates(cache.items, data) : null;
       if (r2?.changed) commitKeyUpdates(r2, cache);
       else log(`Re-checked "${w.title}" on Humble: ${data ? "no change yet" : "unexpected reply"}`);
