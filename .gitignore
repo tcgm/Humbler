@@ -13,3 +13,5 @@ out/
 out-release/
 release/
 *.tsbuildinfo
+
+.history/

@@ -6,7 +6,7 @@
 # A tag with a hyphen (v1.2.0-beta.1) becomes a prerelease, which installed
 # copies don't announce as an update.
 #
-# Signing is off until these repository secrets exist (see RELEASING.md):
+# Signing is off until these repository secrets exist (see docs/RELEASING.md):
 #   WIN_CSC_LINK, WIN_CSC_KEY_PASSWORD             Windows certificate (.pfx, base64)
 #   CSC_LINK, CSC_KEY_PASSWORD                     Apple Developer ID certificate (.p12, base64)
 #   APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID   macOS notarization

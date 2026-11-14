@@ -2,10 +2,10 @@
   "name": "humbler",
   "productName": "Humbler",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.3.0",
   "description": "A local Electron client for your Humble Bundle library: collect keys, reveal them, and bulk-download your files, using your real logged-in session.",
   "author": "TCGM",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "main": "out/main/index.js",
   "scripts": {
     "start": "node scripts/run.js dev --watch",

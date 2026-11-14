@@ -14,7 +14,7 @@
 # Uploads with the job's own automatic token; nothing to set up. Only if
 # your Gitea refuses that token release access, add a repository secret
 # RELEASE_TOKEN (an access token with repository read and write) and it's
-# used instead. Signing secrets as on GitHub (see RELEASING.md).
+# used instead. Signing secrets as on GitHub (see docs/RELEASING.md).
 name: Release
 
 on:

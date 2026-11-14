@@ -4,7 +4,7 @@
 #   npm run dist:linux    Linux: AppImage, tar.gz
 #   npm run dist:mac      macOS: dmg, zip (x64 + arm64); needs a Mac
 # Output goes to release/<version>/. Builds are unsigned for now; signing
-# turns on by adding the certificate secrets in CI (see RELEASING.md).
+# turns on by adding the certificate secrets in CI (see docs/RELEASING.md).
 appId: dev.tcgm.humbler
 productName: Humbler
 copyright: Copyright © 2026 TCGM
@@ -89,4 +89,4 @@ mac:
   artifactName: Humbler-${version}-mac-${arch}.${ext}
   # unsigned (ad-hoc) until an Apple Developer ID is added: CSC_LINK /
   # CSC_KEY_PASSWORD, plus APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID
-  # for notarization (see RELEASING.md)
+  # for notarization (see docs/RELEASING.md)
