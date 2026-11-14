@@ -465,6 +465,88 @@ async function fetchDownloadLinks(ent: RawItem, pageUrl?: string): Promise<boole
   return false;
 }
 
+// ---- file lists (purchase pages) ------------------------------------------
+// A purchase page (/home/library/<productEntitlementId>) carries the full
+// file list of every item in it: names, sizes, md5/sha1, web/torrent file
+// names. One background request per purchase (the pane isn't touched).
+
+async function fetchPurchaseFileLists(peId: string): Promise<Map<string, RawItem[]>> {
+  const url = `/home/library/${encodeURIComponent(peId)}`;
+  const get = (rsc: boolean): Promise<{ status: number; type: string; text: string }> =>
+    hv().executeJavaScript(`
+      (async () => {
+        const r = await fetch(${JSON.stringify(url)}, { credentials: "include", headers: ${rsc ? '{ RSC: "1" }' : "{}"} });
+        return { status: r.status, type: r.headers.get("content-type") || "", text: await r.text() };
+      })()
+    `);
+  let r = await get(true);
+  let lists = /x-component/i.test(r.type) ? libraryV2.extractDownloadLists(resolvedFlightData(r.text)) : new Map<string, RawItem[]>();
+  if (!lists.size) {
+    r = await get(false); // the full page, with its data embedded
+    lists = libraryV2.extractDownloadLists(resolvedFlightData(flightFromHtml(r.text)));
+  }
+  if (!lists.size && r.status >= 400) throw new Error(`purchase page ${peId.slice(0, 8)}…: HTTP ${r.status}`);
+  return lists;
+}
+
+async function syncFileLists({ full }: { full: boolean }) {
+  const cache = getLiveCache();
+  if (!cache?.items?.length) return;
+  // purchases with download items that have no file list yet
+  const byPurchase = new Map<string, RawItem[]>();
+  for (const it of cache.items) {
+    for (const ent of it.entitlements?.downloads || []) {
+      if (!full && Array.isArray(ent.downloads) && ent.downloadsFetchedAt) continue;
+      const pe = it.productEntitlementId || it.id;
+      byPurchase.set(pe, [...(byPurchase.get(pe) || []), ent]);
+    }
+  }
+  if (!byPurchase.size) return;
+  const todo = [...byPurchase.entries()];
+  const total = todo.reduce((n, [, e]) => n + e.length, 0);
+  log(`File lists: reading ${todo.length} purchase page(s) for ${total} download item(s)…`);
+  await ensureHumblePageLoaded();
+  let pages = 0;
+  let got = 0;
+  let failed = 0;
+  let next = 0;
+  let lastLog = Date.now();
+  const worker = async () => {
+    while (next < todo.length && failed < 10) {
+      const [pe, ents] = todo[next++];
+      try {
+        const lists = await fetchPurchaseFileLists(pe);
+        for (const ent of ents) {
+          const list = lists.get(ent.id);
+          if (!list) continue;
+          ent.downloads = list;
+          ent.downloadsFetchedAt = new Date().toISOString();
+          got += 1;
+        }
+      } catch (err) {
+        failed += 1;
+        log(`  ${errMsg(err)}`);
+      }
+      pages += 1;
+      if (Date.now() - lastLog > 15000) {
+        lastLog = Date.now();
+        busyDetail = `file lists ${pages}/${todo.length}`;
+        void pushStatus();
+        log(`  file lists: ${pages}/${todo.length} purchases · ${got} items with files`);
+      }
+      await politeDelay(200, 500);
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
+  busyDetail = null;
+  libraryV2.saveCache(cache);
+  rebuildIndex();
+  log(
+    `File lists: ${got} of ${total} download item(s) from ${pages} purchase page(s)${failed ? `, ${failed} failed${failed >= 10 ? " (stopped)" : ""}` : ""}. ` +
+      `${index.files.length} files (${index.files.filter((f) => f.size > 0).length} with sizes, ${index.files.filter((f) => f.downloadable).length} downloadable).`,
+  );
+}
+
 async function syncDownloadLinks({ full }: { full: boolean }) {
   // Share the in-memory cache with live key updates, so neither saves over the other.
   const cache = getLiveCache();
@@ -655,6 +737,7 @@ async function syncLibrary({ full }: { full: boolean }): Promise<InvokeChannels[
     await syncPurchases().catch((err) => log(`Purchases: ${errMsg(err)}`));
     // Download links: the listing doesn't include them, so fetch each
     // download entitlement's (new ones only after the first time).
+    await syncFileLists({ full }).catch((err) => log(`File lists: ${errMsg(err)}`));
     await syncDownloadLinks({ full }).catch((err) => log(`Downloads: ${errMsg(err)}`));
     return { ok: true, fetched: fetched.size };
   } catch (err) {

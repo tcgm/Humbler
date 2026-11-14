@@ -201,7 +201,13 @@ function Preview({ b, names, dirPath, onOpenBundle }: { b: Bundle; names?: strin
           {filesHere ? `${filesHere} of ${plural(files.length, "file")} found in this folder` : `None of its ${plural(files.length, "file")} are in this folder (by name)`}
         </p>
       )}
-      {!files.length && <p className="muted-line">Humbler has no file list for this bundle yet (Sync fetches download links).</p>}
+      {!files.length && (
+        <p className="muted-line">
+          {b.keyCount && !products.some((p) => p.platforms.length)
+            ? "No downloads in this bundle (keys only)."
+            : "Humbler has no file list for this bundle yet: Sync reads it from the purchase page."}
+        </p>
+      )}
       {otherDirs.length > 0 && <p className="muted-line">Already has: {otherDirs.join(", ")}</p>}
       <ul className="preview-items">
         {products.slice(0, 200).map((p) => {

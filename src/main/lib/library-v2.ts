@@ -190,6 +190,28 @@ export function parseSignedUrlsReply(text: unknown): { ok: boolean; signedUrls: 
   return { ok: !!v.ok, signedUrls: v.data?.signedUrls ?? null, expiresAt: und(v.data?.expiresAt) ?? null };
 }
 
+/**
+ * File lists from a purchase page (/home/library/<productEntitlementId>):
+ * its data holds the bundle's items with entitlements.downloads[] =
+ * { id, downloads: [{ key, platform, downloadStruct: [{ name, fileSize,
+ * md5, sha1, url: { web, bittorrent } }] }] }. Returns entitlement id ->
+ * that `downloads` list, found anywhere in the decoded page.
+ */
+export function extractDownloadLists(value: unknown): Map<string, any[]> {
+  const out = new Map<string, any[]>();
+  const seen = new Set<unknown>();
+  const walk = (v: any, depth: number) => {
+    if (!v || typeof v !== "object" || seen.has(v) || depth > 40) return;
+    seen.add(v);
+    if (!Array.isArray(v) && typeof v.id === "string" && Array.isArray(v.downloads) && v.downloads.some((d: any) => d && Array.isArray(d.downloadStruct))) {
+      out.set(v.id, v.downloads);
+    }
+    for (const x of Array.isArray(v) ? v : Object.values(v)) walk(x, depth + 1);
+  };
+  walk(value, 0);
+  return out;
+}
+
 /** Keep download links already fetched for entitlements of re-synced items. */
 export function carryOverDownloadLinks(fresh: any[], known: Map<string, any>): void {
   for (const it of fresh) {
@@ -198,10 +220,16 @@ export function carryOverDownloadLinks(fresh: any[], known: Map<string, any>): v
     const oldEnts = new Map<string, any>((old.entitlements?.downloads || []).map((e: any) => [e.id, e]));
     for (const ent of it.entitlements?.downloads || []) {
       const o = oldEnts.get(ent.id);
-      if (!o?.signedUrlsFetchedAt || ent.signedUrls) continue;
-      ent.signedUrls = o.signedUrls;
-      ent.signedUrlsExpiresAt = o.signedUrlsExpiresAt;
-      ent.signedUrlsFetchedAt = o.signedUrlsFetchedAt;
+      if (!o) continue;
+      if (o.downloadsFetchedAt && !Array.isArray(ent.downloads)) {
+        ent.downloads = o.downloads;
+        ent.downloadsFetchedAt = o.downloadsFetchedAt;
+      }
+      if (o.signedUrlsFetchedAt && !ent.signedUrls) {
+        ent.signedUrls = o.signedUrls;
+        ent.signedUrlsExpiresAt = o.signedUrlsExpiresAt;
+        ent.signedUrlsFetchedAt = o.signedUrlsFetchedAt;
+      }
     }
   }
 }
