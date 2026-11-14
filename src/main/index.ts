@@ -23,7 +23,7 @@ import * as lib from "./lib/library";
 import { HumbleApi, NotLoggedInError, BASE } from "./lib/humble-api";
 import { Downloader, type DownloadItem } from "./lib/downloader";
 import { politeDelay } from "./lib/throttle";
-import { applyKeyUpdates } from "./lib/key-updates";
+import { applyKeyUpdates, applyRevealReply } from "./lib/key-updates";
 
 const env = (name: string, fallback: number) => Number(process.env[name] ?? fallback);
 const API_DELAY: [number, number] = [env("API_DELAY_MIN_MS", 700), env("API_DELAY_MAX_MS", 1800)];
@@ -844,6 +844,7 @@ const getLiveCache = () => (liveCache ||= libraryV2.loadCache());
 function commitKeyUpdates(r: ReturnType<typeof applyKeyUpdates>, cache: NonNullable<typeof liveCache>) {
   if (!r.changed) return;
   libraryV2.saveCache(cache);
+  if (r.revealed.length) liveScrubber = null; // so recon scrubbing knows the new keys
   for (const k of r.revealed) {
     // Write it down before anything else can go wrong, like reveals made in Humbler.
     lib.recordRevealedKey({ id: `v2|${k.keyId}`, gamekey: k.bundleId, name: k.title, bundle: k.bundle, keyType: k.keyType, key: k.key, revealedAt: new Date().toISOString() });
@@ -856,10 +857,26 @@ function commitKeyUpdates(r: ReturnType<typeof applyKeyUpdates>, cache: NonNulla
 function applyLiveKeyUpdates(entry: RawItem) {
   try {
     const raw = entry.kind === "rsc" ? entry.text : entry.body;
-    if (!raw || !(typeof raw === "string" ? raw : JSON.stringify(raw)).includes("redemptionData")) return; // cheap pre-check
+    if (!raw) return;
+    const text = typeof raw === "string" ? raw : JSON.stringify(raw);
+    const isReply = !!entry.action && /"key"\s*:/.test(text); // maybe the reveal action's {success, key}
+    if (!isReply && !text.includes("redemptionData")) return; // cheap pre-check
     const cache = getLiveCache();
     if (!cache?.items?.length) return;
-    commitKeyUpdates(applyKeyUpdates(cache.items, entry.kind === "rsc" ? resolvedFlightData(entry.text) : entry.body), cache);
+    const value = entry.kind === "rsc" ? resolvedFlightData(entry.text) : entry.body;
+    if (isReply) {
+      let args: unknown = entry.requestBody;
+      if (typeof args === "string") {
+        try {
+          args = JSON.parse(args);
+        } catch {
+          args = null;
+        }
+      }
+      const r = applyRevealReply(cache.items, args, value);
+      if (r.changed) return commitKeyUpdates(r, cache);
+    }
+    commitKeyUpdates(applyKeyUpdates(cache.items, value), cache);
   } catch (err) {
     log(`Live key update failed: ${errMsg(err)}`);
   }
@@ -888,7 +905,9 @@ async function refreshWatched() {
         libraryV2.actionCallScript(action.id, action.page || "/home/library", libraryV2.libraryFields({ page: 1, limit: 20, requestId: Date.now() % 100000, query: w.title })),
       );
       const data = libraryV2.parseLibraryResponse(r.text);
-      if (data) commitKeyUpdates(applyKeyUpdates(cache.items, data), cache);
+      const r2 = data ? applyKeyUpdates(cache.items, data) : null;
+      if (r2?.changed) commitKeyUpdates(r2, cache);
+      else log(`Re-checked "${w.title}" on Humble: ${data ? "no change yet" : "unexpected reply"}`);
     } catch (err) {
       log(`Couldn't re-check "${w.title}": ${errMsg(err)}`);
     }

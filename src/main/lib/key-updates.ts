@@ -35,6 +35,62 @@ const formatted = (k: Raw): string | null => {
   return typeof v === "string" && v && v !== "$undefined" ? v : null;
 };
 
+const revealedEntry = (item: Raw, key: Raw, value: string): RevealedKey => ({
+  itemId: String(item.id),
+  bundleId: String(item.productEntitlementId || item.id),
+  keyId: String(key.id),
+  title: key.title || item.title,
+  bundle: item.subTitle && item.subTitle !== "$undefined" ? item.subTitle : item.title,
+  keyType: key.keyIntegrationId || key.type || "",
+  key: value,
+});
+
+/**
+ * The 2026 site's reveal is a server action whose arguments are
+ * `[id, keyType, …]` (id = the item's / key's id) and whose reply is just
+ * `{success: true, key: "…"}`: no key object to match. So match the
+ * request's id against the cache and store the reply's key on that key.
+ */
+export function applyRevealReply(items: Raw[], args: unknown, reply: unknown): KeyUpdateResult {
+  const result: KeyUpdateResult = { changed: false, revealed: [] };
+  if (!Array.isArray(args)) return result;
+  const ids = new Set(args.filter((a): a is string => typeof a === "string" && a.length >= 8));
+  if (!ids.size) return result;
+
+  // the reply's {success, key}, wherever it sits in the decoded rows
+  let value: string | null = null;
+  const seen = new Set<unknown>();
+  const find = (v: unknown, depth: number) => {
+    if (value || !v || typeof v !== "object" || seen.has(v) || depth > 8) return;
+    seen.add(v);
+    const o = v as Raw;
+    if (o.success === true && typeof o.key === "string" && o.key.trim() && o.key !== "$undefined") {
+      value = o.key.trim();
+      return;
+    }
+    for (const x of Array.isArray(v) ? v : Object.values(v)) find(x, depth + 1);
+  };
+  find(reply, 0);
+  if (!value) return result;
+
+  const typeArg = args.find((a) => typeof a === "string" && !ids.has(a)) as string | undefined;
+  for (const item of items) {
+    const keys: Raw[] = item?.entitlements?.keys || [];
+    // the key itself by id; else the item's only key, or its key of the requested type
+    const key =
+      keys.find((k) => ids.has(String(k?.id))) ||
+      (ids.has(String(item?.id)) ? (keys.length === 1 ? keys[0] : keys.find((k) => typeArg && (k.type === typeArg || k.keyIntegrationId === typeArg))) : undefined);
+    if (!key) continue;
+    if (formatted(key) === value) return result; // already have it
+    const had = formatted(key);
+    key.redemptionData = { ...(key.redemptionData && typeof key.redemptionData === "object" ? key.redemptionData : {}), keyFormatted: value };
+    result.changed = true;
+    if (!had) result.revealed.push(revealedEntry(item, key, value));
+    return result;
+  }
+  return result;
+}
+
 /**
  * Apply every known key object found anywhere in `value` (a decoded
  * response) to `items` (the library cache), in place.
@@ -62,17 +118,7 @@ export function applyKeyUpdates(items: Raw[], value: unknown): KeyUpdateResult {
         }
       }
       const after = formatted(hit.key);
-      if (!before && after) {
-        result.revealed.push({
-          itemId: String(hit.item.id),
-          bundleId: String(hit.item.productEntitlementId || hit.item.id),
-          keyId: String(o.id),
-          title: hit.key.title || hit.item.title,
-          bundle: hit.item.subTitle && hit.item.subTitle !== "$undefined" ? hit.item.subTitle : hit.item.title,
-          keyType: hit.key.keyIntegrationId || hit.key.type || "",
-          key: after,
-        });
-      }
+      if (!before && after) result.revealed.push(revealedEntry(hit.item, hit.key, after));
     }
     for (const x of Array.isArray(v) ? v : Object.values(v)) walk(x, depth + 1);
   };

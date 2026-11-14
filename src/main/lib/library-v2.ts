@@ -173,6 +173,7 @@ export function buildIndexV2(items: any[], { downloadDir, naming = "original" }:
     // none yet
   }
 
+  const revealedLog = lib.loadRevealedOverlay();
   const bundles = new Map<string, Bundle & { itemCount: number; unrevealed: number; order: number }>();
   const keys: KeyEntry[] = [];
   const files: FileEntry[] = [];
@@ -241,7 +242,11 @@ export function buildIndexV2(items: any[], { downloadDir, naming = "original" }:
     };
     products.push(product);
 
-    for (const k of it.entitlements?.keys || []) {
+    for (const raw of it.entitlements?.keys || []) {
+      // A key in revealed-keys.jsonl is revealed, whatever the cache says
+      // (e.g. picked up live and then overwritten by an older Sync page).
+      const logged = revealedLog.get(`v2|${raw.id}`);
+      const k = logged && !und(raw.redemptionData?.keyFormatted) ? { ...raw, redemptionData: { ...(raw.redemptionData || {}), keyFormatted: logged } } : raw;
       const status = keyStatus(k);
       const expiry = und(k.unavailableAfter) || und(k.redemptionExpiryDate);
       keys.push({

@@ -18,18 +18,21 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { ORDERS_DIR, REVEALED_LOG } from "./paths";
+import { DATA_DIR, ORDERS_DIR, REVEALED_LOG } from "./paths";
 
 export const REDACTED = "[REDACTED]";
 
 // Fields whose values are always secret.
 const SECRET_FIELD =
-  /^(redeemed_key_val|key_val|keyval|redeemed_key|serial(_number)?|license(_key)?|activation(_code)?|redeem(_code)?|cd_?key|product_key|steam_key|gift_(url|link)|giftlink|password|passwd|secret|.*csrf.*|.*_token|token|access_token|refresh_token|session(_id|_token)?|auth(orization)?|cookie|set-cookie)$/i;
+  /^(redeemed_key_val|key_val|keyval|keyformatted|key_formatted|redeemed_key|serial(_number)?|license(_key)?|activation(_code)?|redeem(_code)?|cd_?key|product_key|steam_key|gift_(url|link)|giftlink|password|passwd|secret|.*csrf.*|.*_token|token|access_token|refresh_token|session(_id|_token)?|auth(orization)?|cookie|set-cookie)$/i;
 // Fields holding gamekeys (pseudonymized rather than removed).
 const GAMEKEY_FIELD = /^(gamekey|gamekeys|order_key|orderkey)$/i;
 // A plain `key` field is a secret when its value looks like a key (this
-// catches the reveal response, {success: true, key: "…"}).
-const KEYISH_VALUE = /^[A-Z0-9][A-Z0-9-]{9,}$/;
+// catches the reveal responses, {success: true, key: "…"}, old and new
+// site). Any single token of 6+ characters counts: keys come as
+// XXXXX-XXXXX, HUMBLE_ABC123, lowercase codes... Over-redacting a debug dump
+// is harmless; leaking a key isn't.
+const KEYISH_VALUE = /^[A-Za-z0-9][A-Za-z0-9_\-.~+/=:]{5,}$/;
 
 // Key-shaped substrings: 3+ dash-separated groups of 4-6 caps/digits,
 // containing at least one digit (to spare things like WINDOWS-LINUX-MAC).
@@ -94,6 +97,18 @@ export function loadKnownSecrets(): KnownSecrets {
       }
     }
   }
+  // New-site keys: library-v2.json (item.entitlements.keys[].redemptionData.keyFormatted)
+  try {
+    const cache = JSON.parse(fs.readFileSync(path.join(DATA_DIR, "library-v2.json"), "utf8"));
+    for (const it of cache?.items || []) {
+      for (const k of it?.entitlements?.keys || []) {
+        const v = k?.redemptionData?.keyFormatted;
+        if (typeof v === "string" && v !== "$undefined") keys.add(v);
+      }
+    }
+  } catch {
+    // no new-site cache yet
+  }
   if (fs.existsSync(REVEALED_LOG)) {
     for (const line of fs.readFileSync(REVEALED_LOG, "utf8").split("\n")) {
       try {
@@ -112,9 +127,9 @@ export function makeScrubber(known: KnownSecrets = loadKnownSecrets()): Scrubber
   const stats: ScrubStats = { keys: 0, fields: 0, patterns: 0, gamekeys: 0, tokens: 0 };
   // Longest first, so a key containing another is replaced whole. JSON
   // escaping can turn "/" into "\/" inside HTML-embedded JSON, so match both.
-  const keyRes = known.keys
-    .sort((a, b) => b.length - a.length)
-    .map((k) => new RegExp(escapeRe(k) + "|" + escapeRe(k.replace(/\//g, "\\/")), "g"));
+  // One combined pattern: there are thousands of keys, so one pass per text.
+  const keyAlts = [...new Set(known.keys.flatMap((k) => [k, k.replace(/\//g, "\\/")]))].sort((a, b) => b.length - a.length).map(escapeRe);
+  const keyRes = keyAlts.length ? [new RegExp(keyAlts.join("|"), "g")] : [];
   const gamekeyRes: [RegExp, string][] = known.gamekeys.sort((a, b) => b.length - a.length).map((g) => [new RegExp(escapeRe(g), "g"), alias(g)]);
 
   // value for a named field found in text: redact, alias, or keep

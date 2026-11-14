@@ -189,7 +189,7 @@ function loadDownloaded(): Map<string, string | null> {
 
 // Keys revealed by Humbler whose order cache hasn't been refreshed since —
 // overlay them so a revealed key can never "disappear" from the UI.
-function loadRevealedOverlay(): Map<string, string> {
+export function loadRevealedOverlay(): Map<string, string> {
   const map = new Map<string, string>();
   for (const e of readJsonl(REVEALED_LOG)) if (e.id && e.key) map.set(e.id, e.key);
   return map;

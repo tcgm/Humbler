@@ -65,9 +65,12 @@ Vite's default 5173 is often inside one.
    - **Revealing a new-site key**: "Reveal your … key" opens the item on
      Humble (right). Reveal it there and **it appears in Humbler within a
      second or two, no Sync needed**. Humbler watches the responses the
-     site gets for key changes (reveals, gifting), and re-checks an item
-     you opened after the site acts on it. Every key picked up this way is
-     written to `data/revealed-keys.jsonl` straight away.
+     site gets: the reveal action's own reply (`{success, key}`, matched to
+     the item by the id it was sent with), any key data the site loads
+     (reveals, gifting), and a re-check of an item you opened after the
+     site acts on it. This works however you got to the item. Every key picked up
+     this way is written to `data/revealed-keys.jsonl` straight away, and a
+     key in that log always shows as revealed, whatever the cache says.
    - **Redeem** opens the store in your browser: Steam's activation page
      with the key already filled in, GOG's redeem page with the key in the
      link, or Epic's redeem page. When you come back to Humbler it asks
@@ -230,10 +233,12 @@ Scout dumps and raw harvests (`data/harvest/`) are scrubbed before they're
 written (`src/main/lib/scrub.ts`). They should never contain a real key, so they can
 be shared for debugging:
 
-- **Known keys:** every key value in your synced orders and
-  `revealed-keys.jsonl` is replaced with `[REDACTED]` wherever it appears.
-  That includes HTML, JSON escaped inside scripts, and gift links.
-- **Sensitive fields:** `redeemed_key_val`, the reveal response's `key`, gift
+- **Known keys:** every key value in your synced orders, the new-site
+  library cache (`library-v2.json`) and `revealed-keys.jsonl` is replaced
+  with `[REDACTED]` wherever it appears. That includes HTML, JSON escaped
+  inside scripts, and gift links.
+- **Sensitive fields:** `redeemed_key_val`, `keyFormatted`, the reveal
+  response's `key` (any single-token value, e.g. `HUMBLE_…`), gift
   links, and CSRF/session/token fields are redacted by name. This covers
   JSON, JSON inside page scripts (including escaped Next.js data), and HTML
   `<input>`/`<meta>` tags.
