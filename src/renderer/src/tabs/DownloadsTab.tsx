@@ -204,10 +204,21 @@ function FileStatus({ f, p }: { f: FileEntry; p: DownloadProgress | undefined })
       </span>
     );
   if (p?.state === "cancelled") return <span className="tag warn">cancelled</span>;
+  if (f.onDisk?.how === "older-version" && p?.state !== "done")
+    return (
+      <span className="keycell">
+        <span className="tag warn" title={`You have an older version of this file (Humble has updated it since; its size differs):\n${f.onDisk.path}`}>
+          older version on disk
+        </span>
+        <button className="small" onClick={() => api.showFile(f.id)}>
+          Show
+        </button>
+      </span>
+    );
   if (f.onDisk?.how === "size-differs" && p?.state !== "done")
     return (
       <span className="keycell">
-        <span className="tag warn" title={`A file with this name is on disk, but its size differs (incomplete or a different version):\n${f.onDisk.path}`}>
+        <span className="tag warn" title={`A file with this name is on disk, but its size differs and it isn't a complete archive (probably an unfinished download):\n${f.onDisk.path}`}>
           on disk, size differs
         </span>
         <button className="small" onClick={() => api.showFile(f.id)}>

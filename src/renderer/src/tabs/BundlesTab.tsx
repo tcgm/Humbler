@@ -141,7 +141,7 @@ function BundleRow({ b, dl, soldOut, onOpen }: { b: Bundle; dl: ReturnType<typeo
         <p>{[stats(b), bought].filter(Boolean).join(" · ")}</p>
         {!!b.diskDirs?.length && (
           <p className="on-disk" title={b.diskDirs.join("\n")}>
-            {b.fileCount ? `${b.filesOnDisk ?? 0} of ${b.fileCount} files on disk` : "Has a folder on disk"}
+            {b.fileCount ? `${b.filesOnDisk ?? 0} of ${b.fileCount} files on disk${b.olderOnDisk ? ` (+${b.olderOnDisk} older version${b.olderOnDisk === 1 ? "" : "s"})` : ""}` : "Has a folder on disk"}
           </p>
         )}
         {(!!b.unrevealed || soldOut > 0) && (
@@ -197,7 +197,7 @@ function BundlePage({ id }: { id: string }) {
           </p>
           {!!b.diskDirs?.length && (
             <p className="on-disk">
-              {b.fileCount ? `${b.filesOnDisk ?? 0} of ${b.fileCount} files on disk in ` : "On disk in "}
+              {b.fileCount ? `${b.filesOnDisk ?? 0} of ${b.fileCount} files on disk${b.olderOnDisk ? ` (+${b.olderOnDisk} older version${b.olderOnDisk === 1 ? "" : "s"})` : ""} in ` : "On disk in "}
               {b.diskDirs.map((d, i) => (
                 <span key={d}>
                   {i > 0 && ", "}

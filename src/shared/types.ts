@@ -129,12 +129,16 @@ export interface Bundle {
   /** this bundle's folders in your download folders */
   diskDirs?: string[];
   filesOnDisk?: number;
+  /** files whose older version is on disk (Humble has updated them since) */
+  olderOnDisk?: number;
 }
 
 export interface FileOnDisk {
   path: string;
-  /** file = the file itself; extracted = a folder of its unpacked contents; size-differs = same name, different size */
-  how: "file" | "extracted" | "size-differs";
+  /** file = the file itself; extracted = a folder of its unpacked contents;
+   *  older-version = a complete file of another size (Humble has updated it since);
+   *  size-differs = a different size and not a complete archive (likely an unfinished download) */
+  how: "file" | "extracted" | "size-differs" | "older-version";
 }
 
 /** One bundle folder, looked at closely (for choosing its bundle). */

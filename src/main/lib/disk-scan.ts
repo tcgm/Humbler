@@ -218,6 +218,33 @@ export const extensionStyleName = (title: string, publisher: string | null, ext:
   return `${publisher ? `${clean(title)} - ${publisher}` : clean(title)}.${ext}`.toLowerCase();
 };
 
+/** Is this a whole zip (its end-of-archive record is there)? null if not a zip. */
+function zipComplete(p: string): boolean | null {
+  if (!/\.zip$/i.test(p)) return null;
+  let fd: number | null = null;
+  try {
+    fd = fs.openSync(p, "r");
+    const size = fs.fstatSync(fd).size;
+    const n = Math.min(size, 65557); // the record is in the last 22 bytes + up to 64k of comment
+    const buf = Buffer.alloc(n);
+    fs.readSync(fd, buf, 0, n, size - n);
+    return buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06])) >= 0;
+  } catch {
+    return false;
+  } finally {
+    if (fd != null) fs.closeSync(fd);
+  }
+}
+
+/** Words of a title, for pairing renamed files. */
+const titleWords = (s: string): string[] =>
+  s
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/['\u2019]/g, "")
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w && !STOP.has(w));
+
 /** A title for loose comparison: letters and digits only. */
 const titleKey = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
 
@@ -235,7 +262,7 @@ export interface FileLike {
 
 export interface FileOnDisk {
   path: string;
-  how: "file" | "extracted" | "size-differs";
+  how: "file" | "extracted" | "size-differs" | "older-version";
 }
 
 /** Find each file on disk: in its bundle's folders first, then anywhere if the name is distinctive. */
@@ -308,13 +335,14 @@ export function matchFiles(files: FileLike[], scan: DiskScan, bundleDirs: Map<st
       hit = { path: e.path, how: f.size > 0 && size >= 0 && size !== f.size ? "size-differs" : "file" };
       if (hit.how === "file") break;
     }
-    if (!hit && perTitle.get(`${f.gamekey}|${path.extname(f.filename).toLowerCase()}|${titleKey(f.product)}`) === 1) {
+    if ((!hit || hit.how === "size-differs") && perTitle.get(`${f.gamekey}|${path.extname(f.filename).toLowerCase()}|${titleKey(f.product)}`) === 1) {
       const key = `${path.extname(f.filename).toLowerCase()}|${titleKey(f.product)}`;
       const cands = [...mine].flatMap((d) => byTitle.get(d)?.get(key) || []);
       // prefer the copy with the right size
       const sized = f.size > 0 ? cands.find((e) => sizeOf(e.path) === f.size) : null;
       const e = sized || cands[0];
-      if (e) hit = { path: e.path, how: f.size > 0 && !sized ? "size-differs" : "file" };
+      if (sized) hit = { path: sized.path, how: "file" };
+      else if (e && !hit) hit = { path: e.path, how: f.size > 0 ? "size-differs" : "file" };
     }
     // still nothing: a file of the same type and exact size in its bundle's
     // folders that nothing else claimed (renamed, or titled differently)
@@ -326,6 +354,8 @@ export function matchFiles(files: FileLike[], scan: DiskScan, bundleDirs: Map<st
     if (!hit || hit.how === "size-differs") {
       for (const n of dirNames) {
         const e = pick((scan.byName.get(n) || []).filter((x) => x.dir && x.path !== x.bundleDir));
+        // a same-name file in its own bundle's folder beats an extracted folder elsewhere
+        if (e && hit && !(e.bundleDir && mine.has(e.bundleDir))) continue;
         if (e) {
           hit = { path: e.path, how: "extracted" };
           break;
@@ -337,7 +367,54 @@ export function matchFiles(files: FileLike[], scan: DiskScan, bundleDirs: Map<st
   const claimed = new Set([...out.values()].map((h) => h.path));
   const sizeClaims = new Map<string, number>();
   for (const { e } of bySize) sizeClaims.set(e.path, (sizeClaims.get(e.path) || 0) + 1);
-  for (const { f, e } of bySize) if (!claimed.has(e.path) && sizeClaims.get(e.path) === 1) out.set(f.id, { path: e.path, how: "file" });
+  for (const { f, e } of bySize) {
+    if (claimed.has(e.path) || sizeClaims.get(e.path) !== 1) continue;
+    out.set(f.id, { path: e.path, how: "file" });
+    claimed.add(e.path);
+  }
+
+  // Folders the downloader extension made (.../HumbleBundle/<bundle>/...) hold
+  // only that bundle's files, so a file there that nothing claimed is one of
+  // the bundle's, saved under an older title and size. Pair the leftovers with
+  // the bundle's unmatched files of the same type by title words.
+  const madeByExtension = (e: DiskEntry): boolean => /[\\/]humble ?bundle[\\/]/i.test(e.path.slice(e.bundleDir?.length || 0));
+  const unmatched = new Map<string, FileLike[]>();
+  for (const f of files) if (!out.has(f.id)) unmatched.set(f.gamekey, [...(unmatched.get(f.gamekey) || []), f]);
+  for (const [gamekey, todo] of unmatched) {
+    const left = (bundleDirs.get(gamekey) || []).flatMap((d) => looseFiles(d)).filter((e) => !claimed.has(e.path) && madeByExtension(e));
+    if (!left.length) continue;
+    // a leftover named exactly after one of the bundle's products is that product's, not a rename
+    const titles = new Set(files.filter((f) => f.gamekey === gamekey).map((f) => titleKey(f.product)));
+    const pairs: { f: FileLike; e: DiskEntry; score: number }[] = [];
+    for (const f of todo) {
+      const want = titleWords(f.product);
+      if (!want.length) continue;
+      const ext = path.extname(f.filename).toLowerCase();
+      for (const e of left) {
+        if (path.extname(e.lower) !== ext) continue;
+        let stem = path.basename(e.lower, ext).replace(/\s*\(\d+\)$/, "");
+        const dash = stem.lastIndexOf(" - ");
+        if (dash > 0) stem = stem.slice(0, dash); // " - Publisher"
+        if (titles.has(titleKey(stem)) && titleKey(stem) !== titleKey(f.product)) continue;
+        const have = new Set(titleWords(stem));
+        const both = want.filter((w) => have.has(w)).length;
+        const score = both / Math.max(want.length, have.size);
+        if (both / want.length >= 0.75 && score >= 0.5) pairs.push({ f, e, score });
+      }
+    }
+    pairs.sort((a, b) => b.score - a.score);
+    const usedF = new Set<string>();
+    for (const { f, e } of pairs) {
+      if (usedF.has(f.id) || claimed.has(e.path)) continue;
+      usedF.add(f.id);
+      claimed.add(e.path);
+      out.set(f.id, { path: e.path, how: "older-version" });
+    }
+  }
+
+  // Same name, other size: an older version if the file is whole, else
+  // probably an unfinished download.
+  for (const h of out.values()) if (h.how === "size-differs" && zipComplete(h.path) === true) h.how = "older-version";
   return out;
 }
 

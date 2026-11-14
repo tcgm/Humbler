@@ -142,19 +142,22 @@ function applyDiskScan() {
       )
     : new Map();
   const onDiskPer = new Map<string, number>();
+  const olderPer = new Map<string, number>();
   for (const f of index.files) {
     const hit = found.get(f.id) || null;
     f.onDisk = hit;
-    if (hit && hit.how !== "size-differs") {
+    if (hit && hit.how !== "size-differs" && hit.how !== "older-version") {
       f.downloaded = true;
       onDiskPer.set(f.gamekey, (onDiskPer.get(f.gamekey) || 0) + 1);
     }
+    if (hit?.how === "older-version") olderPer.set(f.gamekey, (olderPer.get(f.gamekey) || 0) + 1);
     const home = bundleDirMatch.get(f.gamekey)?.[0];
     f.dest = hit?.how === "file" ? hit.path : home ? path.join(home, f.filename) : path.join(settings.downloadDir, f.rel);
   }
   for (const b of index.bundles) {
     b.diskDirs = bundleDirMatch.get(b.gamekey) || [];
     b.filesOnDisk = onDiskPer.get(b.gamekey) || 0;
+    b.olderOnDisk = olderPer.get(b.gamekey) || 0;
   }
 }
 
@@ -166,7 +169,7 @@ async function rescanFolders(reason: string) {
     const roots = scanRoots();
     diskScan = await scanFolders(roots);
     rebuildIndex();
-    const filesFound = index.files.filter((f) => f.onDisk && f.onDisk.how !== "size-differs").length;
+    const filesFound = index.files.filter((f) => f.onDisk && f.onDisk.how !== "size-differs" && f.onDisk.how !== "older-version").length;
     log(
       `Folders (${reason}): ${diskScan.files} files and ${diskScan.dirs} folders in ${roots.length} location(s), ${(diskScan.ms / 1000).toFixed(1)}s. ` +
         `${[...bundleDirMatch.keys()].length} bundles have a folder; ${filesFound} of ${index.files.length} files found on disk.` +

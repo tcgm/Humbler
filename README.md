@@ -117,6 +117,10 @@ Vite's default 5173 is often inside one.
        after the archive or product; a same-named file of a different size
        is flagged;
      - files found count as downloaded; bundles show "N of M files on disk"
+     - a complete file of another size is an "older version" (Humble updated
+       it since); in folders the downloader extension made, leftover files
+       are paired with the bundle's renamed items by title. An incomplete
+       zip shows "size differs" (likely an unfinished download)
        with their folders, and Bundles can filter to "With a folder on disk"
        or "Missing files";
      - new downloads for a bundle that already has a folder go into that
