@@ -62,6 +62,12 @@ Nothing to set up; it uses the built-in token.
 
 ### Gitea (`.gitea/workflows/`)
 
+For a private Gitea server. The workflow files are pushed to GitHub too, so
+they contain no server address, names or tokens: the server's address comes
+from the runner at run time (`gitea.server_url`) and the token from a secret
+stored in Gitea. Keep it that way; anything private belongs in Gitea's
+secrets and variables, never in the repository.
+
 - `ci.yml`: every push and pull request: typecheck and build.
 - `release.yml`: on a `v*` tag: Linux and Windows, built on one Linux runner
   in `electronuserland/builder:wine`; macOS only if you have a Mac runner.
@@ -75,25 +81,30 @@ Setup, once:
    token). Gitea doesn't allow secret names starting with `GITEA_`.
 3. Optional, for macOS: add the repository variable **`MAC_RUNNER`** set to
    your Mac runner's label.
+4. Optional: the repository variable **`RELEASE_FEED`** (see below).
 
 ## "A new version is available"
 
 An installed Humbler checks for a newer release when it starts and every 12
 hours, and shows an **Update** pill and a ☰ menu entry that open the release
-page. It downloads nothing. It checks the feeds listed in `package.json`:
+page. It downloads nothing.
 
-```json
-"humbler": {
-  "releaseFeeds": [
-    "https://api.github.com/repos/<owner>/<repo>/releases/latest",
-    "https://<gitea host>/api/v1/repos/<owner>/<repo>/releases/latest"
-  ]
-}
-```
+Where it looks is never written in the repository. The build works it out
+and stores it only inside the built app:
 
-The first feed that answers is used. Drafts and prereleases are never
-announced. While the list is empty, nothing is checked. To try it from
-source: `HUMBLER_CHECK_UPDATES=1 npm run dev`.
+- **Built by GitHub Actions:** that repository's releases
+  (`https://api.github.com/repos/<owner>/<repo>/releases/latest`, from the
+  runner's `GITHUB_REPOSITORY`). Nothing to set.
+- **Built by Gitea:** no check, unless you set the Gitea repository variable
+  **`RELEASE_FEED`** to a feed URL. Point it at the public GitHub feed above
+  so copies built at home hear about public releases. Pointing it at your own
+  server's API puts that address inside every installer Gitea builds.
+- **Built locally:** no check, unless you set `HUMBLER_RELEASE_FEED` when
+  running `npm run dist`.
+
+Drafts and prereleases are never announced. To try the check from source:
+`HUMBLER_CHECK_UPDATES=1 HUMBLER_RELEASE_FEED=<url> npm run dev`.
+
 
 ## Signing (later)
 

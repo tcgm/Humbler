@@ -1,13 +1,15 @@
 // "A new version is out" check. Notify only: it reads the latest release
-// from the release feeds listed in package.json ("humbler.releaseFeeds") and
+// from the release feed in the built app's package.json ("humbler.releaseFeed",
+// written there by scripts/package.mjs at build time, never kept in the
+// repository) and
 // tells the UI, which links to the release page. Nothing is downloaded or
 // installed.
 //
 // A feed is a "latest release" API URL; GitHub and Gitea answer the same
 // shape ({ tag_name, name, html_url, draft, prerelease }):
 //   https://api.github.com/repos/<owner>/<repo>/releases/latest
-//   https://<gitea host>/api/v1/repos/<owner>/<repo>/releases/latest
-// The first feed that answers wins. No feeds: no check.
+// Several can be given, separated by spaces or commas; the first that answers
+// wins. No feed: no check.
 import fs from "node:fs";
 import path from "node:path";
 import { app, net } from "electron";
@@ -21,8 +23,8 @@ export interface UpdateInfo {
 export function releaseFeeds(): string[] {
   try {
     const pkg = JSON.parse(fs.readFileSync(path.join(app.getAppPath(), "package.json"), "utf8"));
-    const feeds = pkg?.humbler?.releaseFeeds;
-    return Array.isArray(feeds) ? feeds.filter((f: unknown): f is string => typeof f === "string" && /^https:\/\//.test(f)) : [];
+    const feed = process.env.HUMBLER_RELEASE_FEED ?? pkg?.humbler?.releaseFeed;
+    return typeof feed === "string" ? feed.split(/[\s,]+/).filter((f) => /^https:\/\/\S+$/.test(f)) : [];
   } catch {
     return [];
   }

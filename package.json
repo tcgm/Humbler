@@ -6,9 +6,6 @@
   "description": "A local Electron client for your Humble Bundle library: collect keys, reveal them, and bulk-download your files, using your real logged-in session.",
   "author": "TCGM",
   "license": "UNLICENSED",
-  "humbler": {
-    "releaseFeeds": []
-  },
   "main": "out/main/index.js",
   "scripts": {
     "start": "node scripts/run.js dev --watch",

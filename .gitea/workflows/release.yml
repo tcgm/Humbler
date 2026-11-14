@@ -6,6 +6,13 @@
 #   macOS    dmg + zip, only if you have a Mac runner: set the repository
 #            variable MAC_RUNNER to its label (e.g. "macos")
 #
+# Nothing about the server is written here: its address and the repository
+# come from the runner (gitea.server_url, gitea.repository), the token from
+# a secret. This file is public on GitHub too, so keep it that way.
+#
+# Optional repository variable RELEASE_FEED: the update feed built into the
+# app (e.g. the public GitHub one). Unset: Gitea-built copies don't check.
+#
 # Needs a repository secret RELEASE_TOKEN: a Gitea access token with write
 # access to this repository (Settings → Applications → Generate token,
 # scope "repository: read and write"). Signing secrets as on GitHub (see
@@ -23,6 +30,7 @@ jobs:
       image: electronuserland/builder:wine
     env:
       TAG: ${{ gitea.ref_name }}
+      HUMBLER_RELEASE_FEED: ${{ vars.RELEASE_FEED }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -59,6 +67,7 @@ jobs:
     runs-on: ${{ vars.MAC_RUNNER }}
     env:
       TAG: ${{ gitea.ref_name }}
+      HUMBLER_RELEASE_FEED: ${{ vars.RELEASE_FEED }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -5,7 +5,7 @@ import os
 import sys
 from PIL import Image, ImageDraw
 
-ROOT = r"f:/Users/William/source/repos/Humbler/"
+ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "")
 OUT_PREVIEW = sys.argv[1] if len(sys.argv) > 1 else ROOT + "resources/icon-preview.png"
 S = 4096  # draw size
 u = S / 1024  # 1 unit = 1px of the 1024 icon

@@ -8,6 +8,12 @@
 // linux  Humbler-<v>-linux-x86_64.AppImage, Humbler-<v>-linux-x64.tar.gz
 // mac    Humbler-<v>-mac-{x64,arm64}.dmg and .zip (needs a Mac)
 //
+// The release feed (where an installed copy looks for newer versions) is never
+// stored in the repository; it's written into the built app's package.json:
+//   HUMBLER_RELEASE_FEED=<url>   use this feed (empty: none)
+//   on GitHub Actions            this repository's GitHub releases
+//   otherwise                    none (no update check)
+//
 // Settings are in electron-builder.yml. Both Windows setups install the same
 // app; the one-click one is built from the same unpacked app as the full one.
 import { spawnSync } from "node:child_process";
@@ -29,6 +35,21 @@ delete env.ELECTRON_RUN_AS_NODE; // some hosts set it; it breaks Electron toolin
 // No certificate configured: build unsigned instead of searching the keychain.
 if (!env.CSC_LINK && !env.WIN_CSC_LINK) env.CSC_IDENTITY_AUTO_DISCOVERY = "false";
 
+function releaseFeed() {
+  if (env.HUMBLER_RELEASE_FEED !== undefined) return env.HUMBLER_RELEASE_FEED.trim();
+  // Gitea's runner sets GITHUB_* too, with its own server URL: only github.com counts here
+  if (env.GITHUB_ACTIONS === "true" && env.GITHUB_SERVER_URL === "https://github.com" && /^[\w.-]+\/[\w.-]+$/.test(env.GITHUB_REPOSITORY || ""))
+    return `https://api.github.com/repos/${env.GITHUB_REPOSITORY}/releases/latest`;
+  return "";
+}
+const feed = releaseFeed();
+if (feed && !/^https:\/\/\S+$/.test(feed)) {
+  console.error(`HUMBLER_RELEASE_FEED must be an https:// URL`);
+  process.exit(2);
+}
+console.log(feed ? `Release feed: ${feed}` : "No release feed: built copies won't check for updates.");
+const feedArgs = [`-c.extraMetadata.humbler.releaseFeed=${feed}`];
+
 const bin = (name) => path.join(ROOT, "node_modules", ".bin", process.platform === "win32" ? `${name}.cmd` : name);
 function run(name, args) {
   console.log(`\n> ${name} ${args.join(" ")}`);
@@ -40,8 +61,8 @@ function run(name, args) {
 run("electron-vite", ["build", "--outDir", "out-release"]);
 
 if (target === "win") {
-  run("electron-builder", ["--win", "--publish", "never"]);
-  // the one-click setup, from the app just packaged
+  run("electron-builder", ["--win", "--publish", "never", ...feedArgs]);
+  // the one-click setup, from the app just packaged (same feed: it reuses that app as is)
   run("electron-builder", [
     "--win",
     "nsis",
@@ -54,9 +75,9 @@ if (target === "win") {
     "-c.nsis.artifactName=Humbler-QuickSetup-${version}.${ext}",
   ]);
 } else if (target === "linux") {
-  run("electron-builder", ["--linux", "--publish", "never"]);
+  run("electron-builder", ["--linux", "--publish", "never", ...feedArgs]);
 } else {
-  run("electron-builder", ["--mac", "--publish", "never"]);
+  run("electron-builder", ["--mac", "--publish", "never", ...feedArgs]);
 }
 
 // what to publish: installers and archives (not the unpacked folders or builder metadata)
