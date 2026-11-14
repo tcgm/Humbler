@@ -1529,7 +1529,13 @@ function createWindow() {
   ses.setUserAgent(ses.getUserAgent().replace(/\s(Electron|humbler)\/\S+/gi, ""));
   keepLoginAcrossRestarts(ses);
 
-  win = new BaseWindow({ width: 1600, height: 960, title: "Humbler", backgroundColor: "#16171b" });
+  win = new BaseWindow({
+    width: 1600,
+    height: 960,
+    title: "Humbler",
+    backgroundColor: "#16171b",
+    icon: path.join(__dirname, "../../resources", process.platform === "win32" ? "icon.ico" : "icon.png"),
+  });
   win.setMenuBarVisibility(false);
 
   uiView = new WebContentsView({
@@ -1832,6 +1838,7 @@ handle("redeem:mark", ({ id, redeemed, platform }) => {
 
 // ---- lifecycle ----------------------------------------------------------
 
+if (process.platform === "win32") app.setAppUserModelId("Humbler"); // its own taskbar entry and icon, not Electron's
 void app.whenReady().then(() => {
   seedOrdersFromRecon();
   rebuildIndex();
