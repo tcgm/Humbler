@@ -336,9 +336,10 @@ Everything lives in `data/`, which is gitignored:
 
 | Path | What |
 |---|---|
-| `data/electron-userdata/` | Your Humble login session. Never share it. |
+| `data/electron-userdata/` | Your Humble login session. Never share it. Also holds the encryption key for stored keys (`Local State`): deleting this folder makes them unreadable (a Full refresh fetches them again from Humble). |
+| `data/library-v2.json` | The 2026 library as fetched from Humble: items, keys, downloads. Key values are **encrypted** (see below). |
 | `data/orders/<gamekey>.json` | Raw order JSON straight from Humble. This is the source of truth for the UI, and it **includes revealed keys**. |
-| `data/revealed-keys.jsonl` | Append-only record of every key Humbler revealed, written the moment it comes back. A revealed key can't be lost to a crash. |
+| `data/revealed-keys.jsonl` | Append-only record of every key Humbler revealed, written the moment it comes back. A revealed key can't be lost to a crash. Key values are **encrypted**. |
 | `data/downloaded.jsonl` | Files Humbler has completed. |
 | `data/settings.json` | Download folder, file naming, and owned-marking setting. |
 | `data/choice.json` | Harvested Choice months: games, claimed or not. A game marked claimed never reverts to unclaimed. |
@@ -346,6 +347,19 @@ Everything lives in `data/`, which is gitignored:
 | `data/humbler.log` | Everything shown in the Log tab. |
 | `data/recon/` | Scout dumps (see above). |
 | `data/downloads/` | Default download folder. |
+
+### Keys are encrypted at rest
+
+Key values in `library-v2.json` and `revealed-keys.jsonl` are stored as
+`sealed1:…`, encrypted with Electron `safeStorage` (on Windows: a key in
+`electron-userdata/Local State`, itself protected by DPAPI under your
+Windows account). Only Humbler, running as you, can read them; a copy of
+`data/` (a backup, a sync folder, another account) shows no keys. The rest
+of each file stays plain JSON. Files from before this are encrypted on the
+next start. If keys can't be decrypted (another PC or account, or
+`electron-userdata` was deleted), the log says so and ☰ → Full refresh
+fetches them again from Humble. Legacy `data/orders/` caches (pre-2026
+site) are not encrypted.
 
 ## How it talks to Humble
 
@@ -373,8 +387,8 @@ library page uses (`src/main/lib/library-v2.ts`), run from inside your logged-in
   issues them on demand, and Humbler doesn't know that request yet. The
   same goes for **revealing** new-site keys. For both, Humbler opens the
   item on Humble's page instead.
-- The library cache is `data/library-v2.json`. It **includes revealed key
-  values**, like the old order cache.
+- The library cache is `data/library-v2.json`. It includes revealed key
+  values, encrypted (see Data).
 
 ### Legacy (before the redesign)
 

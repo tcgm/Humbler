@@ -13,6 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { ORDERS_DIR, REVEALED_LOG, DOWNLOADED_INDEX } from "./paths";
+import * as secrets from "./secret-store";
 import type { Bundle, ChoiceGroup, FileEntry, KeyEntry, KeyStatus, LibraryIndex, Naming, Product } from "../../shared/types";
 
 /**
@@ -177,7 +178,32 @@ function readJsonl(file: string): any[] {
   return out;
 }
 
-export const recordRevealedKey = (entry: Record<string, unknown>): void => appendJsonl(REVEALED_LOG, entry);
+// The key value is sealed on disk (see secret-store).
+export const recordRevealedKey = (entry: Record<string, unknown>): void =>
+  appendJsonl(REVEALED_LOG, typeof entry.key === "string" ? { ...entry, key: secrets.seal(entry.key) } : entry);
+
+/** Seal any plain key values left in the revealed-keys log (from before
+ *  sealing existed). Returns how many were sealed. */
+export function sealRevealedLog(): number {
+  if (!secrets.canSeal() || !fs.existsSync(REVEALED_LOG)) return 0;
+  let n = 0;
+  const lines = fs.readFileSync(REVEALED_LOG, "utf8").split("\n").map((line) => {
+    if (!line.trim()) return line;
+    try {
+      const e = JSON.parse(line);
+      if (typeof e.key !== "string" || secrets.isSealed(e.key)) return line;
+      n += 1;
+      return JSON.stringify({ ...e, key: secrets.seal(e.key) });
+    } catch {
+      return line;
+    }
+  });
+  if (n) {
+    fs.writeFileSync(`${REVEALED_LOG}.tmp`, lines.join("\n"));
+    fs.renameSync(`${REVEALED_LOG}.tmp`, REVEALED_LOG);
+  }
+  return n;
+}
 export const recordDownloaded = (entry: Record<string, unknown>): void => appendJsonl(DOWNLOADED_INDEX, entry);
 
 // id -> relative path it was saved under (naming scheme may have changed since)
@@ -191,7 +217,10 @@ function loadDownloaded(): Map<string, string | null> {
 // overlay them so a revealed key can never "disappear" from the UI.
 export function loadRevealedOverlay(): Map<string, string> {
   const map = new Map<string, string>();
-  for (const e of readJsonl(REVEALED_LOG)) if (e.id && e.key) map.set(e.id, e.key);
+  for (const e of readJsonl(REVEALED_LOG)) {
+    const key = secrets.open(e.key);
+    if (e.id && typeof key === "string" && key) map.set(e.id, key);
+  }
   return map;
 }
 

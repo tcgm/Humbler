@@ -2,7 +2,7 @@
 // sync, keys, downloads, scouting/harvesting, and the IPC API the UI uses
 // (typed in src/shared/api.ts).
 import "dotenv/config";
-import { app, BaseWindow, WebContentsView, ipcMain, session, dialog, shell, clipboard, type Session, type WebContents } from "electron";
+import { app, BaseWindow, WebContentsView, ipcMain, session, dialog, shell, clipboard, safeStorage, type Session, type WebContents } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import type { InvokeChannels } from "../shared/api";
@@ -15,6 +15,7 @@ import { makeScrubber } from "./lib/scrub";
 import { LiveScout, LIVE_DIR, endpointOf } from "./lib/live-scout";
 import { ActionRegistry, SCAN_ACTIONS_SCRIPT, argNames, scanActionsOfPageScript, StaleActionError, isStaleActionReply } from "./lib/actions";
 import * as libraryV2 from "./lib/library-v2";
+import * as secrets from "./lib/secret-store";
 import * as redeemedStore from "./lib/redeemed";
 import * as ordersV2 from "./lib/orders-v2";
 import { flightData, resolvedFlightData, flightFromHtml, PAGE_FLIGHT_SCRIPT } from "./lib/rsc";
@@ -1839,11 +1840,39 @@ handle("redeem:mark", ({ id, redeemed, platform }) => {
 // ---- lifecycle ----------------------------------------------------------
 
 if (process.platform === "win32") app.setAppUserModelId("Humbler"); // its own taskbar entry and icon, not Electron's
+// Key values on disk are sealed with the OS's per-user encryption (see
+// secret-store). Set up first, before anything reads or writes them.
+function setUpKeySealing() {
+  if (!safeStorage.isEncryptionAvailable()) {
+    log("Warning: the OS's encryption isn't available, so keys are stored unencrypted.");
+    return;
+  }
+  secrets.setCipher({ encrypt: (s) => safeStorage.encryptString(s), decrypt: (b) => safeStorage.decryptString(b) });
+  // files from before sealing existed
+  try {
+    let sealed = lib.sealRevealedLog();
+    if (libraryV2.cacheHasPlainKeys()) {
+      const cache = libraryV2.loadCache();
+      if (cache) {
+        sealed += (cache.items || []).reduce((n: number, it: RawItem) => n + (it.entitlements?.keys || []).filter((k: RawItem) => typeof k.redemptionData?.keyFormatted === "string").length, 0);
+        libraryV2.saveCache(cache);
+      }
+    }
+    if (sealed) log(`Encrypted ${sealed} stored key value(s) on disk (readable only by Humbler under your Windows account).`);
+  } catch (err) {
+    log(`Couldn't encrypt stored keys: ${errMsg(err)}`);
+  }
+}
+
 void app.whenReady().then(() => {
+  setUpKeySealing();
   seedOrdersFromRecon();
   rebuildIndex();
   createWindow();
   log(`Loaded ${index.bundles.length} cached orders, ${index.keys.length} keys, ${index.files.length} files.`);
+  const unopenable = secrets.takeUnopenable();
+  if (unopenable)
+    log(`${unopenable} stored key(s) couldn't be decrypted (saved under another Windows account or PC). ☰ → Full refresh fetches them again from Humble.`);
   void rescanFolders("startup"); // what's already on disk
 });
 

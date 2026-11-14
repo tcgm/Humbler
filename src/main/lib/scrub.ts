@@ -19,6 +19,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { DATA_DIR, ORDERS_DIR, REVEALED_LOG } from "./paths";
+import * as secrets from "./secret-store";
 
 export const REDACTED = "[REDACTED]";
 
@@ -103,7 +104,7 @@ export function loadKnownSecrets(): KnownSecrets {
     const cache = JSON.parse(fs.readFileSync(path.join(DATA_DIR, "library-v2.json"), "utf8"));
     for (const it of cache?.items || []) {
       for (const k of it?.entitlements?.keys || []) {
-        const v = k?.redemptionData?.keyFormatted;
+        const v = secrets.open(k?.redemptionData?.keyFormatted); // null if sealed and no cipher (scripts)
         if (typeof v === "string" && v !== "$undefined") keys.add(v);
       }
     }
@@ -114,7 +115,8 @@ export function loadKnownSecrets(): KnownSecrets {
     for (const line of fs.readFileSync(REVEALED_LOG, "utf8").split("\n")) {
       try {
         const e = JSON.parse(line);
-        if (e.key) keys.add(String(e.key));
+        const key = secrets.open(e.key);
+        if (typeof key === "string" && key) keys.add(key);
         if (e.gamekey) gamekeys.add(String(e.gamekey));
       } catch {
         // skip

@@ -22,6 +22,7 @@ import { DATA_DIR } from "./paths";
 import { resolvedFlightData } from "./rsc";
 import * as lib from "./library";
 import { monthFromText } from "./harvest";
+import * as secrets from "./secret-store";
 import type { Bundle, ChoiceGroup, FileEntry, KeyEntry, KeyStatus, LibraryIndex, Naming, Product } from "../../shared/types";
 
 const CACHE_PATH = path.join(DATA_DIR, "library-v2.json");
@@ -35,9 +36,10 @@ const shortHash = (s: string): string => crypto.createHash("sha1").update(s).dig
 // ---- cache ------------------------------------------------------------------
 
 // The cache file's contents are whatever the caller saved (untyped here).
+// Key values (redemptionData.keyFormatted) are sealed on disk; see secret-store.
 export function loadCache(): any {
   try {
-    return JSON.parse(fs.readFileSync(CACHE_PATH, "utf8"));
+    return JSON.parse(fs.readFileSync(CACHE_PATH, "utf8"), (k, v) => (k === "keyFormatted" ? secrets.open(v) : v));
   } catch {
     return null;
   }
@@ -46,8 +48,17 @@ export function loadCache(): any {
 export function saveCache(cache: unknown): void {
   fs.mkdirSync(path.dirname(CACHE_PATH), { recursive: true });
   const tmp = `${CACHE_PATH}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(cache));
+  fs.writeFileSync(tmp, JSON.stringify(cache, (k, v) => (k === "keyFormatted" && typeof v === "string" ? secrets.seal(v) : v)));
   fs.renameSync(tmp, CACHE_PATH);
+}
+
+/** Does the cache file still hold any unsealed key value? */
+export function cacheHasPlainKeys(): boolean {
+  try {
+    return /"keyFormatted"\s*:\s*"(?!sealed1:|\$)[^"]/.test(fs.readFileSync(CACHE_PATH, "utf8"));
+  } catch {
+    return false;
+  }
 }
 
 // ---- calling the action -----------------------------------------------------

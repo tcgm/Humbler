@@ -8,10 +8,20 @@
 import fs from "node:fs";
 import path from "node:path";
 import { makeScrubber } from "../src/main/lib/scrub";
-import { RECON_DIR } from "../src/main/lib/paths";
+import { DATA_DIR, RECON_DIR } from "../src/main/lib/paths";
 import { HARVEST_DIR } from "../src/main/lib/harvest";
 
 const scrub = makeScrubber();
+// Stored keys are encrypted (see src/main/lib/secret-store.ts) and only the
+// app can open them, so here known keys can't be matched exactly; the
+// pattern layers still apply. The app scrubs everything it writes with the
+// full list.
+try {
+  if (fs.readFileSync(path.join(DATA_DIR, "library-v2.json"), "utf8").includes('"sealed1:'))
+    console.log("Note: stored keys are encrypted, so this script scrubs by pattern only (the app itself uses the exact keys).");
+} catch {
+  // no library yet
+}
 let files = 0;
 let failed = 0;
 
