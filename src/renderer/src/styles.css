@@ -600,7 +600,8 @@ button.chip:disabled { opacity: 0.4; cursor: default; }
 .export-main .muted-line { margin: 0; }
 .export-keys-text {
   flex: 1; min-height: 120px; width: 100%; resize: none; box-sizing: border-box; padding: 8px;
-  font-family: ui-monospace, Consolas, monospace; font-size: 12px; white-space: pre; overflow: auto;
+  font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+  white-space: pre-wrap; overflow-wrap: anywhere; overflow-x: hidden; overflow-y: auto; /* wrap; scroll down, never sideways */
   background: var(--hb-input); color: var(--hb-text); border: 1px solid var(--hb-input-border); border-radius: 4px;
 }
 .export-saved { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; align-self: center; }
