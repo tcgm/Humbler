@@ -3,6 +3,7 @@ import { FoldersDialog } from "./components/FoldersDialog";
 import { Menu } from "./components/Menu";
 import { RedeemAsk } from "./components/RedeemAsk";
 import { SettingsDialog } from "./components/SettingsDialog";
+import { TooltipLayer } from "./components/Tooltips";
 import { PREFS, usePref } from "./remember";
 import { api, useStore, type TabId } from "./store";
 import { BundlesTab } from "./tabs/BundlesTab";
@@ -132,6 +133,7 @@ export function App() {
       )}
 
       <RedeemAsk />
+      <TooltipLayer />
       {foldersOpen && <FoldersDialog onClose={() => setFoldersOpen(false)} />}
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} onFolders={() => setFoldersOpen(true)} />}
     </>

@@ -659,3 +659,24 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
 .grid.cols-auto td.status { min-width: 120px; } /* room for the progress bar */
 .hb-keys.cols-auto td.keycol { min-width: 360px; } /* a key with its Redeem and Copy buttons on one line */
 .hb-keys.cols-auto td.platform { white-space: nowrap; }
+
+/* ---- tooltips (components/Tooltips): MUI / Chakra style ---- */
+.tooltip {
+  --tip-bg: rgba(226, 228, 233, 0.96); --tip-fg: #1a1c21; /* dark theme: light tooltip, like Chakra's */
+  position: fixed; z-index: 1000; max-width: 320px; padding: 5px 9px; box-sizing: border-box;
+  background: var(--tip-bg); color: var(--tip-fg); border-radius: 4px;
+  font: 500 12px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; letter-spacing: 0.01em;
+  text-transform: none; text-align: left; white-space: pre-line; overflow-wrap: anywhere;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  pointer-events: none; opacity: 0; transform: scale(0.92) translateY(3px); transform-origin: 50% 100%;
+  transition: opacity 0.12s ease-out, transform 0.12s ease-out;
+}
+.tooltip.below { transform-origin: 50% 0; transform: scale(0.92) translateY(-3px); }
+.tooltip.show { opacity: 1; transform: none; }
+.tooltip::after { /* the arrow */
+  content: ""; position: absolute; left: var(--arrow-x, 50%); top: 100%; width: 0; height: 0;
+  margin-left: -5px; border: 5px solid transparent; border-top-color: var(--tip-bg);
+}
+.tooltip.below::after { top: auto; bottom: 100%; border-top-color: transparent; border-bottom-color: var(--tip-bg); }
+html[data-theme="light"] .tooltip { --tip-bg: rgba(55, 58, 64, 0.94); --tip-fg: #fff; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2); } /* light theme: MUI's dark grey */
+@media (prefers-reduced-motion: reduce) { .tooltip { transition: opacity 0.1s; transform: none !important; } }
