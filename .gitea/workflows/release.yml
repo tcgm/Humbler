@@ -6,12 +6,10 @@
 #   macOS    dmg + zip, only if you have a Mac runner: set the repository
 #            variable MAC_RUNNER to its label (e.g. "macos")
 #
-# Nothing about the server is written here: its address and the repository
-# come from the runner (gitea.server_url, gitea.repository), the token from
-# a secret. This file is public on GitHub too, so keep it that way.
+# The server, repository and token come from the runner.
 #
 # Optional repository variable RELEASE_FEED: the update feed built into the
-# app (e.g. the public GitHub one). Unset: Gitea-built copies don't check.
+# app (e.g. the GitHub one). Unset: Gitea-built copies don't check.
 #
 # Uploads with the job's own automatic token; nothing to set up. Only if
 # your Gitea refuses that token release access, add a repository secret

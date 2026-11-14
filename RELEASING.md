@@ -62,12 +62,6 @@ Nothing to set up; it uses the built-in token.
 
 ### Gitea (`.gitea/workflows/`)
 
-For a private Gitea server. The workflow files are pushed to GitHub too, so
-they contain no server address, names or tokens: the server's address comes
-from the runner at run time (`gitea.server_url`) and the token from a secret
-stored in Gitea. Keep it that way; anything private belongs in Gitea's
-secrets and variables, never in the repository.
-
 - `ci.yml`: every push and pull request: typecheck and build.
 - `release.yml`: on a `v*` tag: Linux and Windows, built on one Linux runner
   in `electronuserland/builder:wine`; macOS only if you have a Mac runner.
@@ -95,9 +89,7 @@ and stores it only inside the built app:
   (`https://api.github.com/repos/<owner>/<repo>/releases/latest`, from the
   runner's `GITHUB_REPOSITORY`). Nothing to set.
 - **Built by Gitea:** no check, unless you set the Gitea repository variable
-  **`RELEASE_FEED`** to a feed URL. Point it at the public GitHub feed above
-  so copies built at home hear about public releases. Pointing it at your own
-  server's API puts that address inside every installer Gitea builds.
+  **`RELEASE_FEED`** to a feed URL, such as the GitHub feed above.
 - **Built locally:** no check, unless you set `HUMBLER_RELEASE_FEED` when
   running `npm run dist`.
 
