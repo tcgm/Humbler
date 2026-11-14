@@ -354,7 +354,13 @@ export function buildIndexV2(items: any[], { downloadDir, naming = "original" }:
       machineName: it.contentId || it.id,
       publisher: null,
       icon: null,
-      url: `${SITE}/home/library/content/${it.id}`,
+      // Items with nothing left to act on (every key expired unrevealed,
+      // gifted or sold out: redeemable false; no downloads) have no item
+      // page ("The page you requested cannot be found"); their purchase does.
+      url:
+        (it.entitlements?.keys || []).length && (it.entitlements?.keys || []).every((k: any) => k.redeemable === false) && !(it.entitlements?.downloads || []).length
+          ? `${SITE}/home/library/${bundleId}`
+          : `${SITE}/home/library/content/${it.id}`,
       platforms: [...new Set<string>((it.entitlements?.downloads || []).flatMap((e: any) => downloadStructs(e).map(({ d }) => d.platform)).filter(Boolean))],
       fileCount: 0,
       keyCount: 0,
