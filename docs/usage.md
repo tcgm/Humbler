@@ -90,12 +90,14 @@
      partial file to resume it, connecting, then %), the size so far, speed,
      time left and a progress bar. **Download selected** shows how many
      files and how much it will fetch.
-   - Every download is checked against Humble's checksum. Humble sometimes
-     updates a file without updating its listed size and checksum; when the
-     server sends a different size than listed, the download is checked for
-     completeness instead (all bytes, a whole zip) and kept, and the size it
-     was saved at is remembered so the folder scan doesn't call it an older
-     version.
+   - Every download is checked against Humble's checksum. Humble often
+     re-uploads files without updating their listed size and checksum, so a
+     mismatch keeps the file with a warning (**checksum differs** next to
+     it, and in the log) rather than deleting it. A zip is then checked
+     entry by entry (each file in it against its own CRC), and only an
+     archive that's provably broken is deleted, so a retry fetches a clean
+     copy. The size a file was saved at is remembered, so the folder scan
+     doesn't call it an older version.
    - **Download folders** (☰ menu): list every folder that holds Humble
      downloads, and pick the default one new downloads go to. Humbler scans
      them (names only, 3 levels into each bundle folder; ~1s for 100k

@@ -143,10 +143,10 @@ function applyDiskScan() {
   bundleDirMatch = diskScan ? matchBundleDirs(index.bundles, diskScan.bundleDirs, settings.folderLinks) : new Map();
   // a file downloaded at another size than Humble lists (an out-of-date
   // listing) is matched by the size it was saved at
-  const savedSize = lib.downloadedSizes();
+  const saved = lib.downloadedRecords();
   const found = diskScan
     ? matchFiles(
-        index.files.map((f) => ({ id: f.id, gamekey: f.gamekey, filename: f.filename, product: f.product, publisher: f.publisher, size: savedSize.get(f.id) || f.size, machineName: f.machineName || f.productMachine })),
+        index.files.map((f) => ({ id: f.id, gamekey: f.gamekey, filename: f.filename, product: f.product, publisher: f.publisher, size: saved.get(f.id)?.size || f.size, machineName: f.machineName || f.productMachine })),
         diskScan,
         bundleDirMatch,
       )
@@ -156,6 +156,7 @@ function applyDiskScan() {
   for (const f of index.files) {
     const hit = found.get(f.id) || null;
     f.onDisk = hit;
+    f.checksumWarning = saved.get(f.id)?.checksumWarning || null;
     if (hit && hit.how !== "size-differs" && hit.how !== "older-version") {
       f.downloaded = true;
       onDiskPer.set(f.gamekey, (onDiskPer.get(f.gamekey) || 0) + 1);
@@ -1127,6 +1128,9 @@ downloader.on("listing-stale", (item: QueueItem, { listedSize, servedSize }: { l
       "the listed checksum is for that other version, so the download is checked for completeness instead.",
   );
 });
+downloader.on("checksum-stale", (item: QueueItem, { warning, zipOk }: { warning: string; zipOk: boolean }) => {
+  log(`  WARNING ${item.label}: checksum doesn't match Humble's listing (${warning}). Kept${zipOk ? "" : "; check the file before relying on it"}.`);
+});
 // What was actually saved (size, checksum): recorded instead of the listing's.
 downloader.on("saved-as", (item: QueueItem, got: { size: number; md5?: string; sha1?: string }) => {
   item.size = got.size;
@@ -1134,9 +1138,10 @@ downloader.on("saved-as", (item: QueueItem, got: { size: number; md5?: string; s
   if (got.sha1) item.sha1 = got.sha1;
 });
 downloader.on("completed", (item: QueueItem, { skipped }: { skipped: boolean }) => {
-  lib.recordDownloaded({ id: item.id, rel: item.rel, size: item.size, md5: item.md5, at: new Date().toISOString() });
+  const warning = (item as QueueItem & { warning?: string }).warning || null;
+  lib.recordDownloaded({ id: item.id, rel: item.rel, size: item.size, md5: item.md5, ...(warning ? { checksumWarning: warning } : {}), at: new Date().toISOString() });
   const f = index.files.find((x) => x.id === item.id);
-  if (f) f.downloaded = true;
+  if (f) Object.assign(f, { downloaded: true, checksumWarning: warning });
   log(`  ${skipped ? "already had" : "downloaded"}: ${item.label}`);
   void pushStatus();
 });

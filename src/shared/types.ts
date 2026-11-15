@@ -88,6 +88,8 @@ export interface FileEntry {
   variants?: number;
   /** found in one of your download folders */
   onDisk?: FileOnDisk | null;
+  /** downloaded, but Humble's listed checksum didn't match the file it sent */
+  checksumWarning?: string | null;
   /** where it is, or where it'll be downloaded to */
   dest?: string;
   v2?: boolean;
@@ -223,7 +225,7 @@ export interface SettingsPatch {
 }
 
 export type DownloadState = "queued" | "downloading" | "done" | "error" | "cancelled";
-export type DownloadPhase = "link" | "resuming" | "connecting" | "receiving";
+export type DownloadPhase = "link" | "resuming" | "connecting" | "receiving" | "verifying";
 
 export interface DownloadProgress {
   id: string;
@@ -237,6 +239,8 @@ export interface DownloadProgress {
   speed?: number;
   error?: string;
   skipped?: boolean;
+  /** done, but with something to know (Humble's checksum didn't match) */
+  warning?: string;
 }
 
 /** A harvested Choice month (data/choice.json), as returned by getChoice(). */

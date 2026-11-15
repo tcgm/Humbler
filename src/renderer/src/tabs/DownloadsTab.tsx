@@ -267,17 +267,28 @@ Queue it again to retry (a partial file is resumed).`}>
         </button>
       </span>
     );
-  if (f.downloaded || p?.state === "done")
+  if (f.downloaded || p?.state === "done") {
+    const warning = p?.warning || f.checksumWarning;
     return (
       <span className="keycell">
         <span className="tag ok" title={f.onDisk ? f.onDisk.path : undefined}>
           {f.onDisk?.how === "extracted" ? "extracted" : f.onDisk ? "on disk" : "downloaded"}
         </span>
+        {warning && (
+          <span
+            className="tag warn"
+            title={`Kept, with a warning: ${warning}.
+Humble often re-uploads files without updating its listed checksum, so this usually means a newer file, not a broken one.`}
+          >
+            checksum differs
+          </span>
+        )}
         <button className="small" onClick={() => api.showFile(f.id)}>
           Show
         </button>
       </span>
     );
+  }
   if (!f.downloadable) {
     const tag = (
       <span className="tag" title={f.notDownloadableReason || "Humble offers this only as an external link or in-browser"}>
@@ -344,6 +355,7 @@ const PHASE_TEXT: Record<string, string> = {
   link: "Getting download link…",
   resuming: "Checking the partial file…",
   connecting: "Connecting…",
+  verifying: "Checking the archive…",
 };
 
 const fmtEta = (s: number): string => {

@@ -21,7 +21,9 @@ export function FileButton({ f, showPlatform = false }: { f: FileEntry; showPlat
         ? "getting link…"
         : prog.phase === "resuming"
           ? "resuming…"
-          : "connecting…"
+          : prog.phase === "verifying"
+            ? "checking…"
+            : "connecting…"
       : prog.total
         ? `${Math.floor(((prog.received || 0) / prog.total) * 100)}%${prog.speed ? ` · ${fmtBytes(prog.speed)}/s` : ""}`
         : "downloading…";

@@ -11,7 +11,7 @@ import type { Readable } from "node:stream";
 import type { ClientRequest, Session } from "electron";
 import { openRequest, header } from "./http";
 import { politeDelay } from "./throttle";
-import { zipComplete } from "./disk-scan";
+import { verifyZip } from "./zip-verify";
 import type { DownloadPhase, DownloadProgress } from "../../shared/types";
 
 const EXPIRED_STATUSES = new Set([401, 403, 404, 410]);
@@ -123,7 +123,7 @@ export class Downloader<T extends DownloadItem = DownloadItem> extends EventEmit
   async runOne(item: T, ctx: Ctx): Promise<void> {
     try {
       const skipped = await this.download(item, ctx, false);
-      this.emit("progress", { id: item.id, state: "done", skipped });
+      this.emit("progress", { id: item.id, state: "done", skipped, warning: (item as T & { warning?: string }).warning });
       this.emit("completed", item, { skipped });
     } catch (err: any) {
       const cancelled = ctx.cancelled || err instanceof CancelledError;
@@ -248,15 +248,31 @@ export class Downloader<T extends DownloadItem = DownloadItem> extends EventEmit
     return this.finalize(item, part, dest, hash, expected);
   }
 
-  finalize(item: T, part: string, dest: string, hash: crypto.Hash | null, expected: string): boolean {
+  async finalize(item: T, part: string, dest: string, hash: crypto.Hash | null, expected: string): Promise<boolean> {
     const actual = hash ? hash.digest("hex") : null;
-    if (expected && actual !== expected) {
+    const isZip = /\.zip$/i.test(dest);
+    const fail = (why: string): never => {
       fs.rmSync(part, { force: true });
-      throw new Error(`checksum mismatch (expected ${expected}, got ${actual}); partial file deleted`);
-    }
-    if (!expected && zipComplete(part, /\.zip$/i.test(dest)) === false) {
-      fs.rmSync(part, { force: true });
-      throw new Error("the downloaded zip is incomplete (no end-of-archive record); partial file deleted");
+      throw new Error(`${why}; partial file deleted`);
+    };
+    // Humble's listed checksum is checked first. A mismatch keeps the file
+    // with a warning: Humble re-uploads files without updating its listing,
+    // so a mismatch usually means a newer file, not a broken one. A zip is
+    // then checked entry by entry, and only an archive that is provably
+    // broken is deleted (it's useless, and a retry fetches a clean copy).
+    if (expected ? actual !== expected : isZip) {
+      let zipNote = "";
+      if (isZip) {
+        this.emit("progress", { id: item.id, state: "downloading", phase: "verifying", received: item.size || undefined, total: item.size || undefined });
+        const check = await verifyZip(part);
+        if (check.ok === false) fail(`${expected ? `checksum mismatch (expected ${expected}, got ${actual}), and ` : ""}the archive is broken: ${check.problem}`);
+        zipNote = check.ok ? `all ${check.entries} entries of the archive check out` : `the archive couldn't be checked (${check.problem})`;
+      }
+      if (expected) {
+        const warning = `Humble lists checksum ${expected}, the file it sent has ${actual}${zipNote ? `; ${zipNote}` : ""}`;
+        (item as T & { warning?: string }).warning = warning;
+        this.emit("checksum-stale", item, { warning, zipOk: zipNote.startsWith("all") });
+      }
     }
     // what was actually saved, for the download record
     const saved = fs.statSync(part).size;
