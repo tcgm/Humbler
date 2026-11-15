@@ -30,9 +30,10 @@ choose Open the first time.
 
 An installed Humbler keeps your data (login, keys, settings, log) in
 `%APPDATA%\Humbler` on Windows, `~/Library/Application Support/Humbler` on
-macOS, and `~/.config/Humbler` on Linux. Uninstalling keeps it. It tells you
-when a newer version is out (☰ menu and an Update pill) but never updates
-itself. See [docs/data.md](docs/data.md) for
+macOS, and `~/.config/Humbler` on Linux. Uninstalling keeps it. When a newer
+version is out, an update icon appears in the top bar: on Windows (either
+setup) and the Linux AppImage it can install the update and restart; the zip,
+tar.gz and macOS builds link to the release page. See [docs/data.md](docs/data.md) for
 what's stored and how keys are protected.
 
 ## What it does

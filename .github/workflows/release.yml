@@ -75,6 +75,8 @@ jobs:
             release/*/*.AppImage
             release/*/*.tar.gz
             release/*/*.dmg
+            release/*/*.blockmap
+            release/*/latest*.yml
 
   release:
     needs: build

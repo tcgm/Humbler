@@ -13,6 +13,7 @@
 | `Humbler-<v>-linux-x86_64.AppImage` | Linux: make it executable and run it. |
 | `Humbler-<v>-linux-x64.tar.gz` | Linux without AppImage: unpack and run `humbler`. |
 | `Humbler-<v>-mac-arm64.dmg` / `-x64.dmg` | macOS for Apple Silicon / Intel (`.zip` versions too). |
+| `latest*.yml`, `*.blockmap` | What installed copies update from. |
 | `SHA256SUMS*.txt` | Checksums of the files. |
 
 Both Windows setups install the same app, and either can update an install
@@ -77,27 +78,54 @@ the job's automatic token to publish. Optional extras:
   release access. A Gitea access token with repository read and write (your
   settings → Applications → Generate new token).
 - Variable **`MAC_RUNNER`**: your Mac runner's label, to build macOS too.
-- Variable **`RELEASE_FEED`**: see below.
+- Variable **`RELEASE_FEED`**: another update feed, or `none` (see below).
 
 ## "A new version is available"
 
 An installed Humbler checks for a newer release when it starts and every 12
-hours, and shows an **Update** pill and a ☰ menu entry that open the release
-page. It downloads nothing.
+hours. When one is out, a green update icon appears in the top bar (and a
+☰ menu entry), with:
 
-Where it looks is never written in the repository. The build works it out
-and stores it only inside the built app:
+- **Install v<x> and restart**: downloads the new version, checks it against
+  the release's `latest.yml` (sha512), installs it silently and starts it.
+  Works for copies installed by either Windows setup (per-user or
+  per-machine) and for the Linux AppImage. It waits until no sync or
+  downloads are running.
+- **Open the release page**: for everything else. The Windows zip and the
+  Linux tar.gz can't replace themselves, and macOS needs a signed build
+  before it can install updates.
 
-- **Built by GitHub Actions:** that repository's releases
-  (`https://api.github.com/repos/<owner>/<repo>/releases/latest`, from the
-  runner's `GITHUB_REPOSITORY`). Nothing to set.
-- **Built by Gitea:** no check, unless you set the Gitea repository variable
-  **`RELEASE_FEED`** to a feed URL, such as the GitHub feed above.
-- **Built locally:** no check, unless you set `HUMBLER_RELEASE_FEED` when
-  running `npm run dist`.
+Where it looks: the releases of the repository it was built from. The
+build works that out and stores it inside the built app:
+
+- **Built by GitHub Actions or Gitea Actions:** the repository the workflow
+  runs in, on that server. A fork checks and installs from its own releases.
+- **Built locally:** the `origin` git remote (GitHub, or a Gitea server).
+- **Running from source:** the `origin` git remote too.
+
+Set the Gitea variable **`RELEASE_FEED`** (or `HUMBLER_RELEASE_FEED` for
+`npm run dist` or `npm run dev`) to another "latest release" API URL to check
+there instead, or to `none` to turn the check off. Installing works with
+GitHub and Gitea feeds; it downloads from the release the check found, on
+the same server. The release must carry `latest.yml` (Windows),
+`latest-linux.yml` (AppImage) and the `.blockmap` files. Both release
+workflows upload them.
+
+**Public or private Gitea.** A repository anyone can read needs nothing.
+For a private one, each user adds an access token in **Settings → Updates**
+(Gitea: your settings → Applications → Generate new token, with repository
+read access). It's stored encrypted like your keys, never built into the
+app, and sent only to the feed's own server: for the check and for
+downloading the release's files (a redirect to another server drops it).
+Settings → Updates also shows the feed, when it last answered, and why a
+check failed. Private GitHub repositories aren't supported: GitHub serves
+release files to signed-in browsers only.
+
+A feed must be `https://`, except on your own network (a LAN address or a
+`.local`/`.lan` name), where `http://` is allowed.
 
 Drafts and prereleases are never announced. To try the check from source:
-`HUMBLER_CHECK_UPDATES=1 HUMBLER_RELEASE_FEED=<url> npm run dev`.
+`HUMBLER_CHECK_UPDATES=1 npm run dev` (installing needs an installed copy).
 
 
 ## Signing (later)

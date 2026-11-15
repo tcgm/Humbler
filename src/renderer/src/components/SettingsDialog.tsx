@@ -1,6 +1,6 @@
 // ☰ > Settings: Humbler's options in one place. App settings (saved by the
 // main process) and display preferences (remembered in this window).
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LuX } from "react-icons/lu";
 import type { Naming } from "@shared/types";
 import { PREFS, usePref } from "../remember";
@@ -10,6 +10,9 @@ export function SettingsDialog({ onClose, onFolders }: { onClose: () => void; on
   const { status, theme, toggleTheme } = useStore();
   const [tabCounts, setTabCounts] = usePref(...PREFS.tabCounts);
   const [pageScrollTop, setPageScrollTop] = usePref(...PREFS.pageScrollTop);
+  const [token, setToken] = useState("");
+  const [tokenError, setTokenError] = useState<string | null>(null);
+  const src = status?.updateSource;
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
 
@@ -101,6 +104,76 @@ export function SettingsDialog({ onClose, onFolders }: { onClose: () => void; on
             <small>Record the responses Humble&apos;s pages receive, as you browse, into a scrubbed endpoint catalog (Scout &amp; Log tab).</small>
           </span>
         </label>
+
+        <h4>Updates</h4>
+        <div className="settings-row">
+          <span>
+            Release feed
+            <small className="settings-path" title={src?.feed ?? undefined}>
+              {src?.feed ?? "None: this build doesn't check for updates."}
+            </small>
+            {src?.feed && (
+              <small>
+                {src.checking
+                  ? "Checking…"
+                  : src.error
+                    ? `Last check failed: ${src.error}`
+                    : src.checkedAt
+                      ? `Checked ${new Date(src.checkedAt).toLocaleString()}: ${status?.update ? `v${status.update.version} is out` : `v${status?.version ?? "?"} is the latest`}`
+                      : "Not checked yet."}
+              </small>
+            )}
+          </span>
+          {src?.feed && (
+            <div className="settings-actions">
+              <button className="hb-btn ghost small" disabled={src.checking} onClick={() => void api.checkForUpdate()}>
+                Check now
+              </button>
+            </div>
+          )}
+        </div>
+        {src?.feed && (
+          <div className="settings-row">
+            <span>
+              Access token
+              <small>
+                Only for a feed that needs signing in, such as a private Gitea repository: a token that can read it
+                (Gitea: Settings → Applications, with repository read access). Stored encrypted, and sent only to that server.
+              </small>
+            </span>
+            <form
+              className="settings-actions"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!token.trim()) return;
+                setTokenError(null);
+                api.setSettings({ updateToken: token.trim() }).then(
+                  () => setToken(""),
+                  (err: unknown) => setTokenError(err instanceof Error ? err.message.replace(/^.*Error: /, "") : String(err)),
+                );
+              }}
+            >
+              <input
+                type="password"
+                className="hb-search"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder={src.hasToken ? "•••••• (set)" : "Paste a token"}
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+              />
+              <button className="hb-btn ghost small" type="submit" disabled={!token.trim()}>
+                Save
+              </button>
+              {src.hasToken && (
+                <button className="hb-btn ghost small" type="button" onClick={() => void api.setSettings({ updateToken: "" })}>
+                  Remove
+                </button>
+              )}
+            </form>
+          </div>
+        )}
+        {tokenError && <p className="settings-error">{tokenError}</p>}
 
         <div className="ask-actions">
           <button className="hb-btn" onClick={onClose}>

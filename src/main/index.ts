@@ -8,7 +8,7 @@ import fs from "node:fs";
 import type { InvokeChannels } from "../shared/api";
 import type { Busy, FolderInspect, FoldersInfo, KeyEntry, LibraryIndex, RevealResult, SettingsPatch } from "../shared/types";
 import { USERDATA_DIR, LOG_PATH, RECON_DIR } from "./lib/paths";
-import { checkForUpdate, type UpdateInfo } from "./lib/updates";
+import { checkForUpdate, installUpdate, releaseFeeds, type UpdateInfo } from "./lib/updates";
 
 // .env tuning (DOWNLOAD_CONCURRENCY etc.) is for running from source; an
 // installed app ignores any .env in whatever folder it was started from.
@@ -276,19 +276,64 @@ async function pushStatus() {
     queue: downloader.summary(),
     version: app.getVersion(),
     update: updateAvailable,
+    updateInstall,
+    updateSource: {
+      feed: releaseFeeds()[0] ?? null,
+      hasToken: !!settings.updateToken,
+      checking: updateChecking,
+      checkedAt: updateCheckedAt,
+      error: updateCheckError,
+    },
   });
 }
 
-// ---- new-version notice (notify only; nothing is downloaded) --------------
+// ---- new versions: notice, and install on request ------------------------
 let updateAvailable: UpdateInfo | null = null;
+let updateInstall: { percent: number } | { error: string } | null = null;
+let updateChecking = false;
+let updateCheckedAt: number | null = null;
+let updateCheckError: string | null = null;
+const updateToken = () => (settings.updateToken ? secrets.open(settings.updateToken) || null : null);
 async function updateCheck() {
+  if (updateChecking || (updateInstall && "percent" in updateInstall)) return; // installing what was found
+  updateChecking = true;
+  void pushStatus();
   try {
-    const u = await checkForUpdate(app.getVersion());
+    const u = await checkForUpdate(app.getVersion(), updateToken());
     if (u && u.version !== updateAvailable?.version) log(`Humbler ${u.version} is available (you have ${app.getVersion()}): ${u.url}`);
     updateAvailable = u;
+    updateCheckedAt = Date.now();
+    updateCheckError = null;
+  } catch (err) {
+    // offline, no release yet, or a private feed: shown in Settings, tried again later
+    updateCheckError = errMsg(err);
+  } finally {
+    updateChecking = false;
     void pushStatus();
-  } catch {
-    // offline, or no release yet: try again later
+  }
+}
+async function startInstall(): Promise<void> {
+  const u = updateAvailable;
+  if (!u?.installable) throw new Error("this copy can't install updates itself");
+  if (updateInstall && "percent" in updateInstall) return;
+  if (!appIdle()) throw new Error(`wait for the current ${busy || "downloads"} to finish first`);
+  log(`Downloading Humbler ${u.version}…`);
+  updateInstall = { percent: 0 };
+  void pushStatus();
+  let shown = 0;
+  try {
+    await installUpdate((percent) => {
+      updateInstall = { percent };
+      if (percent - shown >= 1 || percent >= 100) {
+        shown = percent;
+        void pushStatus();
+      }
+    }, updateToken());
+    log(`Installing Humbler ${u.version} and restarting.`);
+  } catch (err) {
+    updateInstall = { error: errMsg(err) };
+    log(`Couldn't install Humbler ${u.version}: ${errMsg(err)}. The release page has it: ${u.url}`);
+    void pushStatus();
   }
 }
 function startUpdateChecks() {
@@ -1806,6 +1851,8 @@ handle("browser:open", (url) => {
     void shell.openExternal(url);
   }
 });
+handle("update:install", () => startInstall());
+handle("update:check", () => updateCheck());
 handle("browser:external", (url) => {
   if (typeof url === "string" && /^https?:\/\//.test(url)) void shell.openExternal(url);
 });
@@ -1814,6 +1861,15 @@ handle("settings:set", (patch: SettingsPatch) => {
   const next = { ...settings };
   if (patch?.naming && settingsStore.NAMING.includes(patch.naming)) next.naming = patch.naming;
   if (typeof patch?.markOwned === "boolean") next.markOwned = patch.markOwned;
+  let recheck = false;
+  if (typeof patch?.updateToken === "string") {
+    const token = patch.updateToken.trim();
+    if (token && !secrets.canSeal()) throw new Error("can't store the token: this system's encryption isn't available");
+    if (token.length > 512 || /\s/.test(token)) throw new Error("that doesn't look like an access token");
+    next.updateToken = token ? secrets.seal(token) : "";
+    recheck = true;
+    log(token ? "Update access token saved." : "Update access token removed.");
+  }
   if (patch?.theme === "dark" || patch?.theme === "light") next.theme = patch.theme;
   if (typeof patch?.liveScout === "boolean") {
     next.liveScout = patch.liveScout;
@@ -1827,6 +1883,7 @@ handle("settings:set", (patch: SettingsPatch) => {
     rebuildIndex();
   }
   void pushStatus();
+  if (recheck) void updateCheck();
 });
 handle("scout:page", (opts) => scoutPage({ reload: !!opts?.reload }));
 handle("scout:open-live", () => {

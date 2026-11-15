@@ -9,7 +9,9 @@
 # The server, repository and token come from the runner.
 #
 # Optional repository variable RELEASE_FEED: the update feed built into the
-# app (e.g. the GitHub one). Unset: Gitea-built copies don't check.
+# app. Unset: this Gitea repository's releases (installed copies update from
+# there); "none": no update check. The repository must be readable without
+# signing in for installed copies to see its releases.
 #
 # Uploads with the job's own automatic token; nothing to set up. Only if
 # your Gitea refuses that token release access, add a repository secret
@@ -56,7 +58,7 @@ jobs:
           RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN || gitea.token }}
         run: |
           shopt -s nullglob
-          files=(release/*/*.exe release/*/*.zip release/*/*.AppImage release/*/*.tar.gz)
+          files=(release/*/*.exe release/*/*.zip release/*/*.AppImage release/*/*.tar.gz release/*/*.blockmap release/*/latest*.yml)
           (cd "$(dirname "${files[0]}")" && sha256sum $(for f in "${files[@]}"; do basename "$f"; done) > SHA256SUMS-windows-linux.txt)
           node scripts/gitea-release.mjs "$TAG" "${files[@]}" "$(dirname "${files[0]}")/SHA256SUMS-windows-linux.txt"
 
@@ -88,6 +90,6 @@ jobs:
           RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN || gitea.token }}
         run: |
           shopt -s nullglob
-          files=(release/*/*.dmg release/*/*.zip)
+          files=(release/*/*.dmg release/*/*.zip release/*/*.blockmap release/*/latest*.yml)
           (cd "$(dirname "${files[0]}")" && shasum -a 256 $(for f in "${files[@]}"; do basename "$f"; done) > SHA256SUMS-mac.txt)
           node scripts/gitea-release.mjs "$TAG" "${files[@]}" "$(dirname "${files[0]}")/SHA256SUMS-mac.txt"

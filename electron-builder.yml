@@ -40,8 +40,14 @@ electronFuses:
   # are flipped, or Apple Silicon refuses to start them
   resetAdHocDarwinSignature: true
 
-# CI uploads the files itself (GitHub and Gitea), so electron-builder never publishes.
-publish: null
+# Update files: electron-builder writes latest.yml / latest-linux.yml /
+# latest-mac.yml next to the installers, and CI uploads them with the rest
+# (electron-builder itself never publishes: --publish never). The URL is set
+# by scripts/package.mjs to the release of the repository being built; the
+# app installs from the release its update check finds, on that same server.
+publish:
+  provider: generic
+  url: https://updates.invalid/
 
 win:
   icon: resources/icon.ico

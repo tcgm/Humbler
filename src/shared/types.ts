@@ -196,11 +196,26 @@ export interface Status {
   queue: { queued: number; active: number };
   /** this build's version */
   version?: string;
-  /** a newer release, when one is out (notify only) */
-  update?: { version: string; url: string; name: string } | null;
+  /** a newer release, when one is out; installable: this copy can install it itself */
+  update?: { version: string; url: string; name: string; installable: boolean } | null;
+  /** installing it: download progress, or why it failed */
+  updateInstall?: { percent: number } | { error: string } | null;
+  /** where updates come from, and how the last check went */
+  updateSource?: {
+    /** the release feed (null: no update check) */
+    feed: string | null;
+    /** a token is set for it (the token itself never leaves the main process) */
+    hasToken: boolean;
+    checking: boolean;
+    /** when it last answered (ms), and the last error */
+    checkedAt: number | null;
+    error: string | null;
+  };
 }
 
 export interface SettingsPatch {
+  /** access token for the release feed; "" removes it */
+  updateToken?: string;
   naming?: Naming;
   markOwned?: boolean;
   liveScout?: boolean;

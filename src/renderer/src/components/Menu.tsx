@@ -1,5 +1,5 @@
-// The ☰ menu in the top bar: less-used actions (full refresh, the browser
-// pane, folders...). Closes on a pick, a click elsewhere, or Escape.
+// A menu button in the top bar: the ☰ one (full refresh, the browser pane,
+// folders...), and the update one. Closes on a pick, a click elsewhere, or Escape.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { LuMenu } from "react-icons/lu";
 
@@ -10,7 +10,20 @@ export interface MenuItem {
   onPick: () => void;
 }
 
-export function Menu({ items }: { items: (MenuItem | "-")[] }) {
+export function Menu({
+  items,
+  icon = <LuMenu aria-hidden />,
+  title = "More",
+  label = "More actions",
+  className = "",
+}: {
+  items: (MenuItem | "-")[];
+  /** the button's face (default ☰) */
+  icon?: ReactNode;
+  title?: string;
+  label?: string;
+  className?: string;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -28,7 +41,7 @@ export function Menu({ items }: { items: (MenuItem | "-")[] }) {
   }, [open]);
   return (
     <div className="menu" ref={ref}>
-      <button className="icon-btn" title="More" aria-label="More actions" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+      <button className={`icon-btn ${className}`.trim()} title={title} aria-label={label} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         <LuMenu aria-hidden />
       </button>
       {open && (

@@ -36,6 +36,8 @@ export interface InvokeChannels {
   "browser:go": [[string], void];
   "browser:open": [[string], void];
   "browser:external": [[string], void];
+  "update:install": [[], void];
+  "update:check": [[], void];
   "keys:open-on-humble": [[string], void];
   "clipboard:write": [[string], void];
   "redeem:mark": [[{ id: string; redeemed: boolean; platform?: string | null }], PlatformRedeemed | null];
@@ -96,6 +98,10 @@ export interface HumblerApi {
   openUrl(url: string): Promise<void>;
   /** Always your default browser (e.g. redeem instructions). */
   openExternal(url: string): Promise<void>;
+  /** download the new version, install it and restart */
+  installUpdate(): Promise<void>;
+  /** look for a new version now */
+  checkForUpdate(): Promise<void>;
   /** Open a new-site key on Humble to reveal it there; Humbler watches for the reveal. */
   revealOnHumble(keyId: string): Promise<void>;
   copy(text: string): Promise<void>;

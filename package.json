@@ -20,7 +20,8 @@
     "dist:mac": "node scripts/package.mjs mac"
   },
   "dependencies": {
-    "dotenv": "16.4.5"
+    "dotenv": "16.4.5",
+    "electron-updater": "6.8.12"
   },
   "devDependencies": {
     "@electron/fuses": "2.1.3",

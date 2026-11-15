@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { LuCircleArrowUp, LuSettings } from "react-icons/lu";
 import { FoldersDialog } from "./components/FoldersDialog";
 import { Menu } from "./components/Menu";
 import { RedeemAsk } from "./components/RedeemAsk";
@@ -59,6 +60,7 @@ export function App() {
     status?.busy === "sync" ? `syncing…${status.busyDetail ? ` (${status.busyDetail})` : ""}` : null,
     status?.busy === "reveal" ? "revealing keys…" : null,
     status?.queue && (status.queue.active || status.queue.queued) ? `downloading ${status.queue.active} · ${status.queue.queued} queued` : null,
+    status?.updateInstall && "percent" in status.updateInstall ? `updating ${Math.floor(status.updateInstall.percent)}%` : null,
   ].filter(Boolean);
 
   const tabs: { id: TabId; label: string; count?: string; hb?: boolean; render: () => ReactNode }[] = [
@@ -71,6 +73,11 @@ export function App() {
     { id: "log", label: "Scout & Log", render: () => <ScoutTab /> },
   ];
 
+  const install = status?.updateInstall;
+  const installing = install && "percent" in install ? install : null;
+  const installError = install && "error" in install ? install.error : null;
+  const idle = !s.busy && !status?.queue.active && !status?.queue.queued;
+
   return (
     <>
       <header className="top">
@@ -78,11 +85,6 @@ export function App() {
           <h1>Humbler</h1>
           <span className={`pill ${status ? (status.loggedIn ? "ok" : "bad") : ""}`}>{status ? (status.loggedIn ? "logged in" : "not logged in") : "checking…"}</span>
           {busyParts.length > 0 && <span className="pill busy">{busyParts.join(" · ")}</span>}
-          {status?.update && (
-            <button className="pill update" title={`${status.update.name}: open the release page to download it`} onClick={() => void api.openExternal(status.update!.url)}>
-              Update: v{status.update.version}
-            </button>
-          )}
         </div>
         <div className="actions">
           <button className="primary" disabled={s.busy} title={`${focusName && focus.length ? `Refresh ${focusName} first, then fetch` : "Fetch"} items added since your last sync`} onClick={() => api.sync(false, focus)}>
@@ -96,16 +98,51 @@ export function App() {
           >
             {s.theme === "dark" ? "☀" : "☾"}
           </button>
+          {status?.update && (
+            <Menu
+              className="update-btn"
+              icon={
+                <>
+                  <LuCircleArrowUp aria-hidden />
+                  <span className="update-dot" aria-hidden />
+                </>
+              }
+              title={installing ? `Downloading Humbler ${status.update.version}: ${Math.floor(installing.percent)}%` : `${status.update.name} is out (you have v${status.version})`}
+              label={`Update available: v${status.update.version}`}
+              items={[
+                status.update.installable
+                  ? {
+                      label: installing
+                        ? `Downloading v${status.update.version}… ${Math.floor(installing.percent)}%`
+                        : installError
+                          ? `Install failed: try again`
+                          : `Install v${status.update.version} and restart`,
+                      title: installError ?? (idle ? "Downloads the new version, installs it and restarts Humbler" : "Wait for the current sync or downloads to finish first"),
+                      disabled: !!installing || !idle,
+                      onPick: () => void api.installUpdate(),
+                    }
+                  : {
+                      label: "Install it from the release page",
+                      title: "This copy (the zip, the tar.gz or macOS) can't replace itself",
+                      disabled: true,
+                      onPick: () => {},
+                    },
+                { label: "Open the release page…", title: status.update.url, onPick: () => void api.openExternal(status.update!.url) },
+              ]}
+            />
+          )}
+          <button className="icon-btn" title="Settings: display, downloads and Humble pane options" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
+            <LuSettings aria-hidden />
+          </button>
           <Menu
             items={[
               { label: "Full refresh", title: "Re-fetch your whole library (and every download link)", disabled: s.busy, onPick: () => void api.sync(true, focus) },
               { label: status?.browserVisible === false ? "Show browser" : "Hide browser", title: "The Humble pane on the right", onPick: () => void api.toggleBrowser() },
               "-",
               { label: "Download folders…", title: "Where your downloads are, and where new ones go", onPick: () => setFoldersOpen(true) },
-              { label: "Settings…", title: "Display, downloads and Humble pane options", onPick: () => setSettingsOpen(true) },
               "-",
               status?.update
-                ? { label: `Get Humbler ${status.update.version}…`, title: "Open the release page", onPick: () => void api.openExternal(status.update!.url) }
+                ? { label: `Get Humbler ${status.update.version}…`, title: `You have v${status.version}: open the release page`, onPick: () => void api.openExternal(status.update!.url) }
                 : { label: `Humbler ${status?.version ? `v${status.version}` : ""}`, title: "You're on the latest version (or no release feed is set)", disabled: true, onPick: () => {} },
             ]}
           />

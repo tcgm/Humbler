@@ -15,6 +15,9 @@ export interface Settings {
   folders: string[];
   /** bundle folder -> bundle gamekey (null = not a bundle), set by hand */
   folderLinks: Record<string, string | null>;
+  /** access token for a release feed that needs signing in (a private Gitea),
+   *  sealed (secret-store); "" = none */
+  updateToken: string;
 }
 
 export function load(): Settings {
@@ -36,6 +39,8 @@ export function load(): Settings {
     theme: saved.theme === "light" ? "light" : "dark",
     folders: Array.isArray(saved.folders) ? saved.folders.filter((f: unknown) => typeof f === "string" && f) : [],
     folderLinks: saved.folderLinks && typeof saved.folderLinks === "object" ? saved.folderLinks : {},
+    // stays sealed here: opened only when an update check uses it
+    updateToken: typeof saved.updateToken === "string" ? saved.updateToken : "",
   };
 }
 

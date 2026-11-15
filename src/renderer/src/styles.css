@@ -540,16 +540,13 @@ button.pick-row.active { background: var(--hb-input); border-color: var(--hb-red
 .picker-actions .spacer { flex: 1; }
 
 /* a newer release is out (notify only) */
-button.pill.update {
-  cursor: pointer;
-  border: 1px solid var(--ok);
-  color: var(--ok);
-  background: transparent;
+/* the update icon in the top bar, shown only when a release is out */
+.update-btn { position: relative; color: var(--ok); border-color: var(--ok); }
+.update-btn:hover { background: color-mix(in srgb, var(--ok) 15%, transparent); }
+.update-dot {
+  position: absolute; top: 3px; right: 4px; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--ok); box-shadow: 0 0 0 2px var(--panel);
 }
-button.pill.update:hover {
-  background: color-mix(in srgb, var(--ok) 15%, transparent);
-}
-
 
 /* bundle page: the keys heading (and its Export button) stays above the scrolling list */
 .hb-fixed-head { margin: 4px 0 8px; }
@@ -705,3 +702,5 @@ html[data-theme="light"] .tooltip {
 .wl-empty { margin: 24px auto; max-width: 560px; padding: 0 14px; line-height: 1.5; }
 .wl-empty h3 { margin: 0 0 8px; }
 .wl-empty code { font-size: 12px; background: var(--raised); padding: 0 4px; border-radius: 3px; }
+.settings-actions .hb-search { width: 150px; padding: 3px 8px; }
+.settings-error { margin: 4px 0 0; font-size: 12px; color: var(--bad); }
