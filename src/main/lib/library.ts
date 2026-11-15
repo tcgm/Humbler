@@ -206,6 +206,14 @@ export function sealRevealedLog(): number {
 }
 export const recordDownloaded = (entry: Record<string, unknown>): void => appendJsonl(DOWNLOADED_INDEX, entry);
 
+/** id -> the size it actually had when downloaded (Humble's listing can be
+ *  out of date: a file updated on the CDN without its listed size changing). */
+export function downloadedSizes(): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const e of readJsonl(DOWNLOADED_INDEX)) if (e.id && typeof e.size === "number" && e.size > 0) map.set(e.id, e.size);
+  return map;
+}
+
 // id -> relative path it was saved under (naming scheme may have changed since)
 function loadDownloaded(): Map<string, string | null> {
   const map = new Map<string, string | null>();

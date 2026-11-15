@@ -11,6 +11,8 @@ import type { Readable } from "node:stream";
 import type { ClientRequest, Session } from "electron";
 import { openRequest, header } from "./http";
 import { politeDelay } from "./throttle";
+import { zipComplete } from "./disk-scan";
+import type { DownloadPhase, DownloadProgress } from "../../shared/types";
 
 const EXPIRED_STATUSES = new Set([401, 403, 404, 410]);
 
@@ -149,6 +151,9 @@ export class Downloader<T extends DownloadItem = DownloadItem> extends EventEmit
       if (!item.size || size === item.size) return true;
     }
 
+    const say = (phase: DownloadPhase, more: Partial<DownloadProgress> = {}) =>
+      this.emit("progress", { id: item.id, state: "downloading", phase, total: item.size || undefined, ...more });
+    say("link");
     const url = await this.resolveUrl(item, { force: retried });
     if (ctx.cancelled) throw new CancelledError();
 
@@ -159,9 +164,13 @@ export class Downloader<T extends DownloadItem = DownloadItem> extends EventEmit
     }
 
     const algo = item.md5 ? "md5" : item.sha1 ? "sha1" : null;
-    const expected = (item.md5 || item.sha1 || "").toLowerCase();
+    let expected = (item.md5 || item.sha1 || "").toLowerCase();
     let hash = algo ? crypto.createHash(algo) : null;
-    if (hash && start > 0) await hashFileInto(part, hash);
+    if (hash && start > 0) {
+      say("resuming", { received: start });
+      await hashFileInto(part, hash);
+    }
+    say("connecting", { received: start });
 
     const { req, res } = await openRequest(this.getSession(), {
       url,
@@ -200,16 +209,31 @@ export class Downloader<T extends DownloadItem = DownloadItem> extends EventEmit
     }
 
     const len = Number(header(res, "content-length")) || 0;
-    const total = len ? len + start : item.size || 0;
+    const rangeTotal = Number(/\/(\d+)\s*$/.exec(header(res, "content-range") || "")?.[1]) || 0;
+    const total = rangeTotal || (len ? len + start : item.size || 0);
+    // Humble sometimes updates a file on its CDN without updating the listed
+    // size and checksum: then the listed checksum is for another version and
+    // can't be checked against. The file is checked for completeness instead.
+    if (item.size && total && total !== item.size) {
+      this.emit("listing-stale", item, { listedSize: item.size, servedSize: total });
+      expected = "";
+    }
     let received = start;
     let lastEmit = 0;
+    // speed over a sliding window of the last ~5 s of samples
+    const samples: [number, number][] = [[Date.now(), start]];
+    say("receiving", { received, total });
     res.on("data", (chunk: Buffer) => {
       hash?.update(chunk);
       received += chunk.length;
       const now = Date.now();
       if (now - lastEmit > 300) {
         lastEmit = now;
-        this.emit("progress", { id: item.id, state: "downloading", received, total });
+        samples.push([now, received]);
+        while (samples.length > 2 && now - samples[0][0] > 5000) samples.shift();
+        const [t0, r0] = samples[0];
+        const speed = now > t0 ? ((received - r0) * 1000) / (now - t0) : undefined;
+        say("receiving", { received, total, speed });
       }
     });
 
@@ -225,13 +249,18 @@ export class Downloader<T extends DownloadItem = DownloadItem> extends EventEmit
   }
 
   finalize(item: T, part: string, dest: string, hash: crypto.Hash | null, expected: string): boolean {
-    if (hash) {
-      const actual = hash.digest("hex");
-      if (actual !== expected) {
-        fs.rmSync(part, { force: true });
-        throw new Error(`checksum mismatch (expected ${expected}, got ${actual}); partial file deleted`);
-      }
+    const actual = hash ? hash.digest("hex") : null;
+    if (expected && actual !== expected) {
+      fs.rmSync(part, { force: true });
+      throw new Error(`checksum mismatch (expected ${expected}, got ${actual}); partial file deleted`);
     }
+    if (!expected && zipComplete(part, /\.zip$/i.test(dest)) === false) {
+      fs.rmSync(part, { force: true });
+      throw new Error("the downloaded zip is incomplete (no end-of-archive record); partial file deleted");
+    }
+    // what was actually saved, for the download record
+    const saved = fs.statSync(part).size;
+    if (actual) this.emit("saved-as", item, { size: saved, [item.md5 ? "md5" : "sha1"]: actual });
     // A different file already there (an older version, or someone else's
     // copy): never delete it. Move it aside as "<name> (older <date>).<ext>".
     if (fs.existsSync(dest)) {

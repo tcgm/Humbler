@@ -223,12 +223,18 @@ export interface SettingsPatch {
 }
 
 export type DownloadState = "queued" | "downloading" | "done" | "error" | "cancelled";
+export type DownloadPhase = "link" | "resuming" | "connecting" | "receiving";
 
 export interface DownloadProgress {
   id: string;
   state: DownloadState;
+  /** while downloading: getting the signed link, re-reading a partial file
+   *  to resume it, waiting for the server, or receiving bytes */
+  phase?: DownloadPhase;
   received?: number;
   total?: number;
+  /** bytes per second, over the last few seconds */
+  speed?: number;
   error?: string;
   skipped?: boolean;
 }

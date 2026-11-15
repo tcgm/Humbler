@@ -104,7 +104,19 @@ table.grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .tag.ok { color: var(--ok); }
 .tag.warn { color: var(--warn); }
 .bar { height: 4px; background: var(--raised); border-radius: 2px; margin-top: 3px; overflow: hidden; }
-.bar > i { display: block; height: 100%; background: var(--ok); }
+.bar > i { display: block; height: 100%; background: var(--ok); transition: width 0.3s ease-out; }
+.bar.indeterminate > i { width: 35%; animation: bar-slide 1.2s ease-in-out infinite; }
+@keyframes bar-slide { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+@media (prefers-reduced-motion: reduce) { .bar.indeterminate > i { animation-duration: 3s; } }
+.grid td.status { min-width: 200px; }
+.dl-note { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.dlprog { min-width: 0; }
+.dlprog-head { display: flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; overflow: hidden; }
+.dlprog-head .spinner { width: 10px; height: 10px; color: var(--ok); }
+.dlprog-head b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.dlprog-detail { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.dlprog .bar { height: 5px; margin-top: 4px; }
+.grid tr.dl-active > td { background: color-mix(in srgb, var(--ok) 6%, transparent); }
 .more { padding: 8px; text-align: center; color: var(--muted); font-size: 12px; }
 
 .log {
@@ -384,6 +396,9 @@ button.keyfield:disabled { opacity: 0.55; cursor: default; }
 .file-btn.done { border-color: var(--hb-green); }
 .file-btn.done small { color: var(--hb-green); }
 .file-btn.failed small { color: var(--hb-red); }
+.file-btn.busy { cursor: progress; }
+.file-btn .spinner { width: 8px; height: 8px; border-width: 1.5px; vertical-align: -1px; }
+.file-btn .bar { display: block; width: 100%; }
 .file-btn:disabled { opacity: 0.5; cursor: default; }
 
 /* Choice month page (old /membership/<month> grid) */

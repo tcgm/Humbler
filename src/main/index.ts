@@ -141,9 +141,12 @@ const scanRoots = () => [settings.downloadDir, ...settings.folders.filter((f) =>
 
 function applyDiskScan() {
   bundleDirMatch = diskScan ? matchBundleDirs(index.bundles, diskScan.bundleDirs, settings.folderLinks) : new Map();
+  // a file downloaded at another size than Humble lists (an out-of-date
+  // listing) is matched by the size it was saved at
+  const savedSize = lib.downloadedSizes();
   const found = diskScan
     ? matchFiles(
-        index.files.map((f) => ({ id: f.id, gamekey: f.gamekey, filename: f.filename, product: f.product, publisher: f.publisher, size: f.size, machineName: f.machineName || f.productMachine })),
+        index.files.map((f) => ({ id: f.id, gamekey: f.gamekey, filename: f.filename, product: f.product, publisher: f.publisher, size: savedSize.get(f.id) || f.size, machineName: f.machineName || f.productMachine })),
         diskScan,
         bundleDirMatch,
       )
@@ -384,6 +387,23 @@ interface QueueItem extends DownloadItem {
   product: string;
 }
 
+// Humble's reasons for not giving a download link, in words.
+function linkRefusal(code: string | null | undefined): string {
+  const c = String(code || "refused");
+  const hint = /auth|login|session|sign/i.test(c)
+    ? "you're signed out of Humble: sign in on the Humble pane, then try again"
+    : /not_found|owned|entitle/i.test(c)
+      ? "Humble says this isn't in your library (or not on this account)"
+      : /expire/i.test(c)
+        ? "Humble says this download has expired"
+        : /not_available|unavailable|yet/i.test(c)
+          ? "Humble says it isn't available yet"
+          : /rate|limit|many/i.test(c)
+            ? "Humble is rate-limiting; try again in a minute"
+            : "";
+  return `Humble refused the download link (${c})${hint ? `: ${hint}` : ""}`;
+}
+
 // A signed download link expired: search the library for the item to get
 // fresh links.
 async function refreshV2File(item: QueueItem): Promise<string> {
@@ -393,11 +413,23 @@ async function refreshV2File(item: QueueItem): Promise<string> {
     const it = cache?.items?.find((x: RawItem) => x.id === item.itemId);
     const ent = it?.entitlements?.downloads?.find((e: RawItem) => e.id === item.entitlementId);
     if (it && ent) {
-      await fetchDownloadLinks(ent);
-      libraryV2.saveCache(cache);
-      const fresh = libraryV2.buildIndexV2([it], { downloadDir: settings.downloadDir, naming: settings.naming }).files.find((f) => f.id === item.id);
+      const urlOf = () => libraryV2.buildIndexV2([it], { downloadDir: settings.downloadDir, naming: settings.naming }).files.find((f) => f.id === item.id);
+      // Links fetched moments ago for another file of this entitlement are
+      // reused (a file queued without a link); a link that failed isn't.
+      const recent = !item.url && ent.signedUrls && ent.signedUrlsExpiresAt && Date.parse(ent.signedUrlsExpiresAt) > Date.now() + 5 * 60 * 1000;
+      let fresh = recent ? urlOf() : undefined;
+      if (!fresh?.url) {
+        const ok = await fetchDownloadLinks(ent, undefined, it.id);
+        libraryV2.saveCache(cache);
+        if (!ok) throw new Error(linkRefusal(ent.signedUrlsError));
+        fresh = urlOf();
+        if (!fresh?.url) throw new Error("Humble sent download links for this item, but none for this file");
+      }
       if (fresh?.url) {
         item.urlExpiresAt = fresh.urlExpiresAt;
+        // also on the index, so a re-queue reuses it and the list can show it
+        const f = index.files.find((x) => x.id === item.id);
+        if (f) Object.assign(f, { url: fresh.url, urlExpiresAt: fresh.urlExpiresAt });
         return fresh.url;
       }
     }
@@ -516,12 +548,14 @@ async function actionByName(name: string, pageUrl: string | null, staleId?: stri
   return actionRegistry.findByName(name);
 }
 
-/** Fetch one download entitlement's signed links into the entitlement (in place). */
-async function fetchDownloadLinks(ent: RawItem, pageUrl?: string): Promise<boolean> {
+/** Fetch one download entitlement's signed links into the entitlement (in
+ *  place). `itemId` is the library item it belongs to: the request is posted
+ *  from that item's own page, as the site's Download button does. */
+async function fetchDownloadLinks(ent: RawItem, pageUrl?: string, itemId?: string): Promise<boolean> {
   let action = await actionByName(libraryV2.SIGNED_URLS_ACTION, pageUrl || null);
   if (!action) throw new Error(`couldn't find Humble's ${libraryV2.SIGNED_URLS_ACTION} action`);
   for (let attempt = 0; attempt < 2; attempt++) {
-    const postTo = ActionRegistry.postPath(action, pageUrl ? new URL(pageUrl).pathname : "/home/library");
+    const postTo = itemId ? `/home/library/content/${encodeURIComponent(itemId)}` : "/home/library";
     const r = await hv().executeJavaScript(libraryV2.jsonActionCallScript(action.id, postTo, [[ent.id]]));
     if (isStaleActionReply(r.status, r.text) && attempt === 0) {
       action = await actionByName(libraryV2.SIGNED_URLS_ACTION, pageUrl || null, action.id);
@@ -536,6 +570,7 @@ async function fetchDownloadLinks(ent: RawItem, pageUrl?: string): Promise<boole
     ent.signedUrlsFetchedAt = new Date().toISOString();
     ent.signedUrls = reply.ok ? reply.signedUrls : null;
     ent.signedUrlsExpiresAt = reply.expiresAt;
+    ent.signedUrlsError = reply.ok ? null : reply.code || "refused";
     return reply.ok;
   }
   return false;
@@ -686,6 +721,7 @@ async function syncDownloadLinks({ full }: { full: boolean }) {
   let failed = 0;
   let filesSeen = 0;
   let shapeLogged = false;
+  const refusals = new Map<string, number>();
   let next = 0;
   const t0 = Date.now();
   let lastLog = t0;
@@ -700,10 +736,14 @@ async function syncDownloadLinks({ full }: { full: boolean }) {
   };
   const worker = async () => {
     while (next < todo.length && failed < 10) {
-      const { ent } = todo[next++];
+      const { it, ent } = todo[next++];
       try {
-        if (await fetchDownloadLinks(ent, pageUrl)) ok += 1;
-        else none += 1;
+        if (await fetchDownloadLinks(ent, pageUrl, it.id)) ok += 1;
+        else {
+          none += 1;
+          const c = ent.signedUrlsError || "refused";
+          refusals.set(c, (refusals.get(c) || 0) + 1);
+        }
         filesSeen += libraryV2.structsFromSignedUrls(ent.signedUrls).length;
         // (the first reply with files in it: some items have none, e.g. coupons)
         if (!shapeLogged && ent.signedUrls && libraryV2.structsFromSignedUrls(ent.signedUrls).length) {
@@ -736,7 +776,7 @@ async function syncDownloadLinks({ full }: { full: boolean }) {
   libraryV2.saveCache(cache);
   rebuildIndex();
   log(
-    `Downloads: links for ${ok} of ${todo.length} item(s)${none ? `, ${none} with none` : ""}${failed ? `, ${failed} failed${failed >= 10 ? " (stopped)" : ""}` : ""}. ` +
+    `Downloads: links for ${ok} of ${todo.length} item(s)${none ? `, ${none} refused (${[...refusals].map(([c, n]) => `${c} ×${n}`).join(", ")})` : ""}${failed ? `, ${failed} failed${failed >= 10 ? " (stopped)" : ""}` : ""}. ` +
       `${index.files.length} files, ${index.files.filter((f) => f.downloadable).length} downloadable.`,
   );
 }
@@ -1081,6 +1121,18 @@ const downloader = new Downloader<QueueItem>({
 
 downloader.on("progress", (p) => send("download-progress", p));
 downloader.on("kept-older", (item: QueueItem, aside: string) => log(`Kept the older ${item.filename} on disk as ${path.basename(aside)}`));
+downloader.on("listing-stale", (item: QueueItem, { listedSize, servedSize }: { listedSize: number; servedSize: number }) => {
+  log(
+    `  ${item.label}: Humble's file list is out of date for this file (lists ${listedSize} bytes, its server sends ${servedSize}); ` +
+      "the listed checksum is for that other version, so the download is checked for completeness instead.",
+  );
+});
+// What was actually saved (size, checksum): recorded instead of the listing's.
+downloader.on("saved-as", (item: QueueItem, got: { size: number; md5?: string; sha1?: string }) => {
+  item.size = got.size;
+  if (got.md5) item.md5 = got.md5;
+  if (got.sha1) item.sha1 = got.sha1;
+});
 downloader.on("completed", (item: QueueItem, { skipped }: { skipped: boolean }) => {
   lib.recordDownloaded({ id: item.id, rel: item.rel, size: item.size, md5: item.md5, at: new Date().toISOString() });
   const f = index.files.find((x) => x.id === item.id);

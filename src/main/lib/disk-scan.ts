@@ -219,8 +219,8 @@ export const extensionStyleName = (title: string, publisher: string | null, ext:
 };
 
 /** Is this a whole zip (its end-of-archive record is there)? null if not a zip. */
-function zipComplete(p: string): boolean | null {
-  if (!/\.zip$/i.test(p)) return null;
+export function zipComplete(p: string, isZip = /\.zip$/i.test(p)): boolean | null {
+  if (!isZip) return null;
   let fd: number | null = null;
   try {
     fd = fs.openSync(p, "r");

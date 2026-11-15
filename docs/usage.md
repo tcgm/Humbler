@@ -78,12 +78,24 @@
 4. **Downloads tab** lists every file across every bundle. Filter by bundle,
    platform (windows / mac / linux / ebook / audio / …), or format
    (PDF / EPUB / MOBI / …), then **Download selected** or **Download all shown**.
-   - Humble's 2026 library listing doesn't include files, so Sync fetches
-     each item's download links the way the site's Download button does.
-     The first Sync does this for every item with downloads, which takes a
-     while; after that only new items are fetched. Links expire, so
-     Humbler gets a fresh one per file when you download it. Sizes show
-     as "-" until a file is downloaded.
+   - Humble's 2026 library listing doesn't include files, so Sync reads
+     the file lists (names, sizes, checksums) from your purchase pages.
+     Download links aren't part of those: Humbler asks Humble for one when
+     a file's download starts, the way the site's Download button does,
+     and reuses it for the item's other files until it expires. The Status
+     column says which files have a link (**link ready · until 14:32**),
+     which have an expired one, and which get one when they start
+     (**no link yet · fetched on download**); the toolbar counts them.
+   - A downloading file shows what it's doing (getting the link, checking a
+     partial file to resume it, connecting, then %), the size so far, speed,
+     time left and a progress bar. **Download selected** shows how many
+     files and how much it will fetch.
+   - Every download is checked against Humble's checksum. Humble sometimes
+     updates a file without updating its listed size and checksum; when the
+     server sends a different size than listed, the download is checked for
+     completeness instead (all bytes, a whole zip) and kept, and the size it
+     was saved at is remembered so the folder scan doesn't call it an older
+     version.
    - **Download folders** (☰ menu): list every folder that holds Humble
      downloads, and pick the default one new downloads go to. Humbler scans
      them (names only, 3 levels into each bundle folder; ~1s for 100k

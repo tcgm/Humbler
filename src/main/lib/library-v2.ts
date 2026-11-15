@@ -201,11 +201,15 @@ export function jsonActionCallScript(actionId: string, pagePath: string, args: u
   `;
 }
 
-/** The getSignedUrlsForEntitlements reply: { ok, data: { signedUrls, expiresAt } }. */
-export function parseSignedUrlsReply(text: unknown): { ok: boolean; signedUrls: any; expiresAt: string | null } | null {
-  const v = resolvedFlightData(text).find((x) => x && typeof x === "object" && "ok" in x && ("data" in x || "error" in x));
+/** The getSignedUrlsForEntitlements reply: { ok, data: { signedUrls, expiresAt } },
+ *  or a refusal: { ok: false, code, retryable }. */
+export function parseSignedUrlsReply(
+  text: unknown,
+): { ok: boolean; signedUrls: any; expiresAt: string | null; code: string | null; retryable: boolean } | null {
+  const v = resolvedFlightData(text).find((x) => x && typeof x === "object" && "ok" in x && ("data" in x || "error" in x || "code" in x));
   if (!v) return null;
-  return { ok: !!v.ok, signedUrls: v.data?.signedUrls ?? null, expiresAt: und(v.data?.expiresAt) ?? null };
+  const code = typeof v.code === "string" ? v.code : typeof v.error === "string" ? v.error : typeof v.error?.code === "string" ? v.error.code : null;
+  return { ok: !!v.ok, signedUrls: v.data?.signedUrls ?? null, expiresAt: und(v.data?.expiresAt) ?? null, code, retryable: !!v.retryable };
 }
 
 /**
@@ -538,6 +542,8 @@ export function buildIndexV2(items: any[], { downloadDir, naming = "original" }:
         // name or checksum; or the web url itself if it's already absolute.
         const url =
           signed.get(String(st.id)) || signed.get(webName) || (st.md5 && signed.get(st.md5)) || (/^https?:\/\//.test(web) ? web : null);
+        const methods: string[] = Array.isArray(d.deliveryMethods) ? d.deliveryMethods : [];
+        const fetchable = !!ent.id && !!webName && !isTorrent && d.desktopAppOnly !== true && !methods.includes("asmjs");
         const hash: string | null = st.md5 || st.sha1 || null;
         const duplicateOf = hash && firstByHash.has(hash) ? (firstByHash.get(hash) as string) : null;
         if (hash && !duplicateOf) firstByHash.set(hash, id);
@@ -563,8 +569,10 @@ export function buildIndexV2(items: any[], { downloadDir, naming = "original" }:
           humanSize: st.size || "",
           md5: st.md5 || null,
           sha1: st.md5 ? null : st.sha1 || null,
-          downloadable: !!url,
-          notDownloadableReason: url ? null : "Humble didn't include a download link for this file in the library data",
+          // No signed link yet (purchase-page file lists carry only the file
+          // name): still downloadable, the link is fetched when it's queued.
+          downloadable: !!url || fetchable,
+          notDownloadableReason: url || fetchable ? null : "Humble didn't include a download link for this file in the library data",
           duplicateOf,
           downloaded: onDisk >= 0 && (downloaded.has(id) || (st.fileSize ? onDisk === st.fileSize : false)),
           contentUrl: product.url,

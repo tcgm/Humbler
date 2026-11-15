@@ -15,7 +15,17 @@ export function FileButton({ f, showPlatform = false }: { f: FileEntry; showPlat
     stateText = "✓ Downloaded";
     cls += " done";
   } else if (prog?.state === "downloading") {
-    stateText = prog.total ? `${Math.floor(((prog.received || 0) / prog.total) * 100)}%` : "downloading…";
+    const receiving = !prog.phase || prog.phase === "receiving";
+    stateText = !receiving
+      ? prog.phase === "link"
+        ? "getting link…"
+        : prog.phase === "resuming"
+          ? "resuming…"
+          : "connecting…"
+      : prog.total
+        ? `${Math.floor(((prog.received || 0) / prog.total) * 100)}%${prog.speed ? ` · ${fmtBytes(prog.speed)}/s` : ""}`
+        : "downloading…";
+    cls += " busy";
   } else if (prog?.state === "queued") {
     stateText = "queued";
   } else if (prog?.state === "error") {
@@ -36,7 +46,16 @@ export function FileButton({ f, showPlatform = false }: { f: FileEntry; showPlat
       }}
     >
       <span>{label}</span>
-      {stateText && <small>{stateText}</small>}
+      {stateText && (
+        <small>
+          {prog?.state === "downloading" && <span className="spinner" aria-hidden="true" />} {stateText}
+        </small>
+      )}
+      {prog?.state === "downloading" && (
+        <span className={`bar${prog.total && (!prog.phase || prog.phase === "receiving") ? "" : " indeterminate"}`}>
+          <i style={prog.total && (!prog.phase || prog.phase === "receiving") ? { width: `${Math.floor(((prog.received || 0) / prog.total) * 100)}%` } : undefined} />
+        </span>
+      )}
     </button>
   );
 }
