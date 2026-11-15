@@ -47,6 +47,10 @@ const api: HumblerApi = {
   linkFolder: (p, gamekey) => ipcRenderer.invoke("folders:link", { path: p, gamekey }),
   openFolder: (p) => ipcRenderer.invoke("folders:open", p),
   inspectFolder: (p) => ipcRenderer.invoke("folders:inspect", p),
+  getWishlists: () => ipcRenderer.invoke("wishlists:get"),
+  addWishlist: (input) => ipcRenderer.invoke("wishlists:add", input),
+  removeWishlist: (steamId) => ipcRenderer.invoke("wishlists:remove", steamId),
+  refreshWishlists: (steamId) => ipcRenderer.invoke("wishlists:refresh", steamId),
   onLog: on("log"),
   onStatus: on("status"),
   onLibraryUpdated: on("library-updated"),
@@ -56,6 +60,7 @@ const api: HumblerApi = {
   onOrdersUpdated: on("orders-updated"),
   onAppFocus: on("app-focus"),
   onFoldersUpdated: on("folders-updated"),
+  onWishlistsUpdated: on("wishlists-updated"),
 };
 
 contextBridge.exposeInMainWorld("humbler", api);

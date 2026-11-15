@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { FoldersDialog } from "./components/FoldersDialog";
 import { Menu } from "./components/Menu";
 import { RedeemAsk } from "./components/RedeemAsk";
@@ -12,6 +12,8 @@ import { DownloadsTab } from "./tabs/DownloadsTab";
 import { KeysTab } from "./tabs/KeysTab";
 import { LibraryTab } from "./tabs/LibraryTab";
 import { ScoutTab } from "./tabs/ScoutTab";
+import { WishlistsTab } from "./tabs/WishlistsTab";
+import { wishRows } from "./wishlist";
 
 export function App() {
   const s = useStore();
@@ -50,6 +52,9 @@ export function App() {
     ...s.choiceMonths.map((m) => m.month),
   ]).size;
 
+  // wishlist games you hold a spare key for
+  const toGive = useMemo(() => wishRows(s.wishlists, s.ownIndex).filter((r) => r.spare.length).length, [s.wishlists, s.ownIndex]);
+
   const busyParts = [
     status?.busy === "sync" ? `syncing…${status.busyDetail ? ` (${status.busyDetail})` : ""}` : null,
     status?.busy === "reveal" ? "revealing keys…" : null,
@@ -62,6 +67,7 @@ export function App() {
     { id: "choice", label: "Choice", count: months ? String(months) : "", hb: true, render: () => <ChoiceTab /> },
     { id: "files", label: "Downloads", count: lib.files.length ? `${pending} to get / ${lib.files.length}` : "", render: () => <DownloadsTab /> },
     { id: "library", label: "Library", count: lib.products.length ? String(lib.products.length) : "", render: () => <LibraryTab /> },
+    { id: "wishlists", label: "Wishlists", count: s.wishlists.length ? `${toGive} to give` : "", render: () => <WishlistsTab /> },
     { id: "log", label: "Scout & Log", render: () => <ScoutTab /> },
   ];
 

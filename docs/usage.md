@@ -167,7 +167,30 @@
      aren't in your library yet are marked "Not in your library yet", with a
      link to claim them. The library page only provides images for the
      current month; other games get placeholder tiles.
-8. **Back and forward** work like a browser: your **mouse's back/forward
+8. **Wishlists tab**: compare Steam wishlists with what you own. Add your
+   own profile to find games you've wishlisted that you already have a key
+   for, or a friend's to see which of your spare keys they'd want.
+   - Paste a profile or wishlist link (`steamcommunity.com/id/…`,
+     `/profiles/…`, `store.steampowered.com/wishlist/…`), a SteamID64, a
+     friend code or a custom URL name. The wishlist must be public (on
+     Steam: Edit Profile → Privacy Settings → Game details: Public); a
+     private one looks empty, and Steam doesn't say which it is.
+   - Humbler asks Steam's public API directly (no API key, no login, nothing
+     sent to Humble). Wishlists are fetched when added, with **Refresh**,
+     and at startup when older than 12 hours. Game names are cached in
+     `data/wishlists.json`.
+   - Each game shows what you have for it: your keys with their platform
+     and state (**unrevealed**, **revealed, not redeemed**, redeemed,
+     gifted, expired…) and DRM-free downloads. Click one to open its bundle.
+     Humble's data has no Steam app ids, so games are matched by title:
+     exactly (ignoring case, punctuation and ™), or as a **likely** match
+     (marked `~`) when the titles differ only by edition words
+     ("Deluxe Edition", "(Steam)", "- Complete Edition", a leading "The").
+   - Show **keys you could give or redeem** (the default), **anything in
+     your library**, or **the whole wishlist**; **Everyone** puts every
+     wishlist together, with who wants each game. **Export…** exports the
+     spare keys shown.
+9. **Back and forward** work like a browser: your **mouse's back/forward
    buttons** (or Alt+← / Alt+→) step through tabs, bundle pages and Choice
    months you've visited. Every list remembers its search, sort, filters
    and page (and the Bundles and Choice lists their scroll position): open
@@ -179,13 +202,13 @@
    table scrolls sideways when the columns are wider than the window, and
    a double-click on an edge goes back to the automatic widths. Both are
    remembered.
-9. **Dark mode** is the default everywhere. The ☀ button in the top bar
+10. **Dark mode** is the default everywhere. The ☀ button in the top bar
    switches to light mode (☾ switches back), and the choice is remembered.
    **Settings** (☰ menu) gathers the options: theme, tab counts, whether
    changing pages scrolls the list back to the top (on by default),
    download folder and file naming, marking owned items on Humble's pages,
    and live scouting.
-10. Anything else Humbler doesn't handle, such as gifting, still works in the
+11. Anything else Humbler doesn't handle, such as gifting, still works in the
    right-hand pane. **Hide browser** gives the UI the full window.
 
 ## Staying logged in

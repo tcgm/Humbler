@@ -13,6 +13,7 @@ Linux. Set `HUMBLER_DATA_DIR` to use another folder.
 | `data/orders/<gamekey>.json` | Raw order JSON straight from Humble. This is the source of truth for the UI, and it **includes revealed keys**. |
 | `data/revealed-keys.jsonl` | Append-only record of every key Humbler revealed, written the moment it comes back. A revealed key can't be lost to a crash. Key values are **encrypted**. |
 | `data/downloaded.jsonl` | Files Humbler has completed. |
+| `data/wishlists.json` | Steam profiles you compare wishlists with (SteamID, name, avatar), their wishlisted app ids, and cached game names and art. |
 | `data/settings.json` | Download folder, file naming, and owned-marking setting. |
 | `data/choice.json` | Harvested Choice months: games, claimed or not. A game marked claimed never reverts to unclaimed. |
 | `data/harvest/` | Raw page harvests behind `choice.json`. |

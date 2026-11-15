@@ -1,11 +1,12 @@
 // App-wide state, fed by the main process over the typed IPC API.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { ChoiceMonth, DownloadProgress, KeyEntry, LibraryIndex, Money, OrderItem, RevealResult, Status, Theme } from "@shared/types";
+import type { ChoiceMonth, DownloadProgress, KeyEntry, LibraryIndex, Money, OrderItem, RevealResult, Status, Theme, WishlistProfile } from "@shared/types";
 import { normTitle } from "./util";
+import { indexOwned } from "./wishlist";
 
 const api = window.humbler;
 
-export type TabId = "keys" | "bundles" | "choice" | "files" | "library" | "log";
+export type TabId = "keys" | "bundles" | "choice" | "files" | "library" | "wishlists" | "log";
 
 interface Nav {
   tab: TabId;
@@ -36,6 +37,10 @@ interface Store {
   ordersTotal: number | null;
   choiceMonths: ChoiceMonth[];
   owned: Set<string>; // normalised titles of everything you own
+  /** Steam profiles whose wishlists you compare with your library */
+  wishlists: WishlistProfile[];
+  /** everything you own, indexed for matching wishlist games */
+  ownIndex: ReturnType<typeof indexOwned>;
   busy: boolean;
 
   tab: TabId;
@@ -97,6 +102,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [orders, setOrders] = useState<Map<string, OrderInfo>>(new Map());
   const [ordersTotal, setOrdersTotal] = useState<number | null>(null);
   const [choiceMonths, setChoiceMonths] = useState<ChoiceMonth[]>([]);
+  const [wishlists, setWishlists] = useState<WishlistProfile[]>([]);
   // Where you are: tab + open bundle page + open Choice month. Every change
   // is a browser-history entry, so back/forward (mouse buttons 4/5,
   // Alt+←/→) step through it like a website.
@@ -161,6 +167,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setOrdersTotal(totalDocs);
   }, []);
   const loadChoice = useCallback(async () => setChoiceMonths(await api.getChoice()), []);
+  const loadWishlists = useCallback(async () => setWishlists(await api.getWishlists()), []);
 
   useEffect(() => {
     // Download progress arrives fast; batch it into one render per 250 ms.
@@ -201,6 +208,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }),
       api.onChoiceUpdated(() => loadChoice()),
       api.onOrdersUpdated(() => loadOrders()),
+      api.onWishlistsUpdated(() => loadWishlists()),
       // Back from a Redeem link in the browser: ask whether it worked.
       api.onAppFocus(() => {
         const p = pendingRedeem.current;
@@ -215,18 +223,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     loadLibrary();
     loadOrders();
     loadChoice();
+    loadWishlists();
     api.requestStatus();
     return () => {
       unsubs.forEach((u) => u());
       if (timer) clearTimeout(timer);
     };
-  }, [loadLibrary, loadOrders, loadChoice]);
+  }, [loadLibrary, loadOrders, loadChoice, loadWishlists]);
 
   // Dark by default; the html attribute drives every themed colour.
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
+  const ownIndex = useMemo(() => indexOwned(lib), [lib]);
   const owned = useMemo(() => new Set([...lib.keys.map((k) => normTitle(k.name)), ...lib.products.map((p) => normTitle(p.title))]), [lib]);
 
   const store: Store = {
@@ -238,6 +248,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     ordersTotal,
     choiceMonths,
     owned,
+    wishlists,
+    ownIndex,
     busy: !!status?.busy,
     tab,
     setTab: (t) => navigate({ tab: t }),

@@ -12,6 +12,7 @@ import type {
   RevealResult,
   SettingsPatch,
   Status,
+  WishlistProfile,
 } from "./types";
 
 /** invoke channels: name -> [args, result] */
@@ -48,6 +49,10 @@ export interface InvokeChannels {
   "folders:link": [[{ path: string; gamekey: string | null | undefined }], void];
   "folders:open": [[string], void];
   "folders:inspect": [[string], FolderInspect];
+  "wishlists:get": [[], WishlistProfile[]];
+  "wishlists:add": [[string], OkResult & { steamId?: string }];
+  "wishlists:remove": [[string], void];
+  "wishlists:refresh": [[string | null], OkResult];
 }
 
 /** main -> UI events: name -> payload */
@@ -61,6 +66,7 @@ export interface EventChannels {
   "orders-updated": void;
   "app-focus": void;
   "folders-updated": void;
+  "wishlists-updated": void;
 }
 
 type Unsubscribe = () => void;
@@ -108,6 +114,13 @@ export interface HumblerApi {
   openFolder(path: string): Promise<void>;
   /** a bundle folder's contents and likely bundles */
   inspectFolder(path: string): Promise<FolderInspect>;
+  /** the Steam profiles whose wishlists you compare, with their games */
+  getWishlists(): Promise<WishlistProfile[]>;
+  /** add a profile (URL, SteamID64, friend code or custom URL name) and fetch its wishlist */
+  addWishlist(input: string): Promise<InvokeChannels["wishlists:add"][1]>;
+  removeWishlist(steamId: string): Promise<void>;
+  /** re-fetch one profile's wishlist, or everyone's (null) */
+  refreshWishlists(steamId: string | null): Promise<OkResult>;
   onLog: On<"log">;
   onStatus: On<"status">;
   onLibraryUpdated: On<"library-updated">;
@@ -117,4 +130,5 @@ export interface HumblerApi {
   onOrdersUpdated: On<"orders-updated">;
   onAppFocus: On<"app-focus">;
   onFoldersUpdated: On<"folders-updated">;
+  onWishlistsUpdated: On<"wishlists-updated">;
 }

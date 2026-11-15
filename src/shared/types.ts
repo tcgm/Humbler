@@ -267,6 +267,32 @@ export interface Order {
   items: OrderItem[];
 }
 
+/** A game on someone's Steam wishlist. */
+export interface WishlistGame {
+  appid: number;
+  /** null: Steam has no store page for it any more (removed or unlisted) */
+  name: string | null;
+  capsule: string | null;
+  /** their order on the wishlist, 1 = top */
+  rank: number;
+  added: string | null;
+}
+
+/** A Steam profile whose wishlist Humbler compares with your library (lib/steam-wishlists). */
+export interface WishlistProfile {
+  steamId: string;
+  name: string;
+  avatar: string | null;
+  profileUrl: string;
+  wishlistUrl: string;
+  addedAt: string;
+  fetchedAt: string | null;
+  /** why the last fetch found nothing (private, or an error) */
+  error: string | null;
+  refreshing: boolean;
+  games: WishlistGame[];
+}
+
 export interface OkResult {
   ok: boolean;
   reason?: string;

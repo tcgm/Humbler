@@ -25,6 +25,7 @@ import * as redeemedStore from "./lib/redeemed";
 import * as ordersV2 from "./lib/orders-v2";
 import { flightData, resolvedFlightData, flightFromHtml, PAGE_FLIGHT_SCRIPT } from "./lib/rsc";
 import * as settingsStore from "./lib/settings";
+import { Wishlists } from "./lib/steam-wishlists";
 import * as lib from "./lib/library";
 import { HumbleApi, NotLoggedInError, BASE } from "./lib/humble-api";
 import { Downloader, type DownloadItem } from "./lib/downloader";
@@ -1951,6 +1952,12 @@ handle("orders:get", () => {
   const store = ordersV2.load();
   return { orders: Object.values(store.orders || {}), totalDocs: store.totalDocs ?? null };
 });
+// Steam wishlists (yours or friends'), compared with your library in the UI
+const wishlists = new Wishlists({ log: (m) => log(m), onChange: () => send("wishlists-updated") });
+handle("wishlists:get", () => wishlists.view());
+handle("wishlists:add", (input) => wishlists.add(String(input ?? "").slice(0, 300)));
+handle("wishlists:remove", (steamId) => wishlists.remove(String(steamId)));
+handle("wishlists:refresh", (steamId) => wishlists.refresh(typeof steamId === "string" ? steamId : null));
 handle("redeem:mark", ({ id, redeemed, platform }) => {
   const key = index.keys.find((k) => k.id === id);
   if (!key) return null;
@@ -2032,6 +2039,7 @@ void app.whenReady().then(async () => {
     log(`${unopenable} stored key(s) couldn't be decrypted (saved under another Windows account or PC). ☰ → Full refresh fetches them again from Humble.`);
   void rescanFolders("startup"); // what's already on disk
   startUpdateChecks();
+  void wishlists.refresh(null, { staleOnly: true }); // wishlists not fetched in the last 12 hours
 });
 
 // Write cookies (your login) to disk before exiting. Quitting waits for the

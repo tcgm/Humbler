@@ -45,6 +45,9 @@ what's stored and how keys are protected.
   you already have in your existing download folders.
 - **Library, Bundles and Choice**: everything you own, the old bundle pages,
   and the Choice month pages Humble's 2026 redesign removed.
+- **Wishlists**: compare Steam wishlists (yours or friends') with your
+  library: which spare keys someone wants, and which wishlisted games you
+  already have.
 
 Keys are encrypted at rest, and anything Humbler records for debugging is
 scrubbed of keys before it's written.
