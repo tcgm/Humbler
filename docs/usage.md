@@ -151,8 +151,9 @@
    revealed yet, red within 30 days. You can search; sort by most recent,
    A-Z, most unrevealed keys, or **deadline soonest**; and filter to bundles
    with unrevealed keys, with a redeem deadline, with sold-out or expired
-   keys, with downloads, Choice
-   months, or everything but Choice. Opening one shows a **bundle page**
+   keys, or with downloads; and pick a **type**: Humble Choice, Games,
+   Software or Books (from Humble's product names where Humbler has them,
+   otherwise from the bundle's name and what's in it). Opening one shows a **bundle page**
    like the old `/downloads?key=` page: the bundle's keys, then its
    downloads, with platform tabs (Windows / Mac / Linux / eBook …), a
    "Download all" button, and a button per format with its size (✓ once
