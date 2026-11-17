@@ -42,7 +42,7 @@ export function Menu({
   return (
     <div className="menu" ref={ref}>
       <button className={`icon-btn ${className}`.trim()} title={title} aria-label={label} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        <LuMenu aria-hidden />
+        {icon}
       </button>
       {open && (
         <div className="menu-pop" role="menu">

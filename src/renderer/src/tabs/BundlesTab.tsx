@@ -13,7 +13,38 @@ import { bundleUrl, deadlineOf, fmtBytes, formatDate, formatMoney, monthLabel, n
 
 const PER_PAGE = 60;
 type Sort = "recent" | "az" | "unrevealed" | "deadline";
-type Filter = "all" | "unrevealed" | "deadline" | "soldout" | "expired" | "files" | "ondisk" | "missing" | "choice" | "nochoice";
+type Filter = "all" | "unrevealed" | "deadline" | "soldout" | "expired" | "files" | "ondisk" | "missing";
+const FILTERS: Filter[] = ["all", "unrevealed", "deadline", "soldout", "expired", "files", "ondisk", "missing"];
+type Kind = "choice" | "games" | "software" | "books";
+const KINDS: { k: Kind; label: string }[] = [
+  { k: "choice", label: "Humble Choice" },
+  { k: "games", label: "Games" },
+  { k: "software", label: "Software" },
+  { k: "books", label: "Books" },
+];
+
+const BOOK_NAME = /(books?|comics?|manga|novels?|e-?books?|audiobooks?)/i;
+const SOFTWARE_NAME =
+  /(software|game ?dev|dev ?kit|assets?|unity|unreal|godot|blender|audio|music|sound|sfx|vfx|tools?|toolkit|toolbox|creator|textures?|brushes|overlays?|3d printable|polygon|synty|royalty[- ]free)/i;
+const GAME_KEYS = new Set(["steam", "gog", "gog_keyless", "uplay", "origin", "ea", "battlenet", "nintendo", "xbox", "rockstar", "epic_keyless", "steam_keyless"]);
+
+/** What kind of bundle this is: Humble's own product key says (…_softwarebundle,
+ *  …_bookbundle, …_bundle for games) where we have it, else the name, else what's in it. */
+function bundleKind(b: Bundle, productKeys: string[], platforms: Map<string, number>, keyTypes: Set<string>): Kind {
+  if (b.choiceMonth || /humble (choice|monthly)/i.test(b.name)) return "choice";
+  const ids = productKeys.join(" ").toLowerCase();
+  if (/(^|_)bookbundle(_|)/.test(ids)) return "books";
+  if (/(^|_)softwarebundle(_|)/.test(ids)) return "software";
+  if (/(^|_)choice(_|)/.test(ids)) return "choice";
+  if (BOOK_NAME.test(b.name)) return "books";
+  if (/software/i.test(b.name)) return "software";
+  const total = [...platforms.values()].reduce((a, n) => a + n, 0);
+  if (total && (platforms.get("ebook") || 0) / total > 0.5) return "books";
+  if (SOFTWARE_NAME.test(b.name)) return "software";
+  if ([...keyTypes].some((t) => GAME_KEYS.has(t))) return "games";
+  if (total && (platforms.get("audio") || 0) / total > 0.5) return "software";
+  return "games";
+}
 
 const stats = (b: Bundle) =>
   [plural(b.itemCount ?? 0, "item"), b.keyCount ? plural(b.keyCount, "key") : null, b.fileCount ? plural(b.fileCount, "file") : null].filter(Boolean).join(" · ");
@@ -27,14 +58,18 @@ function BundleList() {
   const { lib, orders, ordersTotal, openBundle } = useStore();
   const [q, setQ] = useRemembered("bundles.q", "");
   const [sort, setSort] = useRemembered<Sort>("bundles.sort", "recent");
-  const [filter, setFilter] = useRemembered<Filter>("bundles.filter", "all");
+  const [rawFilter, setFilter] = useRemembered<Filter>("bundles.filter", "all");
+  // "choice"/"nochoice" used to be filters; they're types now
+  const filter: Filter = FILTERS.includes(rawFilter) ? rawFilter : "all";
+  const [kind, setKind] = useRemembered<Kind | "all">("bundles.kind", rawFilter === ("choice" as Filter) ? "choice" : "all");
   const [page, setPage] = useRemembered("bundles.page", 1);
   const scrollRef = useRememberedScroll<HTMLDivElement>("bundles");
-  const dirty = q !== "" || sort !== "recent" || filter !== "all";
+  const dirty = q !== "" || sort !== "recent" || filter !== "all" || kind !== "all";
   const resetAll = () => {
     setQ("");
     setSort("recent");
     setFilter("all");
+    setKind("all");
     setPage(1);
   };
 
@@ -57,6 +92,33 @@ function BundleList() {
     return [so, ex];
   }, [lib.keys]);
 
+  const kinds = useMemo(() => {
+    const ids = new Map<string, string[]>();
+    const plats = new Map<string, Map<string, number>>();
+    const keyTypes = new Map<string, Set<string>>();
+    const get = <T,>(m: Map<string, T>, k: string, make: () => T) => m.get(k) ?? (m.set(k, make()), m.get(k)!);
+    for (const p of lib.products) get(ids, p.gamekey, () => []).push(p.machineName || "");
+    for (const f of lib.files) {
+      const m = get(plats, f.gamekey, () => new Map<string, number>());
+      m.set(f.platform, (m.get(f.platform) || 0) + 1);
+    }
+    for (const k of lib.keys) {
+      get(ids, k.gamekey, () => []).push(k.machineName || "");
+      get(keyTypes, k.gamekey, () => new Set<string>()).add(k.keyType);
+    }
+    return new Map(
+      lib.bundles.map((b) => {
+        const pk = orders.get(normTitle(b.name))?.productKey;
+        return [b.gamekey, bundleKind(b, [...(pk ? [pk] : []), ...(ids.get(b.gamekey) || [])], plats.get(b.gamekey) || new Map(), keyTypes.get(b.gamekey) || new Set())];
+      }),
+    );
+  }, [lib, orders]);
+  const kindCounts = useMemo(() => {
+    const c = new Map<Kind, number>();
+    for (const k of kinds.values()) c.set(k, (c.get(k) || 0) + 1);
+    return c;
+  }, [kinds]);
+
   const list = useMemo(() => {
     const needle = q.trim().toLowerCase();
     let out = lib.bundles.filter((b) => {
@@ -68,8 +130,7 @@ function BundleList() {
       if (filter === "files" && !b.fileCount) return false;
       if (filter === "ondisk" && !b.diskDirs?.length) return false;
       if (filter === "missing" && !(b.fileCount && (b.filesOnDisk ?? 0) < b.fileCount)) return false;
-      if (filter === "choice" && !b.choiceMonth) return false;
-      if (filter === "nochoice" && b.choiceMonth) return false;
+      if (kind !== "all" && kinds.get(b.gamekey) !== kind) return false;
       return true;
     });
     const recent = (a: Bundle, b: Bundle) => (a.order ?? 0) - (b.order ?? 0);
@@ -80,7 +141,7 @@ function BundleList() {
       out = [...out].sort((a, b) => t(a) - t(b) || recent(a, b));
     } else out = [...out].sort(recent);
     return out;
-  }, [lib.bundles, q, sort, filter, deadlines, soldOut, expired]);
+  }, [lib.bundles, q, sort, filter, kind, kinds, deadlines, soldOut, expired]);
 
   const listKeys = useMemo(() => {
     const ids = new Set(list.map((b) => b.gamekey));
@@ -115,8 +176,14 @@ function BundleList() {
             <option value="files">With downloads</option>
             <option value="ondisk">With a folder on disk</option>
             <option value="missing">Missing files (not on disk)</option>
-            <option value="choice">Humble Choice months</option>
-            <option value="nochoice">Everything but Choice</option>
+          </select>
+          <select title="Bundle type" value={kind} onChange={(e) => set(setKind)(e.target.value as Kind | "all")}>
+            <option value="all">All types</option>
+            {KINDS.map(({ k, label }) => (
+              <option key={k} value={k}>
+                {label} ({kindCounts.get(k) || 0})
+              </option>
+            ))}
           </select>
           <ResetButton dirty={dirty} onReset={resetAll} />
           <ExportButton scope={dirty ? `the ${plural(list.length, "bundle")} matching your filters` : "all your bundles"} keys={listKeys} />
@@ -124,7 +191,7 @@ function BundleList() {
       </div>
       <div className="hb-summary">
         {plural(list.length, "bundle")}
-        {q || filter !== "all" ? ` of ${lib.bundles.length}` : ""}
+        {q || filter !== "all" || kind !== "all" ? ` of ${lib.bundles.length}` : ""}
         {orders.size
           ? ` · purchase details for ${orders.size}${ordersTotal ? ` of ${ordersTotal} orders` : ""}${ordersTotal && orders.size < ordersTotal ? " (Sync fetches the rest)" : ""}`
           : " · Sync to add bundle icons and purchase dates"}

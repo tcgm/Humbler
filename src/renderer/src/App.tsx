@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { LuCircleArrowUp, LuSettings } from "react-icons/lu";
+import { LuDownload, LuSettings } from "react-icons/lu";
 import { FoldersDialog } from "./components/FoldersDialog";
 import { Menu } from "./components/Menu";
 import { RedeemAsk } from "./components/RedeemAsk";
@@ -103,7 +103,7 @@ export function App() {
               className="update-btn"
               icon={
                 <>
-                  <LuCircleArrowUp aria-hidden />
+                  <LuDownload aria-hidden />
                   <span className="update-dot" aria-hidden />
                 </>
               }
