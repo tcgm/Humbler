@@ -7,7 +7,7 @@ import { formatDate, isExpiring, platformOf } from "../util";
 import { ArmButton, CopyButton } from "./ui";
 
 export function KeyField({ k }: { k: KeyEntry }) {
-  const { busy, beginRedeem, setRedeemed, revealKeys, revealing } = useStore();
+  const { busy, beginRedeem, setRedeemed, revealKeys, revealing, wanted, openWishlist } = useStore();
   const p = platformOf(k);
 
   let field;
@@ -83,6 +83,34 @@ export function KeyField({ k }: { k: KeyEntry }) {
   }
 
   const meta = [];
+  // a spare key someone has on their Steam wishlist: who, and a jump to it there
+  const wanters = wanted.get(k.id);
+  if (wanters?.length) {
+    meta.push(
+      <span key="wl" className="wl-wanted">
+        ♥ Wanted by{" "}
+        {wanters.map((w, i) => (
+          <span key={w.profile.steamId}>
+            {i > 0 && ", "}
+            <a
+              title={[
+                `#${w.game.rank} on ${w.profile.name}'s Steam wishlist: ${w.game.name}`,
+                w.how === "likely" && "Likely the same game (the titles differ only by edition words)",
+                k.notGiftable && k.status === "unused" && "Humble says this key can't be gifted: reveal it to give the key itself",
+                "Click to see it on their wishlist",
+              ]
+                .filter(Boolean)
+                .join("\n")}
+              onClick={() => openWishlist(w.profile.steamId, k.name)}
+            >
+              {w.how === "likely" ? "~" : ""}
+              {w.profile.name} #{w.game.rank}
+            </a>
+          </span>
+        ))}
+      </span>,
+    );
+  }
   if (auto && (!k.platformRedeemed || k.platformRedeemed.auto)) {
     meta.push(
       <span key="r" className="redeemed-ok">

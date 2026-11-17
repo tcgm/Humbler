@@ -86,14 +86,14 @@ export function usePref<T>(key: string, initial: T): [T, (v: T) => void] {
     [key],
   );
   const value = useSyncExternalStore(subscribe, () => load(key, initial));
-  const set = useCallback(
-    (v: T) => {
-      store(key, v);
-      for (const cb of listeners.get(key) ?? []) cb();
-    },
-    [key],
-  );
+  const set = useCallback((v: T) => setPref(key, v), [key]);
   return [value, set];
+}
+
+/** Change a shared preference from outside a component (e.g. jump to a filtered tab). */
+export function setPref<T>(key: string, v: T): void {
+  store(key, v);
+  for (const cb of listeners.get(key) ?? []) cb();
 }
 
 export const PREFS: Record<"tabCounts" | "pageScrollTop", [key: string, initial: boolean]> = {

@@ -318,6 +318,8 @@ button.keyfield:disabled { opacity: 0.55; cursor: default; }
 .keymeta .soon { color: var(--hb-red); font-weight: 600; }
 .keymeta a { font-size: 11px; }
 .keymeta .redeemed-ok { color: var(--hb-green); font-weight: 600; }
+.keymeta .wl-wanted { color: var(--hb-text); font-weight: 600; }
+.keymeta .wl-wanted a { font-weight: 600; }
 .keymeta details summary { cursor: pointer; color: var(--hb-link); }
 .keymeta details[open] { flex-basis: 100%; }
 .keymeta details p { margin: 4px 0 0; white-space: pre-wrap; color: var(--hb-text); }

@@ -2,7 +2,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { ChoiceMonth, DownloadProgress, KeyEntry, LibraryIndex, Money, OrderItem, RevealResult, Status, Theme, WishlistProfile } from "@shared/types";
 import { normTitle } from "./util";
-import { indexOwned } from "./wishlist";
+import { setPref } from "./remember";
+import { indexOwned, wantersByKey, type Wanter } from "./wishlist";
 
 const api = window.humbler;
 
@@ -41,6 +42,10 @@ interface Store {
   wishlists: WishlistProfile[];
   /** everything you own, indexed for matching wishlist games */
   ownIndex: ReturnType<typeof indexOwned>;
+  /** spare keys someone has on their wishlist, by key id */
+  wanted: Map<string, Wanter[]>;
+  /** open the Wishlists tab on one person (or everyone: ""), searched for a game */
+  openWishlist(steamId: string, search: string): void;
   busy: boolean;
 
   tab: TabId;
@@ -237,6 +242,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [theme]);
 
   const ownIndex = useMemo(() => indexOwned(lib), [lib]);
+  const wanted = useMemo(() => wantersByKey(wishlists, ownIndex), [wishlists, ownIndex]);
   const owned = useMemo(() => new Set([...lib.keys.map((k) => normTitle(k.name)), ...lib.products.map((p) => normTitle(p.title))]), [lib]);
 
   const store: Store = {
@@ -250,6 +256,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     owned,
     wishlists,
     ownIndex,
+    wanted,
+    openWishlist: (steamId, search) => {
+      setPref("wishlists.who", steamId);
+      setPref("wishlists.q", search);
+      navigate({ tab: "wishlists" });
+    },
     busy: !!status?.busy,
     tab,
     setTab: (t) => navigate({ tab: t }),

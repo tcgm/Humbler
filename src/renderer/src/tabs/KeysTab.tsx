@@ -11,11 +11,11 @@ import { api, useStore } from "../store";
 import { EXPIRING_DAYS, isExpiring, platformOf, steamUrl, uniqSorted } from "../util";
 
 const PER_PAGE = 50;
-type StateFilter = "all" | "unused" | "revealed" | "notredeemed" | "platformredeemed" | "gifted" | "expiring" | "expired" | "soldout";
+type StateFilter = "all" | "unused" | "revealed" | "notredeemed" | "platformredeemed" | "gifted" | "expiring" | "expired" | "soldout" | "wanted";
 const KEY_ORDER: Record<KeyStatus, number> = { unused: 0, revealed: 1, gifted: 2, link: 3, expired: 4, "sold-out": 5 };
 const LABELS: Record<KeyStatus, string> = { unused: "unrevealed", revealed: "revealed", gifted: "gifted", link: "redeem links", expired: "expired", "sold-out": "sold out" };
 
-function matchesState(k: KeyEntry, st: StateFilter): boolean {
+function matchesState(k: KeyEntry, st: StateFilter, wanted: Map<string, unknown>): boolean {
   switch (st) {
     case "unused":
       return k.status === "unused";
@@ -33,13 +33,15 @@ function matchesState(k: KeyEntry, st: StateFilter): boolean {
       return k.status === "expired";
     case "soldout":
       return k.status === "sold-out";
+    case "wanted":
+      return wanted.has(k.id);
     default:
       return true;
   }
 }
 
 export function KeysTab() {
-  const { lib, tab } = useStore();
+  const { lib, tab, wanted, wishlists } = useStore();
   const [q, setQ] = useRemembered("keys.q", "");
   const [bundle, setBundle] = useRemembered("keys.bundle", "");
   const [type, setType] = useRemembered("keys.type", "");
@@ -61,7 +63,7 @@ export function KeysTab() {
     setPage(1);
   };
 
-  // Everything matching bundle/type/search, whatever its status: used to
+  // Everything matching bundle/type/search (a name finds the keys that person wants), whatever its status: used to
   // explain what the status filter hides ("0 shown of 37 (37 revealed)").
   const base = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -69,9 +71,9 @@ export function KeysTab() {
       (k) =>
         (!bundle || k.gamekey === bundle) &&
         (!type || k.keyType === type) &&
-        (!needle || `${k.name} ${k.bundle} ${k.key || ""} ${k.keyType}`.toLowerCase().includes(needle)),
+        (!needle || `${k.name} ${k.bundle} ${k.key || ""} ${k.keyType} ${(wanted.get(k.id) || []).map((w) => w.profile.name).join(" ")}`.toLowerCase().includes(needle)),
     );
-  }, [lib.keys, q, bundle, type]);
+  }, [lib.keys, q, bundle, type, wanted]);
   // A key you're looking at stays in the list when it changes (e.g. you reveal
   // it with "Hide redeemed" on) until you change the filters or leave the tab;
   // only then does the status filter drop it.
@@ -80,10 +82,10 @@ export function KeysTab() {
   const rows = useMemo(() => {
     if (shown.current.view !== view) shown.current = { view, ids: new Set() };
     const kept = shown.current.ids;
-    const out = base.filter((k) => matchesState(k, st) || kept.has(k.id));
+    const out = base.filter((k) => matchesState(k, st, wanted) || kept.has(k.id));
     for (const k of out) kept.add(k.id);
     return out;
-  }, [base, st, view]);
+  }, [base, st, view, wanted]);
 
   const cols: Col<KeyEntry>[] = [
     {
@@ -176,6 +178,7 @@ export function KeysTab() {
           <option value="expiring">Expiring soon</option>
           <option value="expired">Expired</option>
           <option value="soldout">Sold out</option>
+          {(wishlists.length > 0 || st === "wanted") && <option value="wanted">On someone&apos;s wishlist ({wanted.size} to give)</option>}
         </select>
         <ResetButton dirty={dirty} onReset={resetAll} />
         <span className="spacer" />

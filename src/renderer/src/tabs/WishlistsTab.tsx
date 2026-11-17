@@ -6,7 +6,7 @@ import type { KeyEntry, WishlistProfile } from "@shared/types";
 import { ExportButton } from "../components/ExportDialog";
 import { byNumber, byText, useTable, type Col } from "../components/Table";
 import { ArmButton, ExtLink, HumbleLink, PlatformBadge, ResetButton } from "../components/ui";
-import { useRemembered } from "../remember";
+import { usePref, useRemembered } from "../remember";
 import { api, useStore } from "../store";
 import { formatDate, plural } from "../util";
 import { isSpare, keyUse, wishRows, type OwnedMatch, type WishRow } from "../wishlist";
@@ -34,8 +34,9 @@ export function WishlistsTab() {
   const [input, setInput] = useState("");
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
-  const [who, setWho] = useRemembered("wishlists.who", ""); // a steamId, or "" = everyone
-  const [q, setQ] = useRemembered("wishlists.q", "");
+  // shared, so a key's "Wanted by" link can open this tab on that person and game
+  const [who, setWho] = usePref("wishlists.who", ""); // a steamId, or "" = everyone
+  const [q, setQ] = usePref("wishlists.q", "");
   const [show, setShow] = useRemembered<Show>("wishlists.show", "spare");
   const dirty = q !== "" || show !== "spare";
   const resetAll = () => {

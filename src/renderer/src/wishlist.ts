@@ -142,3 +142,34 @@ export function wishRows(profiles: WishlistProfile[], idx: OwnIndex): WishRow[] 
   }
   return [...rows.values()];
 }
+
+/** Someone whose wishlist has a game you hold a spare key for. */
+export interface Wanter {
+  profile: WishlistProfile;
+  game: WishlistGame;
+  how: MatchHow;
+}
+
+/**
+ * Spare keys (by key id) and who wants them, highest on their wishlist first:
+ * what the keys show wherever they're listed ("Wanted by Alex #3").
+ */
+export function wantersByKey(profiles: WishlistProfile[], idx: OwnIndex): Map<string, Wanter[]> {
+  const out = new Map<string, Wanter[]>();
+  for (const row of wishRows(profiles, idx)) {
+    for (const m of row.matches) {
+      if (!m.key || !isSpare(m.key)) continue;
+      const list = out.get(m.key.id) ?? [];
+      for (const w of row.wantedBy) {
+        // one key can match two wishlist entries (editions): each person once, best match
+        const have = list.findIndex((x) => x.profile.steamId === w.profile.steamId);
+        const better = have < 0 || (list[have].how === "likely" && m.how !== "likely") || (list[have].how === m.how && w.game.rank < list[have].game.rank);
+        if (have < 0) list.push({ ...w, how: m.how });
+        else if (better) list[have] = { ...w, how: m.how };
+      }
+      out.set(m.key.id, list);
+    }
+  }
+  for (const list of out.values()) list.sort((a, b) => (a.how === "likely" ? 1 : 0) - (b.how === "likely" ? 1 : 0) || a.game.rank - b.game.rank);
+  return out;
+}
