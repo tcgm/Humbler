@@ -1,15 +1,15 @@
-# Push a version tag (v1.2.3, matching package.json) to build every platform
-# and publish a GitHub release with all the files:
+# Push a version tag (v1.2.3, matching package.json) to build Windows and
+# Linux and publish a GitHub release with their files:
 #   Windows  Humbler-Setup-<v>.exe (full), Humbler-QuickSetup-<v>.exe (one-click), zip
 #   Linux    AppImage, tar.gz
-#   macOS    dmg + zip, Intel (x64) and Apple Silicon (arm64)
+# macOS builds in its own workflow (release-mac.yml) and adds its files to the
+# same release when it's done, so a slow or failed Mac runner never holds up
+# Windows and Linux.
 # A tag with a hyphen (v1.2.0-beta.1) becomes a prerelease, which installed
 # copies don't announce as an update.
 #
 # Signing is off until these repository secrets exist (see docs/RELEASING.md):
 #   WIN_CSC_LINK, WIN_CSC_KEY_PASSWORD             Windows certificate (.pfx, base64)
-#   CSC_LINK, CSC_KEY_PASSWORD                     Apple Developer ID certificate (.p12, base64)
-#   APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID   macOS notarization
 name: Release
 
 on:
@@ -34,8 +34,6 @@ jobs:
             target: win
           - os: ubuntu-latest
             target: linux
-          - os: macos-latest
-            target: mac
     runs-on: ${{ matrix.os }}
     env:
       TAG: ${{ inputs.tag || github.ref_name }}
@@ -60,11 +58,6 @@ jobs:
         env:
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
-          CSC_LINK: ${{ matrix.target == 'mac' && secrets.CSC_LINK || '' }}
-          CSC_KEY_PASSWORD: ${{ matrix.target == 'mac' && secrets.CSC_KEY_PASSWORD || '' }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       - uses: actions/upload-artifact@v7
         with:
           name: humbler-${{ matrix.target }}
@@ -74,7 +67,6 @@ jobs:
             release/*/*.zip
             release/*/*.AppImage
             release/*/*.tar.gz
-            release/*/*.dmg
             release/*/*.blockmap
             release/*/latest*.yml
 
@@ -97,8 +89,10 @@ jobs:
       - name: Publish the release
         run: |
           pre=""; case "$TAG" in *-*) pre="--prerelease";; esac
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+          # Windows/Linux and macOS publish separately: whichever finishes first
+          # creates the release, the other adds its files (and if both try to
+          # create it at once, the loser falls back to adding its files).
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            ! gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --title "Humbler ${TAG#v}" --generate-notes $pre; then
             gh release upload "$TAG" dist/* --clobber --repo "$GITHUB_REPOSITORY"
-          else
-            gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --title "Humbler ${TAG#v}" --generate-notes $pre
           fi

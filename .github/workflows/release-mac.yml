@@ -1,0 +1,90 @@
+# Push a version tag (v1.2.3, matching package.json) to build macOS and add its
+# files to that tag's GitHub release (created here if the Windows/Linux workflow,
+# release.yml, hasn't made it yet):
+#   macOS    dmg + zip, Intel (x64) and Apple Silicon (arm64)
+# Run it by hand (Actions -> Release (macOS) -> Run workflow) to retry just the
+# Mac build for an existing tag.
+#
+# Signing is off until these repository secrets exist (see docs/RELEASING.md):
+#   CSC_LINK, CSC_KEY_PASSWORD                     Apple Developer ID certificate (.p12, base64)
+#   APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID   macOS notarization
+name: Release (macOS)
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)build and release, e.g. v0.2.0"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 90
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Tag matches package.json version
+        shell: bash
+        run: |
+          v=$(node -p "require('./package.json').version")
+          [ "v$v" = "$TAG" ] || { echo "::error::tag $TAG doesn't match package.json version $v"; exit 1; }
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Package
+        shell: bash
+        run: node scripts/package.mjs mac
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: humbler-mac
+          if-no-files-found: error
+          path: |
+            release/*/*.zip
+            release/*/*.dmg
+            release/*/*.blockmap
+            release/*/latest*.yml
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: |
+          find dist -type f -exec mv {} dist/ \; 2>/dev/null || true
+          cd dist && find . -mindepth 1 -type d -empty -delete
+          sha256sum * > SHA256SUMS-mac.txt && cat SHA256SUMS-mac.txt
+      - name: Publish the release
+        run: |
+          pre=""; case "$TAG" in *-*) pre="--prerelease";; esac
+          # Windows/Linux and macOS publish separately: whichever finishes first
+          # creates the release, the other adds its files (and if both try to
+          # create it at once, the loser falls back to adding its files).
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            ! gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --title "Humbler ${TAG#v}" --generate-notes $pre; then
+            gh release upload "$TAG" dist/* --clobber --repo "$GITHUB_REPOSITORY"
+          fi

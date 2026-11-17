@@ -58,9 +58,15 @@ The workflow stops if the tag doesn't match `package.json`'s version.
 ### GitHub (`.github/workflows/`)
 
 - `ci.yml`: every push and pull request: typecheck and build.
-- `release.yml`: on a `v*` tag: Windows, Linux and macOS each on their own
-  runner, then one release with every file and checksums. It can also be run
-  by hand (Actions → Release → Run workflow) for an existing tag.
+- `release.yml`: on a `v*` tag: Windows and Linux each on their own runner,
+  then the release with their files and `SHA256SUMS.txt`.
+- `release-mac.yml`: on the same tag: macOS on its own runner, then its files
+  and `SHA256SUMS-mac.txt` are added to that release. Mac runners are slow
+  and sometimes stuck in a queue, so this one never holds up Windows and
+  Linux; whichever finishes first creates the release.
+
+Either can be run by hand for an existing tag (Actions → Release, or
+Release (macOS) → Run workflow), for example to retry just the Mac build.
 
 Nothing to set up; it uses the built-in token.
 
