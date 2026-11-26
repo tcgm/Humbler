@@ -2,7 +2,7 @@
   "name": "humbler",
   "productName": "Humbler",
   "private": true,
-  "version": "1.9.1",
+  "version": "1.10.0",
   "description": "A local Electron client for your Humble Bundle library: collect keys, reveal them, and bulk-download your files, using your real logged-in session.",
   "author": "TCGM",
   "license": "MIT",
