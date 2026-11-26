@@ -25,6 +25,7 @@ import * as redeemedStore from "./lib/redeemed";
 import * as ordersV2 from "./lib/orders-v2";
 import { flightData, resolvedFlightData, flightFromHtml, PAGE_FLIGHT_SCRIPT } from "./lib/rsc";
 import * as settingsStore from "./lib/settings";
+import { SteamAccount, STEAM_COOKIE_DOMAIN } from "./lib/steam-account";
 import { Wishlists } from "./lib/steam-wishlists";
 import * as lib from "./lib/library";
 import { HumbleApi, NotLoggedInError, BASE } from "./lib/humble-api";
@@ -1708,7 +1709,7 @@ function layout() {
 // ---- keeping the login across restarts --------------------------------
 // Chromium drops cookies that have no expiry ("session cookies") when the
 // app closes, and logins often use them, so you'd be logged out on every
-// restart. Give Humble's session cookies a 30-day expiry instead. A cookie
+// restart. Give Humble's (and Steam's, for your Steam account) session cookies a 30-day expiry instead. A cookie
 // Humble deletes (logout) stays deleted, because only newly set cookies are
 // touched. Cookies are also flushed to disk shortly after any change and on
 // quit, so a crash or forced close can't lose a fresh login.
@@ -1723,7 +1724,7 @@ function keepLoginAcrossRestarts(ses: Session) {
   };
   ses.cookies.on("changed", (_e, cookie, _cause, removed) => {
     const domain = (cookie.domain || "").replace(/^\./, "");
-    if (!HUMBLE_COOKIE_DOMAIN.test(domain)) return;
+    if (!HUMBLE_COOKIE_DOMAIN.test(domain) && !STEAM_COOKIE_DOMAIN.test(domain)) return;
     flushSoon();
     if (removed || cookie.expirationDate || !SESSION_COOKIE_DAYS) return; // already persistent, or being deleted
     const details: Electron.CookiesSetDetails = {
@@ -2072,6 +2073,15 @@ handle("wishlists:get", () => wishlists.view());
 handle("wishlists:add", (input) => wishlists.add(String(input ?? "").slice(0, 300)));
 handle("wishlists:remove", (steamId) => wishlists.remove(String(steamId)));
 handle("wishlists:refresh", (steamId) => wishlists.refresh(typeof steamId === "string" ? steamId : null));
+// Your own Steam account (signed in in the pane): the games and DLC on it
+const steamAccount = new SteamAccount({ session: humbleSession, log: (m) => log(m), onChange: () => send("steam-updated") });
+handle("steam:get", () => steamAccount.view());
+handle("steam:sign-in", () => {
+  setBrowserVisible(true);
+  void hv().loadURL("https://store.steampowered.com/login/?redir=account%2F");
+});
+handle("steam:refresh", () => steamAccount.refresh());
+handle("steam:sign-out", () => steamAccount.signOut());
 handle("redeem:mark", ({ id, redeemed, platform }) => {
   const key = index.keys.find((k) => k.id === id);
   if (!key) return null;
@@ -2154,6 +2164,8 @@ void app.whenReady().then(async () => {
   void rescanFolders("startup"); // what's already on disk
   startUpdateChecks();
   void wishlists.refresh(null, { staleOnly: true }); // wishlists not fetched in the last 12 hours
+  steamAccount.watchSignIn();
+  void steamAccount.refreshIfStale(); // your Steam games, if not fetched in the last 12 hours
 });
 
 // Write cookies (your login) to disk before exiting. Quitting waits for the

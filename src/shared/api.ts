@@ -12,6 +12,7 @@ import type {
   RevealResult,
   SettingsPatch,
   Status,
+  SteamAccountInfo,
   WishlistProfile,
 } from "./types";
 
@@ -55,6 +56,10 @@ export interface InvokeChannels {
   "wishlists:add": [[string], OkResult & { steamId?: string }];
   "wishlists:remove": [[string], void];
   "wishlists:refresh": [[string | null], OkResult];
+  "steam:get": [[], SteamAccountInfo];
+  "steam:sign-in": [[], void];
+  "steam:refresh": [[], OkResult];
+  "steam:sign-out": [[], void];
 }
 
 /** main -> UI events: name -> payload */
@@ -69,6 +74,7 @@ export interface EventChannels {
   "app-focus": void;
   "folders-updated": void;
   "wishlists-updated": void;
+  "steam-updated": void;
 }
 
 type Unsubscribe = () => void;
@@ -127,6 +133,13 @@ export interface HumblerApi {
   removeWishlist(steamId: string): Promise<void>;
   /** re-fetch one profile's wishlist, or everyone's (null) */
   refreshWishlists(steamId: string | null): Promise<OkResult>;
+  /** your Steam account (signed in in the pane) and the games and DLC on it */
+  getSteamAccount(): Promise<SteamAccountInfo>;
+  /** open Steam's sign-in page in the pane; Humbler fetches your games once you're in */
+  signInToSteam(): Promise<void>;
+  refreshSteamAccount(): Promise<OkResult>;
+  /** sign out of Steam in Humbler and forget the account's games */
+  signOutOfSteam(): Promise<void>;
   onLog: On<"log">;
   onStatus: On<"status">;
   onLibraryUpdated: On<"library-updated">;
@@ -137,4 +150,5 @@ export interface HumblerApi {
   onAppFocus: On<"app-focus">;
   onFoldersUpdated: On<"folders-updated">;
   onWishlistsUpdated: On<"wishlists-updated">;
+  onSteamUpdated: On<"steam-updated">;
 }

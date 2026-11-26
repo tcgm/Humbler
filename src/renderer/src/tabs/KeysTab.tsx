@@ -8,14 +8,15 @@ import { byText, useTable, type Col } from "../components/Table";
 import { ExtLink, HumbleLink, Pager, PlatformBadge, ResetButton } from "../components/ui";
 import { useRemembered } from "../remember";
 import { api, useStore } from "../store";
+import type { SteamKey } from "../steam";
 import { EXPIRING_DAYS, isExpiring, platformOf, steamUrl, uniqSorted } from "../util";
 
 const PER_PAGE = 50;
-type StateFilter = "all" | "unused" | "revealed" | "notredeemed" | "platformredeemed" | "gifted" | "expiring" | "expired" | "soldout" | "wanted";
+type StateFilter = "all" | "unused" | "revealed" | "notredeemed" | "platformredeemed" | "gifted" | "expiring" | "expired" | "soldout" | "wanted" | "onsteam" | "offsteam";
 const KEY_ORDER: Record<KeyStatus, number> = { unused: 0, revealed: 1, gifted: 2, link: 3, expired: 4, "sold-out": 5 };
 const LABELS: Record<KeyStatus, string> = { unused: "unrevealed", revealed: "revealed", gifted: "gifted", link: "redeem links", expired: "expired", "sold-out": "sold out" };
 
-function matchesState(k: KeyEntry, st: StateFilter, wanted: Map<string, unknown>): boolean {
+function matchesState(k: KeyEntry, st: StateFilter, wanted: Map<string, unknown>, steam: Map<string, SteamKey>): boolean {
   switch (st) {
     case "unused":
       return k.status === "unused";
@@ -35,13 +36,17 @@ function matchesState(k: KeyEntry, st: StateFilter, wanted: Map<string, unknown>
       return k.status === "sold-out";
     case "wanted":
       return wanted.has(k.id);
+    case "onsteam":
+      return steam.get(k.id)?.state === "redeemed";
+    case "offsteam":
+      return steam.get(k.id)?.state === "revealed";
     default:
       return true;
   }
 }
 
 export function KeysTab() {
-  const { lib, tab, wanted, wishlists } = useStore();
+  const { lib, tab, wanted, wishlists, steamByKey } = useStore();
   const [q, setQ] = useRemembered("keys.q", "");
   const [bundle, setBundle] = useRemembered("keys.bundle", "");
   const [type, setType] = useRemembered("keys.type", "");
@@ -82,10 +87,10 @@ export function KeysTab() {
   const rows = useMemo(() => {
     if (shown.current.view !== view) shown.current = { view, ids: new Set() };
     const kept = shown.current.ids;
-    const out = base.filter((k) => matchesState(k, st, wanted) || kept.has(k.id));
+    const out = base.filter((k) => matchesState(k, st, wanted, steamByKey) || kept.has(k.id));
     for (const k of out) kept.add(k.id);
     return out;
-  }, [base, st, view, wanted]);
+  }, [base, st, view, wanted, steamByKey]);
 
   const cols: Col<KeyEntry>[] = [
     {
@@ -179,6 +184,8 @@ export function KeysTab() {
           <option value="expired">Expired</option>
           <option value="soldout">Sold out</option>
           {(wishlists.length > 0 || st === "wanted") && <option value="wanted">On someone&apos;s wishlist ({wanted.size} to give)</option>}
+          {(steamByKey.size > 0 || st === "onsteam") && <option value="onsteam">Redeemed on your Steam account</option>}
+          {(steamByKey.size > 0 || st === "offsteam") && <option value="offsteam">Revealed, not on your Steam account</option>}
         </select>
         <ResetButton dirty={dirty} onReset={resetAll} />
         <span className="spacer" />

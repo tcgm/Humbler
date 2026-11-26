@@ -13,6 +13,7 @@ import { DownloadsTab } from "./tabs/DownloadsTab";
 import { KeysTab } from "./tabs/KeysTab";
 import { LibraryTab } from "./tabs/LibraryTab";
 import { ScoutTab } from "./tabs/ScoutTab";
+import { SteamTab } from "./tabs/SteamTab";
 import { WishlistsTab } from "./tabs/WishlistsTab";
 import { wishRows } from "./wishlist";
 
@@ -56,6 +57,9 @@ export function App() {
   // wishlist games you hold a spare key for
   const toGive = useMemo(() => wishRows(s.wishlists, s.ownIndex).filter((r) => r.spare.length).length, [s.wishlists, s.ownIndex]);
 
+  // Steam keys redeemed on your own Steam account
+  const steamRedeemed = useMemo(() => [...s.steamByKey.values()].filter((k) => k.state === "redeemed").length, [s.steamByKey]);
+
   const busyParts = [
     status?.busy === "sync" ? `syncing…${status.busyDetail ? ` (${status.busyDetail})` : ""}` : null,
     status?.busy === "reveal" ? "revealing keys…" : null,
@@ -70,6 +74,7 @@ export function App() {
     { id: "files", label: "Downloads", count: lib.files.length ? `${pending} to get / ${lib.files.length}` : "", render: () => <DownloadsTab /> },
     { id: "library", label: "Library", count: lib.products.length ? String(lib.products.length) : "", render: () => <LibraryTab /> },
     { id: "wishlists", label: "Wishlists", count: s.wishlists.length ? `${toGive} to give` : "", render: () => <WishlistsTab /> },
+    { id: "steam", label: "My Steam", count: s.steam?.apps.length ? `${steamRedeemed} redeemed` : "", render: () => <SteamTab /> },
     { id: "log", label: "Scout & Log", render: () => <ScoutTab /> },
   ];
 

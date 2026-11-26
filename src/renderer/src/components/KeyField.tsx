@@ -7,7 +7,7 @@ import { formatDate, isExpiring, platformOf } from "../util";
 import { ArmButton, CopyButton } from "./ui";
 
 export function KeyField({ k }: { k: KeyEntry }) {
-  const { busy, beginRedeem, setRedeemed, revealKeys, revealing, wanted, openWishlist } = useStore();
+  const { busy, beginRedeem, setRedeemed, revealKeys, revealing, wanted, openWishlist, steamByKey } = useStore();
   const p = platformOf(k);
 
   let field;
@@ -83,6 +83,28 @@ export function KeyField({ k }: { k: KeyEntry }) {
   }
 
   const meta = [];
+  // its game is on your own Steam account (My Steam)
+  const onSteam = steamByKey.get(k.id);
+  if (onSteam?.on) {
+    const { app, how } = onSteam.on;
+    meta.push(
+      <span
+        key="st"
+        className={onSteam.state === "redeemed" ? "redeemed-ok" : "steam-owned"}
+        title={[
+          `On your Steam account as ${app.name}`,
+          how === "likely" && "Likely the same game (the titles differ only by edition words)",
+          onSteam.state !== "redeemed" && "You have it on Steam, but not from this key (it was never revealed or was gifted)",
+        ]
+          .filter(Boolean)
+          .join("\n")}
+      >
+        {onSteam.state === "redeemed" ? "✓ " : ""}
+        {how === "likely" ? "~" : ""}
+        {onSteam.state === "owned" && k.status === "unused" ? "Already on your Steam account: this key is a spare" : "On your Steam account"}
+      </span>,
+    );
+  }
   // a spare key someone has on their Steam wishlist: who, and a jump to it there
   const wanters = wanted.get(k.id);
   if (wanters?.length) {

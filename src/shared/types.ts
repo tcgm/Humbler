@@ -318,6 +318,23 @@ export interface WishlistProfile {
   games: WishlistGame[];
 }
 
+/** Your own Steam account, signed in in the side pane (lib/steam-account). */
+export interface SteamAccountInfo {
+  /** Steam's sign-in cookie is there (it can still have expired: see error) */
+  signedIn: boolean;
+  steamId: string | null;
+  name: string | null;
+  avatar: string | null;
+  profileUrl: string | null;
+  fetchedAt: string | null;
+  error: string | null;
+  refreshing: boolean;
+  /** licenses on the account (what keys activate) */
+  packages: number;
+  /** games and DLC on the account; name null: no store page (removed, unlisted) */
+  apps: { appid: number; name: string | null }[];
+}
+
 export interface OkResult {
   ok: boolean;
   reason?: string;

@@ -214,6 +214,7 @@ function BundleList() {
 
 function BundleRow({ b, dl, soldOut, expired, onOpen }: { b: Bundle; dl: ReturnType<typeof deadlineOf>; soldOut: number; expired: number; onOpen: () => void }) {
   const info = useOrderInfo(b);
+  const steam = useStore().steamBundles.get(b.gamekey);
   const bought = info?.createdAt ? `Bought ${formatDate(info.createdAt)}${info.total ? ` · ${formatMoney(info.total)}` : ""}` : null;
   return (
     <button className="hb-row" title={b.name} onClick={onOpen}>
@@ -226,8 +227,18 @@ function BundleRow({ b, dl, soldOut, expired, onOpen }: { b: Bundle; dl: ReturnT
             {b.fileCount ? `${b.filesOnDisk ?? 0} of ${b.fileCount} files on disk${b.olderOnDisk ? ` (+${b.olderOnDisk} older version${b.olderOnDisk === 1 ? "" : "s"})` : ""}` : "Has a folder on disk"}
           </p>
         )}
-        {(!!b.unrevealed || soldOut > 0 || expired > 0) && (
+        {(!!b.unrevealed || soldOut > 0 || expired > 0 || !!steam) && (
           <div className="hb-flags">
+            {steam && (
+              <span
+                className={`hb-flag${steam.pct === 100 ? " green" : " muted"}`}
+                title={`${steam.on} of ${plural(steam.keys.length, "Steam key")} in this bundle are for games or DLC on your Steam account${steam.likely ? ` (${steam.likely} matched by a likely title)` : ""}`}
+              >
+                {steam.pct === 100 ? "✓ " : ""}
+                {steam.likely && steam.pct ? "~" : ""}
+                {steam.pct}% on Steam
+              </span>
+            )}
             {!!b.unrevealed && <span className="hb-flag">{b.unrevealed} unrevealed</span>}
             {soldOut > 0 && <span className="hb-flag red">⚠ {soldOut} sold out</span>}
             {expired > 0 && <span className="hb-flag muted" title="Expired before they were revealed">{expired} expired</span>}

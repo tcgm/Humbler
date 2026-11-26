@@ -205,7 +205,37 @@
      your library**, or **the whole wishlist**; **Everyone** puts every
      wishlist together, with who wants each game. **Export…** exports the
      spare keys shown.
-9. **Back and forward** work like a browser: your **mouse's back/forward
+9. **My Steam tab**: your own Steam account next to your keys: which Steam
+   keys you've redeemed there, and which bundles you've most likely
+   redeemed all of.
+   - Click **Sign in to Steam**: Steam's sign-in page opens in the pane on
+     the right. Once you're in, Humbler fetches the games and DLC on your
+     account by itself. Steam only shows what you own to you, signed in (a
+     profile link isn't enough, unlike wishlists). The sign-in is kept in
+     Humbler's own browser session, encrypted like your Humble login, and
+     Humbler only reads Steam's list of what you own (the one the store
+     uses for "In library"). Refreshed with **Refresh** and at startup when
+     older than 12 hours; Steam's sign-in lasts a while, then **Sign in
+     again** appears. **Sign out** removes Steam's cookies from Humbler and
+     forgets the list.
+   - **Bundles**: every bundle with Steam keys and how much of it is on
+     your account (games and DLC its Steam keys are for), with what's
+     missing. Show **all of it** (the default: bundles you've most likely
+     redeemed completely), **most of it**, **some**, **none** or every
+     bundle. Click one to open it. The Bundles tab shows the same as a
+     flag on each bundle ("100% on Steam").
+   - **Keys**: each Steam key as **redeemed on your account** (revealed, and
+     the game is on your account), **on your account, key never revealed**
+     (you have the game anyway: an unrevealed key is a spare to give),
+     **revealed or gifted, not on your account**, or **unrevealed, not on
+     your account**. **Export…** exports the keys shown. The Keys tab can
+     filter by the first and third too, and each key says "On your Steam
+     account" under it.
+   - Matching is as for wishlists: by Steam app id when Humble gives one,
+     else by title, exactly or **likely** (`~`, edition words ignored). A
+     game on your account doesn't prove *this* key put it there (you may
+     have bought it on Steam, or redeemed another copy).
+10. **Back and forward** work like a browser: your **mouse's back/forward
    buttons** (or Alt+← / Alt+→) step through tabs, bundle pages and Choice
    months you've visited. Every list remembers its search, sort, filters
    and page (and the Bundles and Choice lists their scroll position): open
@@ -217,7 +247,7 @@
    table scrolls sideways when the columns are wider than the window, and
    a double-click on an edge goes back to the automatic widths. Both are
    remembered.
-10. **Dark mode** is the default everywhere. The ☀ button in the top bar
+11. **Dark mode** is the default everywhere. The ☀ button in the top bar
    switches to light mode (☾ switches back), and the choice is remembered.
    **Settings** (☰ menu) gathers the options: theme, tab counts, whether
    changing pages scrolls the list back to the top (on by default),

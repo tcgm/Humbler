@@ -35,7 +35,7 @@ interface StoredProfile {
   items: { appid: number; priority: number; added: number | null }[];
 }
 
-interface AppInfo {
+export interface AppInfo {
   name: string | null; // null: Steam has no store page for it (removed, unlisted)
   capsule: string | null;
   at: number;
@@ -95,7 +95,7 @@ async function getJson(url: string): Promise<any> {
 }
 
 /** A profile's SteamID64, name and avatar. */
-async function resolveProfile(input: string): Promise<{ steamId: string; name: string; avatar: string | null }> {
+export async function resolveProfile(input: string): Promise<{ steamId: string; name: string; avatar: string | null }> {
   const who = parseProfileInput(input);
   if (!who) throw new Error("That doesn't look like a Steam profile: paste a profile or wishlist link, a SteamID64, a friend code or a custom URL name.");
   const url = "id64" in who ? `https://steamcommunity.com/profiles/${who.id64}?xml=1` : `https://steamcommunity.com/id/${encodeURIComponent(who.vanity)}?xml=1`;
@@ -117,7 +117,7 @@ async function fetchWishlist(steamId: string): Promise<StoredProfile["items"]> {
 }
 
 /** Names and capsule art for app ids (looked up in batches). */
-async function fetchAppInfo(appids: number[]): Promise<Map<number, AppInfo>> {
+export async function fetchAppInfo(appids: number[]): Promise<Map<number, AppInfo>> {
   const out = new Map<number, AppInfo>();
   for (let i = 0; i < appids.length; i += APP_BATCH) {
     const batch = appids.slice(i, i + APP_BATCH);

@@ -53,6 +53,10 @@ const api: HumblerApi = {
   addWishlist: (input) => ipcRenderer.invoke("wishlists:add", input),
   removeWishlist: (steamId) => ipcRenderer.invoke("wishlists:remove", steamId),
   refreshWishlists: (steamId) => ipcRenderer.invoke("wishlists:refresh", steamId),
+  getSteamAccount: () => ipcRenderer.invoke("steam:get"),
+  signInToSteam: () => ipcRenderer.invoke("steam:sign-in"),
+  refreshSteamAccount: () => ipcRenderer.invoke("steam:refresh"),
+  signOutOfSteam: () => ipcRenderer.invoke("steam:sign-out"),
   onLog: on("log"),
   onStatus: on("status"),
   onLibraryUpdated: on("library-updated"),
@@ -63,6 +67,7 @@ const api: HumblerApi = {
   onAppFocus: on("app-focus"),
   onFoldersUpdated: on("folders-updated"),
   onWishlistsUpdated: on("wishlists-updated"),
+  onSteamUpdated: on("steam-updated"),
 };
 
 contextBridge.exposeInMainWorld("humbler", api);

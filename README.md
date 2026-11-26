@@ -49,6 +49,9 @@ what's stored and how keys are protected.
 - **Wishlists**: compare Steam wishlists (yours or friends') with your
   library: which spare keys someone wants, and which wishlisted games you
   already have.
+- **My Steam**: sign in to Steam in the side pane to see which Steam keys
+  are redeemed on your account, and which bundles you've redeemed all of
+  (the % of each bundle on your account).
 
 Keys are encrypted at rest, and anything Humbler records for debugging is
 scrubbed of keys before it's written.

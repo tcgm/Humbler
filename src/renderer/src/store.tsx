@@ -1,13 +1,14 @@
 // App-wide state, fed by the main process over the typed IPC API.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { ChoiceMonth, DownloadProgress, KeyEntry, LibraryIndex, Money, OrderItem, RevealResult, Status, Theme, WishlistProfile } from "@shared/types";
+import type { ChoiceMonth, DownloadProgress, KeyEntry, LibraryIndex, Money, OrderItem, RevealResult, Status, SteamAccountInfo, Theme, WishlistProfile } from "@shared/types";
 import { normTitle } from "./util";
 import { setPref } from "./remember";
+import { bundlesOnSteam, indexSteam, steamKeys, type BundleOnSteam, type SteamKey } from "./steam";
 import { indexOwned, wantersByKey, type Wanter } from "./wishlist";
 
 const api = window.humbler;
 
-export type TabId = "keys" | "bundles" | "choice" | "files" | "library" | "wishlists" | "log";
+export type TabId = "keys" | "bundles" | "choice" | "files" | "library" | "wishlists" | "steam" | "log";
 
 interface Nav {
   tab: TabId;
@@ -46,6 +47,12 @@ interface Store {
   wanted: Map<string, Wanter[]>;
   /** open the Wishlists tab on one person (or everyone: ""), searched for a game */
   openWishlist(steamId: string, search: string): void;
+  /** your own Steam account (signed in in the pane), null until loaded */
+  steam: SteamAccountInfo | null;
+  /** Steam keys, with whether their game is on your account (by key id; empty when not signed in) */
+  steamByKey: Map<string, SteamKey>;
+  /** bundles with Steam keys, and how much of each is on your account (by gamekey) */
+  steamBundles: Map<string, BundleOnSteam>;
   busy: boolean;
 
   tab: TabId;
@@ -108,6 +115,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [ordersTotal, setOrdersTotal] = useState<number | null>(null);
   const [choiceMonths, setChoiceMonths] = useState<ChoiceMonth[]>([]);
   const [wishlists, setWishlists] = useState<WishlistProfile[]>([]);
+  const [steam, setSteam] = useState<SteamAccountInfo | null>(null);
   // Where you are: tab + open bundle page + open Choice month. Every change
   // is a browser-history entry, so back/forward (mouse buttons 4/5,
   // Alt+←/→) step through it like a website.
@@ -173,6 +181,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
   const loadChoice = useCallback(async () => setChoiceMonths(await api.getChoice()), []);
   const loadWishlists = useCallback(async () => setWishlists(await api.getWishlists()), []);
+  const loadSteam = useCallback(async () => setSteam(await api.getSteamAccount()), []);
 
   useEffect(() => {
     // Download progress arrives fast; batch it into one render per 250 ms.
@@ -214,6 +223,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       api.onChoiceUpdated(() => loadChoice()),
       api.onOrdersUpdated(() => loadOrders()),
       api.onWishlistsUpdated(() => loadWishlists()),
+      api.onSteamUpdated(() => loadSteam()),
       // Back from a Redeem link in the browser: ask whether it worked.
       api.onAppFocus(() => {
         const p = pendingRedeem.current;
@@ -229,12 +239,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     loadOrders();
     loadChoice();
     loadWishlists();
+    loadSteam();
     api.requestStatus();
     return () => {
       unsubs.forEach((u) => u());
       if (timer) clearTimeout(timer);
     };
-  }, [loadLibrary, loadOrders, loadChoice, loadWishlists]);
+  }, [loadLibrary, loadOrders, loadChoice, loadWishlists, loadSteam]);
 
   // Dark by default; the html attribute drives every themed colour.
   useEffect(() => {
@@ -243,6 +254,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const ownIndex = useMemo(() => indexOwned(lib), [lib]);
   const wanted = useMemo(() => wantersByKey(wishlists, ownIndex), [wishlists, ownIndex]);
+  const steamIdx = useMemo(() => indexSteam(steam?.apps), [steam?.apps]);
+  const steamByKey = useMemo(() => steamKeys(lib.keys, steamIdx), [lib.keys, steamIdx]);
+  const steamBundles = useMemo(() => bundlesOnSteam(lib.bundles, steamByKey), [lib.bundles, steamByKey]);
   const owned = useMemo(() => new Set([...lib.keys.map((k) => normTitle(k.name)), ...lib.products.map((p) => normTitle(p.title))]), [lib]);
 
   const store: Store = {
@@ -262,6 +276,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setPref("wishlists.q", search);
       navigate({ tab: "wishlists" });
     },
+    steam,
+    steamByKey,
+    steamBundles,
     busy: !!status?.busy,
     tab,
     setTab: (t) => navigate({ tab: t }),
