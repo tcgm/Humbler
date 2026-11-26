@@ -360,6 +360,8 @@ button.keyfield:disabled { opacity: 0.55; cursor: default; }
 .hb-flag.amber { color: #d99a2b; }
 .hb-flag.muted { color: var(--hb-muted); font-weight: 500; }
 .hb-flag.green { color: var(--hb-green); }
+.hb-flag.pink { color: var(--mark-wanted); }
+.hb-steamline { margin: 4px 0 0; }
 /* sold out: a filled badge, so it reads as a warning next to the plain red "unrevealed" */
 .hb-flag.red { color: #fff; background: var(--hb-red); border-radius: 3px; padding: 0 5px; }
 .keyfield.soldout { background: color-mix(in srgb, var(--hb-red) 18%, var(--hb-card)); color: var(--hb-red); font-weight: 600; border: 1px solid color-mix(in srgb, var(--hb-red) 45%, transparent); }
@@ -576,6 +578,7 @@ button.pick-row.active { background: var(--hb-input); border-color: var(--hb-red
 .ask.settings h4 { margin: 16px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--hb-muted); }
 .settings-row { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--hb-line); cursor: default; }
 label.settings-row { cursor: pointer; }
+.settings-row.disabled { opacity: 0.6; cursor: default; }
 .settings-row input[type="checkbox"] { margin-top: 2px; flex: none; }
 .settings-row > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .settings-row small { font-size: 11px; color: var(--hb-muted); }
@@ -737,3 +740,70 @@ html[data-theme="light"] .tooltip {
 .steam-pct { font-variant-numeric: tabular-nums; font-weight: 600; }
 .steam-pct.ok { color: var(--ok); }
 .grid tr.steam-click { cursor: pointer; }
+
+/* Marks: the same everywhere a game shows up. Green = yours (Humble library
+   or Steam account, Librarian's green), pink = on a Steam wishlist, blue = new to you. */
+:root { --mark-owned: #3ecf5b; --mark-owned-bg: rgba(50, 205, 50, 0.15); --mark-wanted: #ec5fa6; --mark-wanted-bg: rgba(236, 72, 153, 0.15); --mark-fresh: #6aaeff; --mark-fresh-bg: rgba(80, 160, 255, 0.15); }
+html[data-theme="light"] { --mark-owned: #1f8a35; --mark-owned-bg: rgba(40, 160, 60, 0.12); --mark-wanted: #c0287a; --mark-wanted-bg: rgba(220, 50, 130, 0.1); --mark-fresh: #2a6fd1; --mark-fresh-bg: rgba(40, 110, 210, 0.1); }
+.marks { display: inline-flex; flex-wrap: wrap; gap: 3px 4px; align-items: center; vertical-align: middle; }
+.mark { font-size: 11px; font-weight: 600; line-height: 1.5; padding: 0 7px; border-radius: 999px; background: var(--hover); color: var(--muted); white-space: nowrap; text-decoration: none !important; }
+a.mark { cursor: pointer; }
+a.mark:hover { filter: brightness(1.15); }
+.mark.owned { background: var(--mark-owned-bg); color: var(--mark-owned) !important; }
+.mark.wanted { background: var(--mark-wanted-bg); color: var(--mark-wanted) !important; }
+.mark.wanted.soft { opacity: 0.8; }
+.mark.fresh { background: var(--mark-fresh-bg); color: var(--mark-fresh) !important; }
+.mark.bad { background: var(--hb-red-soft, rgba(209, 55, 58, 0.15)); color: var(--hb-red, #d1373a) !important; }
+.hb .mark { font-size: 11px; }
+.grid td .marks { display: flex; margin-top: 2px; }
+.hb-keys .hb-game .marks, .hb-keyline-title .marks { display: flex; margin-top: 4px; }
+
+/* On Sale: Humble's /bundles page (category tabs, a grid of bundle tiles) */
+.sale-tabs { display: flex; gap: 22px; border-bottom: 1px solid var(--hb-line); }
+.sale-tabs button { background: none; border: none; border-bottom: 3px solid transparent; border-radius: 0; padding: 6px 2px 8px; margin-bottom: -1px; font-size: 15px; font-weight: 600; color: var(--hb-muted); cursor: pointer; }
+.sale-tabs button span { font-size: 12px; font-weight: 500; margin-left: 2px; }
+.sale-tabs button:hover { color: var(--hb-text); }
+.sale-tabs button.active { color: var(--hb-text); border-bottom-color: var(--hb-red); }
+.hb-summary .sale-legend { margin-left: 10px; }
+.sale-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 12px; }
+.sale-tile { display: flex; flex-direction: column; padding: 0; text-align: left; background: var(--hb-card); border: 1px solid var(--hb-line); border-radius: 4px; overflow: hidden; color: var(--hb-text); font: inherit; cursor: pointer; white-space: normal; transition: transform 0.12s ease-out, box-shadow 0.12s ease-out; }
+.sale-tile:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); border-color: var(--hb-field-border); }
+.sale-tile.all-owned { box-shadow: inset 0 0 0 2px limegreen; }
+.sale-art { position: relative; aspect-ratio: 16 / 9; background: var(--hb-field); }
+.sale-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sale-ends { position: absolute; left: 8px; bottom: 8px; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 3px; background: rgba(0, 0, 0, 0.72); color: #fff; }
+.sale-ends.soon { background: var(--hb-red); }
+.sale-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.sale-body h4 { margin: 0; font-size: 13.5px; font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.sale-body p { margin: 0; font-size: 12px; color: var(--hb-muted); }
+.sale-body .bar { margin-top: auto; }
+.sale-head { align-items: flex-start; }
+.sale-head-art { width: 300px; max-width: 40%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 4px; flex: none; }
+.sale-head .marks { margin: 6px 0 2px; }
+.sale-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: 10px; }
+.sale-item { display: flex; flex-direction: column; background: var(--hb-card); border: 1px solid var(--hb-line); border-radius: 4px; overflow: hidden; }
+.sale-item.owned { border-color: limegreen; box-shadow: inset 0 0 0 1px limegreen; background: linear-gradient(var(--mark-owned-bg), var(--mark-owned-bg)), var(--hb-card); }
+.sale-item.owned h4 { color: var(--mark-owned); }
+.sale-item.wanted { border-color: var(--mark-wanted); }
+.sale-item-art { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; background: var(--hb-field); }
+.sale-item.owned .sale-item-art { opacity: 0.6; }
+.sale-item-body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.sale-item-body h4 { margin: 0; font-size: 12.5px; font-weight: 600; line-height: 1.3; }
+.sale-item-foot { margin-top: auto; display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11px; color: var(--hb-muted); }
+.sale-ends { font-variant-numeric: tabular-nums; }
+.star { flex: none; font-size: 17px; line-height: 1; color: var(--hb-muted); cursor: pointer; padding: 0 2px; border-radius: 4px; }
+.star:hover { color: #ffcc33; }
+.star.on { color: #ffcc33; }
+.sale-line { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.sale-item-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
+.mark.starred { background: rgba(255, 204, 51, 0.16); color: #e0aa10 !important; }
+.starred-games { margin-bottom: 14px; }
+.starred-row { display: flex; align-items: baseline; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--hb-line); font-size: 13px; }
+.starred-title { font-weight: 600; flex: 0 1 35%; min-width: 0; }
+.starred-where { flex: 1; display: flex; flex-wrap: wrap; gap: 2px 14px; min-width: 0; }
+.sale-endline { margin: 4px 0 0; font-size: 12px; color: var(--hb-muted); }
+.sale-left { font-weight: 600; color: var(--hb-text); font-variant-numeric: tabular-nums; }
+.sale-left.soon { color: var(--hb-red); }
+.wish-add { font-size: 11px; color: var(--mark-wanted) !important; cursor: pointer; }
+.wish-add.failed { color: var(--hb-red) !important; }
+

@@ -2,7 +2,7 @@
 // sync, keys, downloads, scouting/harvesting, and the IPC API the UI uses
 // (typed in src/shared/api.ts).
 import dotenv from "dotenv";
-import { app, BaseWindow, WebContentsView, ipcMain, session, dialog, shell, clipboard, safeStorage, type Session, type WebContents } from "electron";
+import { app, BaseWindow, WebContentsView, ipcMain, session, dialog, shell, clipboard, safeStorage, Tray, Menu, nativeImage, type Session, type WebContents } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import type { InvokeChannels } from "../shared/api";
@@ -26,6 +26,8 @@ import * as ordersV2 from "./lib/orders-v2";
 import { flightData, resolvedFlightData, flightFromHtml, PAGE_FLIGHT_SCRIPT } from "./lib/rsc";
 import * as settingsStore from "./lib/settings";
 import { SteamAccount, STEAM_COOKIE_DOMAIN } from "./lib/steam-account";
+import { StoreBundles } from "./lib/store-bundles";
+import { Monitor } from "./lib/monitor";
 import { Wishlists } from "./lib/steam-wishlists";
 import * as lib from "./lib/library";
 import { HumbleApi, NotLoggedInError, BASE } from "./lib/humble-api";
@@ -275,6 +277,11 @@ async function pushStatus() {
     markOwned: settings.markOwned,
     liveScout: settings.liveScout,
     theme: settings.theme,
+    monitorMode: settings.monitorMode,
+    startAtLogin: settings.startAtLogin,
+    canStartAtLogin: canStartAtLogin(),
+    notifyNew: settings.notifyNew,
+    notifyWatched: settings.notifyWatched,
     live: liveScout.summary(),
     busy,
     busyDetail,
@@ -1477,8 +1484,9 @@ async function harvestChoicePage(wc: WebContents) {
 }
 
 async function markOwnedOnPage(wc: WebContents) {
-  if (!settings.markOwned || !index.products.length) return;
-  const n = await wc.executeJavaScript(ownedMarkerSource(getOwnedTitles())).catch(() => 0);
+  const steamTitles = [...new Set(steamAccount.view().apps.map((a) => lib.normTitle(a.name)).filter(Boolean))];
+  if (!settings.markOwned || (!index.products.length && !steamTitles.length)) return;
+  const n = await wc.executeJavaScript(ownedMarkerSource(getOwnedTitles(), steamTitles)).catch(() => 0);
   if (n) log(`Marked ${n} owned item(s) on this page.`);
 }
 
@@ -1761,6 +1769,8 @@ function createWindow() {
     title: "Humbler",
     backgroundColor: "#16171b",
     icon: path.join(__dirname, "../../resources", process.platform === "win32" ? "icon.ico" : "icon.png"),
+    // started with the computer in Monitor Mode: straight to the notification area
+    show: !(startedHidden && settings.monitorMode),
   });
   win.setMenuBarVisibility(false);
 
@@ -1833,6 +1843,16 @@ function createWindow() {
   humbleView.webContents.on("did-navigate-in-page", () => void afterLoad(false));
 
   win.on("resize", layout);
+  // Monitor Mode: closing hides Humbler to the notification area (Quit is in its menu)
+  win.on("close", (e) => {
+    if (!settings.monitorMode || quitting || !tray) return;
+    e.preventDefault();
+    win?.hide();
+    if (!toldAboutTray) {
+      toldAboutTray = true;
+      monitor.notify("Humbler is still running", "Monitor Mode keeps it in the notification area, watching Humble's bundles. Right-click its icon to quit.");
+    }
+  });
   // Coming back to Humbler (e.g. from Steam's redeem page in your browser):
   // the UI uses this to ask whether you redeemed the key.
   win.on("focus", () => send("app-focus"));
@@ -1933,9 +1953,17 @@ handle("settings:set", (patch: SettingsPatch) => {
     next.liveScout = patch.liveScout;
     if (patch.liveScout !== settings.liveScout) log(`Live scouting ${patch.liveScout ? "on" : "off"}.`);
   }
+  if (typeof patch?.monitorMode === "boolean" && patch.monitorMode !== settings.monitorMode) {
+    next.monitorMode = patch.monitorMode;
+    log(`Monitor Mode ${patch.monitorMode ? "on: closing the window keeps Humbler in the notification area" : "off"}.`);
+  }
+  if (typeof patch?.startAtLogin === "boolean" && canStartAtLogin()) next.startAtLogin = patch.startAtLogin;
+  if (patch?.notifyNew === "off" || patch?.notifyNew === "wishlist" || patch?.notifyNew === "all") next.notifyNew = patch.notifyNew;
+  if (typeof patch?.notifyWatched === "boolean") next.notifyWatched = patch.notifyWatched;
   const namingChanged = next.naming !== settings.naming;
   settings = next;
   settingsStore.save(settings);
+  applyMonitorMode();
   if (namingChanged) {
     log(`File naming: ${settings.naming === "title" ? "<Product> - <Publisher>.<ext>" : "Humble's original file names"}`);
     rebuildIndex();
@@ -2082,6 +2110,96 @@ handle("steam:sign-in", () => {
 });
 handle("steam:refresh", () => steamAccount.refresh());
 handle("steam:sign-out", () => steamAccount.signOut());
+// What Humble is selling now (humblebundle.com/bundles and each bundle's page)
+const storeBundles = new StoreBundles({ session: humbleSession, log: (m) => log(m), onChange: () => send("store-updated"), onChanges: (c) => monitor.onChanges(c) });
+handle("store:get", () => storeBundles.view());
+handle("store:refresh", (opts) => storeBundles.refresh({ full: !!opts?.full }));
+handle("store:watch", (opts) => monitor.watch(String(opts?.id), !!opts?.on));
+handle("store:watch-game", (opts) => storeBundles.watchGame(String(opts?.title ?? "").slice(0, 300), !!opts?.on));
+handle("steam:wishlist-add", async (opts) => {
+  const r = await steamAccount.addToWishlist(String(opts?.title ?? "").slice(0, 300), Number(opts?.appid) || null);
+  if (r.ok) {
+    // your own wishlist, if you compare it on the Wishlists tab, gets the new game too
+    const mine = steamAccount.view().steamId;
+    if (mine && wishlists.view().some((p) => p.steamId === mine)) void wishlists.refresh(mine);
+  }
+  return r;
+});
+handle("notify:test", () => monitor.notify("Humbler notifications are on", "This is what a new bundle or a watched bundle's ending will look like. Click to open On Sale."));
+
+// ---- notifications and Monitor Mode -------------------------------------
+const ICON_PATH = path.join(__dirname, "../../resources", process.platform === "win32" ? "icon.ico" : "icon.png");
+const monitor = new Monitor({
+  store: storeBundles,
+  icon: ICON_PATH,
+  settings: () => ({ notifyNew: settings.notifyNew, notifyWatched: settings.notifyWatched }),
+  ownedTitles: () => [...index.keys.map((k) => k.name), ...index.products.map((p) => p.title), ...steamAccount.view().apps.flatMap((a) => (a.name ? [a.name] : []))],
+  wishlists: () => {
+    const acct = steamAccount.view();
+    const lists = wishlists.view().map((p) => ({ name: p.steamId === acct.steamId ? "you" : p.name, mine: p.steamId === acct.steamId, titles: p.games.flatMap((g) => (g.name ? [g.name] : [])) }));
+    // your own wishlist from your Steam sign-in (private ones too)
+    if (acct.wishlist.length && !lists.some((l) => l.mine)) lists.push({ name: "you", mine: true, titles: acct.wishlist.flatMap((g) => (g.name ? [g.name] : [])) });
+    return lists;
+  },
+  open: (id) => {
+    showWindow();
+    send("open-sale", id);
+  },
+  log: (m) => log(m),
+});
+
+// Running from source, the login item would start bare Electron: only installed copies offer it.
+const canStartAtLogin = () => app.isPackaged && (process.platform === "win32" || process.platform === "darwin");
+const startedHidden = process.argv.includes("--hidden");
+let tray: Tray | null = null;
+let toldAboutTray = false;
+
+function showWindow() {
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
+/** Tray icon on/off and the login item, to match the settings. */
+function applyMonitorMode() {
+  if (settings.monitorMode && !tray) {
+    tray = new Tray(nativeImage.createFromPath(ICON_PATH));
+    tray.setToolTip("Humbler: watching Humble's bundles");
+    tray.on("click", showWindow);
+    tray.setContextMenu(
+      Menu.buildFromTemplate([
+        { label: "Open Humbler", click: showWindow },
+        { label: "Check Humble now", click: () => void storeBundles.refresh() },
+        { type: "separator" },
+        {
+          label: "Monitor Mode",
+          type: "checkbox",
+          checked: true,
+          click: () => {
+            settings = { ...settings, monitorMode: false };
+            settingsStore.save(settings);
+            log("Monitor Mode off.");
+            applyMonitorMode();
+            void pushStatus();
+          },
+        },
+        { label: "Quit Humbler", click: () => app.quit() },
+      ]),
+    );
+  } else if (!settings.monitorMode && tray) {
+    tray.destroy();
+    tray = null;
+    if (win && !win.isVisible()) showWindow(); // nothing left to bring it back
+  }
+  if (canStartAtLogin()) {
+    try {
+      app.setLoginItemSettings({ openAtLogin: settings.startAtLogin, args: settings.monitorMode ? ["--hidden"] : [] });
+    } catch (err) {
+      log(`Couldn't change starting with the computer: ${errMsg(err)}`);
+    }
+  }
+}
 handle("redeem:mark", ({ id, redeemed, platform }) => {
   const key = index.keys.find((k) => k.id === id);
   if (!key) return null;
@@ -2092,7 +2210,10 @@ handle("redeem:mark", ({ id, redeemed, platform }) => {
 
 // ---- lifecycle ----------------------------------------------------------
 
-if (process.platform === "win32") app.setAppUserModelId("Humbler"); // its own taskbar entry and icon, not Electron's
+// Its own taskbar entry and icon, not Electron's. Installed, the same id as
+// the Start menu shortcut the installer makes (electron-builder appId):
+// Windows only shows an app's notifications when they match.
+if (process.platform === "win32") app.setAppUserModelId(app.isPackaged ? "dev.tcgm.humbler" : "Humbler");
 // Key values on disk are sealed with the OS's per-user encryption (see
 // secret-store). Set up first, before anything reads or writes them.
 function setUpKeySealing() {
@@ -2151,6 +2272,14 @@ async function resealCookies() {
   log(`Cookie encryption is on: re-saved ${n} stored cookie(s) encrypted${failed ? ` (${failed} couldn't be; they're encrypted when Humble next updates them)` : ""}.`);
 }
 
+// One Humbler per data folder: starting it again (or at sign-in when it's
+// already running) shows the running one.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on("second-instance", () => showWindow());
+}
+
 void app.whenReady().then(async () => {
   setUpKeySealing();
   await resealCookies().catch((err) => log(`Couldn't re-save cookies encrypted: ${errMsg(err)}`));
@@ -2166,6 +2295,9 @@ void app.whenReady().then(async () => {
   void wishlists.refresh(null, { staleOnly: true }); // wishlists not fetched in the last 12 hours
   steamAccount.watchSignIn();
   void steamAccount.refreshIfStale(); // your Steam games, if not fetched in the last 12 hours
+  void storeBundles.refreshIfStale(); // Humble's current bundles, if not fetched in the last 12 hours
+  applyMonitorMode();
+  monitor.start(); // checks Humble every 30 minutes; watched bundles' endings
 });
 
 // Write cookies (your login) to disk before exiting. Quitting waits for the

@@ -7,17 +7,22 @@
 // (encrypted on disk the same way) and Humbler reads, with them:
 //   - the steamLoginSecure cookie: "<SteamID64>||<token>", so which account it is
 //   - store.steampowered.com/dynamicstore/userdata: the app ids you own
-//     (games and DLC), the same list the store uses to say "In library"
+//     (games and DLC), the same list the store uses to say "In library",
+//     and the ones on your wishlist (even when it's private)
+//   - store.steampowered.com/api/addtowishlist: adds a game to your wishlist
+//     (only when you click "Add to Steam wishlist"; app ids found by title
+//     with the public api/storesearch)
 // Names come from the public IStoreBrowseService/GetItems (as for wishlists),
 // cached, so a refresh only looks up apps it hasn't seen.
 //
-// data/steam-account.json: { steamId, name, avatar, fetchedAt, error, apps: [appid...], packages, names: { "<appid>": { name, at } } }
+// data/steam-account.json: { steamId, name, avatar, fetchedAt, error, apps: [appid...], wishlist: [appid...], packages, names: { "<appid>": { name, at } } }
 import fs from "node:fs";
 import path from "node:path";
 import type { Session } from "electron";
 import { fetchText } from "./http";
 import { DATA_DIR } from "./paths";
 import { fetchAppInfo, resolveProfile } from "./steam-wishlists";
+import { exactTitle, looseTitle } from "../../shared/titles";
 import type { OkResult, SteamAccountInfo } from "../../shared/types";
 
 const STORE_PATH = path.join(DATA_DIR, "steam-account.json");
@@ -35,11 +40,12 @@ interface StoreFile {
   fetchedAt: string | null;
   error: string | null;
   apps: number[];
+  wishlist: number[];
   packages: number;
   names: Record<string, { name: string | null; at: number }>;
 }
 
-const EMPTY: StoreFile = { steamId: null, name: null, avatar: null, fetchedAt: null, error: null, apps: [], packages: 0, names: {} };
+const EMPTY: StoreFile = { steamId: null, name: null, avatar: null, fetchedAt: null, error: null, apps: [], wishlist: [], packages: 0, names: {} };
 
 function loadFile(): StoreFile {
   try {
@@ -48,6 +54,7 @@ function loadFile(): StoreFile {
       ...EMPTY,
       ...d,
       apps: Array.isArray(d.apps) ? d.apps.filter((a: unknown) => Number.isFinite(a)) : [],
+      wishlist: Array.isArray(d.wishlist) ? d.wishlist.filter((a: unknown) => Number.isFinite(a)) : [],
       names: d.names && typeof d.names === "object" ? d.names : {},
     };
   } catch {
@@ -114,6 +121,7 @@ export class SteamAccount {
       refreshing: this.refreshing,
       packages: d.packages,
       apps: d.apps.map((appid) => ({ appid, name: d.names[appid]?.name ?? null })),
+      wishlist: d.wishlist.map((appid) => ({ appid, name: d.names[appid]?.name ?? null })),
     };
   }
 
@@ -123,7 +131,7 @@ export class SteamAccount {
   }
 
   /** Steam's list of what you own (null: Steam doesn't think you're signed in). */
-  private async fetchOwned(): Promise<{ apps: number[]; packages: number } | null> {
+  private async fetchOwned(): Promise<{ apps: number[]; wishlist: number[]; packages: number } | null> {
     const ses = this.opts.session();
     const r = await fetchText(ses, { url: `${STORE}/dynamicstore/userdata/?t=${Date.now()}`, headers: { Accept: "application/json" } });
     if (r.status !== 200) throw new Error(`Steam answered HTTP ${r.status}`);
@@ -132,7 +140,9 @@ export class SteamAccount {
     const packages = Array.isArray(d?.rgOwnedPackages) ? d.rgOwnedPackages.length : 0;
     // signed out (or the sign-in expired): every list comes back empty
     if (!apps.length && !packages) return null;
-    return { apps: [...new Set(apps)], packages };
+    // the wishlist, in Steam's order (your ranking)
+    const wishlist: number[] = (Array.isArray(d?.rgWishlist) ? d.rgWishlist : []).map(Number).filter(Number.isFinite);
+    return { apps: [...new Set(apps)], wishlist: [...new Set(wishlist)], packages };
   }
 
   async refresh(): Promise<OkResult> {
@@ -160,7 +170,7 @@ export class SteamAccount {
       if (this.data.steamId && this.data.steamId !== steamId) this.data = { ...EMPTY, names: this.data.names }; // another account
       const who = await resolveProfile(steamId).catch(() => null);
       const now = Date.now();
-      const need = owned.apps.filter((a) => {
+      const need = [...new Set([...owned.apps, ...owned.wishlist])].filter((a) => {
         const n = this.data.names[a];
         return !n || now - n.at > NAME_MAX_AGE_MS;
       });
@@ -170,11 +180,14 @@ export class SteamAccount {
         name: who?.name ?? this.data.name ?? steamId,
         avatar: who?.avatar ?? this.data.avatar,
         apps: owned.apps,
+        wishlist: owned.wishlist,
         packages: owned.packages,
         fetchedAt: new Date().toISOString(),
         error: null,
       });
-      this.opts.log(`Steam account: ${this.data.name} has ${owned.apps.length} games and DLC${need.length ? ` (looked up ${need.length} new names)` : ""}.`);
+      this.opts.log(
+        `Steam account: ${this.data.name} has ${owned.apps.length} games and DLC, ${owned.wishlist.length} on the wishlist${need.length ? ` (looked up ${need.length} new names)` : ""}.`,
+      );
       return { ok: true };
     } catch (err) {
       this.data.error = `Couldn't fetch your Steam games: ${errMsg(err)}`;
@@ -184,6 +197,46 @@ export class SteamAccount {
       this.refreshing = false;
       this.save();
     }
+  }
+
+  /**
+   * Add a game to your Steam wishlist, found by title (or by app id). Only
+   * an app whose title matches (exactly, or but for edition words) is added;
+   * anything else is reported, not guessed.
+   */
+  async addToWishlist(title: string, appid?: number | null): Promise<OkResult & { appid?: number; name?: string }> {
+    const ses = this.opts.session();
+    const sid = (await ses.cookies.get({ url: STORE, name: "sessionid" }))[0]?.value;
+    if (!(await this.cookieSteamId()) || !sid) return { ok: false, reason: "Sign in to Steam first (My Steam tab)." };
+    let app: { id: number; name: string } | null = appid ? { id: appid, name: title } : null;
+    if (!app) {
+      const r = await fetchText(ses, { url: `${STORE}/api/storesearch/?term=${encodeURIComponent(title)}&l=english&cc=US`, headers: { Accept: "application/json" } });
+      const items: { id: number; name: string; type: string }[] = r.status === 200 ? (JSON.parse(r.text)?.items ?? []) : [];
+      const apps = items.filter((i) => i.type === "app" && Number.isFinite(i.id));
+      app = apps.find((i) => exactTitle(i.name) === exactTitle(title)) ?? apps.find((i) => looseTitle(i.name) === looseTitle(title)) ?? null;
+      if (!app) return { ok: false, reason: `Couldn't find "${title}" on the Steam store${apps.length ? ` (closest: ${apps[0].name})` : ""}.` };
+    }
+    const r = await fetchText(ses, {
+      url: `${STORE}/api/addtowishlist`,
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", Origin: STORE, Referer: `${STORE}/app/${app.id}/`, Accept: "application/json" },
+      body: `sessionid=${encodeURIComponent(sid)}&appid=${app.id}`,
+    });
+    let ok = false;
+    try {
+      ok = r.status === 200 && JSON.parse(r.text)?.success === true;
+    } catch {
+      // not JSON: an error page
+    }
+    if (!ok) {
+      this.opts.log(`Steam account: couldn't add ${app.name} (${app.id}) to your wishlist (HTTP ${r.status}).`);
+      return { ok: false, reason: "Steam didn't add it: the sign-in may have expired (My Steam → Sign in again)." };
+    }
+    this.opts.log(`Steam account: added ${app.name} (${app.id}) to your wishlist.`);
+    if (!this.data.wishlist.includes(app.id)) this.data.wishlist.push(app.id);
+    this.data.names[app.id] = { name: app.name, at: Date.now() };
+    this.save();
+    return { ok: true, appid: app.id, name: app.name };
   }
 
   /** At startup: refresh when signed in and not fetched recently. */

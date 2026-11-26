@@ -3,6 +3,7 @@ import { useMemo, useRef, useState } from "react";
 import type { KeyEntry, KeyStatus } from "@shared/types";
 import { ExportButton } from "../components/ExportDialog";
 import { KeyField } from "../components/KeyField";
+import { Marks } from "../components/Marks";
 import { RevealSelected, selectedOr } from "../components/KeySelect";
 import { byText, useTable, type Col } from "../components/Table";
 import { ExtLink, HumbleLink, Pager, PlatformBadge, ResetButton } from "../components/ui";
@@ -237,6 +238,7 @@ export function KeysTab() {
                 <td className="hb-game grow">
                   <h4 title={k.name}>{k.name}</h4>
                   <p title={k.bundle}>{k.bundle}</p>
+                  <Marks title={k.name} appid={k.steamAppId} keys={[k]} />
                   <span className="row-links">
                     <HumbleLink of={k} />
                     {(platformOf(k).id === "steam" || k.steamAppId) && <ExtLink href={steamUrl(k.name, k.steamAppId)}>View on Steam</ExtLink>}

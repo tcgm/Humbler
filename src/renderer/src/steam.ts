@@ -65,16 +65,22 @@ export function indexSteam(apps: SteamAccountInfo["apps"] | undefined): SteamInd
   return idx;
 }
 
+/** Is a game (or DLC) of this title on your account? */
+export function onAccountByTitle(title: string, idx: SteamIndex): OnAccount | null {
+  if (!idx.size) return null;
+  const e = idx.byExact.get(exactTitle(title));
+  if (e) return { app: e, how: "exact" };
+  const l = looseTitle(title);
+  const m = l ? idx.byLoose.get(l) : undefined;
+  return m ? { app: m, how: "likely" } : null;
+}
+
 /** Is this Steam key's game on your account? */
 export function onAccount(k: KeyEntry, idx: SteamIndex): OnAccount | null {
   if (!idx.size || !isSteamKey(k)) return null;
   const id = Number(k.steamAppId);
   if (id && idx.byAppid.has(id)) return { app: idx.byAppid.get(id)!, how: "appid" };
-  const e = idx.byExact.get(exactTitle(k.name));
-  if (e) return { app: e, how: "exact" };
-  const l = looseTitle(k.name);
-  const m = l ? idx.byLoose.get(l) : undefined;
-  return m ? { app: m, how: "likely" } : null;
+  return onAccountByTitle(k.name, idx);
 }
 
 export function steamState(k: KeyEntry, on: OnAccount | null): SteamState {

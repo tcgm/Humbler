@@ -6,10 +6,12 @@
 // case, punctuation and ™/®.
 // Re-applied as the page changes (MutationObserver), and re-injected on navigation.
 
-export function ownedMarkerSource(normalizedTitles: string[]): string {
+// `steamTitles`: games and DLC on your Steam account (My Steam), marked the same way.
+export function ownedMarkerSource(normalizedTitles: string[], steamTitles: string[] = []): string {
   return `
 (() => {
   const owned = new Set(${JSON.stringify(normalizedTitles)});
+  const onSteam = new Set(${JSON.stringify(steamTitles)});
   const norm = (s) => String(s || "").toLowerCase().replace(/[™®©]/g, "").replace(/&amp;/g, "&").replace(/[^a-z0-9&]+/g, " ").trim();
   if (!document.getElementById("humbler-owned-style")) {
     const st = document.createElement("style");
@@ -26,9 +28,11 @@ export function ownedMarkerSource(normalizedTitles: string[]): string {
       el.dataset.humblerChecked = "1";
       const text = (el.children.length === 0 ? el.textContent : ownText(el)).trim();
       if (text.length < 2 || text.length > 140) continue;
-      if (!owned.has(norm(text))) continue;
+      const n = norm(text);
+      const inLib = owned.has(n), inSteam = onSteam.has(n);
+      if (!inLib && !inSteam) continue;
       el.classList.add("humbler-owned");
-      el.title = "Humbler: already in your library";
+      el.title = "Humbler: already " + (inLib && inSteam ? "in your library and on your Steam account" : inLib ? "in your library" : "on your Steam account");
       const card = el.closest("[class*=item],[class*=tile],[class*=entity],[class*=choice],[class*=card]");
       if (card && card !== document.body) card.classList.add("humbler-owned-card");
     }

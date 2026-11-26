@@ -1,10 +1,11 @@
 // Bundles: your bundles as a list (icon, purchase, deadline), and a bundle
 // page modelled on the old humblebundle.com /downloads?key=... page.
 import { useMemo } from "react";
-import type { Bundle, FileEntry } from "@shared/types";
+import type { Bundle, FileEntry, KeyEntry } from "@shared/types";
 import { ExportButton } from "../components/ExportDialog";
 import { FileButton } from "../components/FileButton";
 import { KeyField } from "../components/KeyField";
+import { Marks } from "../components/Marks";
 import { KeyCheck, RevealSelected, selectedOr, useKeySelection } from "../components/KeySelect";
 import { BackLink, BundleIcon, DeadlineBadge, ExtLink, HumbleLink, Pager, PlatformBadge, ResetButton, Tile, useOrderInfo } from "../components/ui";
 import { useRemembered, useRememberedScroll } from "../remember";
@@ -214,7 +215,10 @@ function BundleList() {
 
 function BundleRow({ b, dl, soldOut, expired, onOpen }: { b: Bundle; dl: ReturnType<typeof deadlineOf>; soldOut: number; expired: number; onOpen: () => void }) {
   const info = useOrderInfo(b);
-  const steam = useStore().steamBundles.get(b.gamekey);
+  const { steamBundles, lib, wanted } = useStore();
+  const steam = steamBundles.get(b.gamekey);
+  // spare keys in it that someone has on their Steam wishlist
+  const wantedKeys = useMemo(() => lib.keys.filter((k) => k.gamekey === b.gamekey && wanted.has(k.id)), [lib.keys, wanted, b.gamekey]);
   const bought = info?.createdAt ? `Bought ${formatDate(info.createdAt)}${info.total ? ` · ${formatMoney(info.total)}` : ""}` : null;
   return (
     <button className="hb-row" title={b.name} onClick={onOpen}>
@@ -227,7 +231,7 @@ function BundleRow({ b, dl, soldOut, expired, onOpen }: { b: Bundle; dl: ReturnT
             {b.fileCount ? `${b.filesOnDisk ?? 0} of ${b.fileCount} files on disk${b.olderOnDisk ? ` (+${b.olderOnDisk} older version${b.olderOnDisk === 1 ? "" : "s"})` : ""}` : "Has a folder on disk"}
           </p>
         )}
-        {(!!b.unrevealed || soldOut > 0 || expired > 0 || !!steam) && (
+        {(!!b.unrevealed || soldOut > 0 || expired > 0 || !!steam || wantedKeys.length > 0) && (
           <div className="hb-flags">
             {steam && (
               <span
@@ -237,6 +241,11 @@ function BundleRow({ b, dl, soldOut, expired, onOpen }: { b: Bundle; dl: ReturnT
                 {steam.pct === 100 ? "✓ " : ""}
                 {steam.likely && steam.pct ? "~" : ""}
                 {steam.pct}% on Steam
+              </span>
+            )}
+            {wantedKeys.length > 0 && (
+              <span className="hb-flag pink" title={wantedKeys.map((k) => `${k.name}: ${wanted.get(k.id)!.map((w) => `${w.profile.name} #${w.game.rank}`).join(", ")}`).join("\n")}>
+                ♥ {wantedKeys.length} spare key{wantedKeys.length === 1 ? "" : "s"} wanted
               </span>
             )}
             {!!b.unrevealed && <span className="hb-flag">{b.unrevealed} unrevealed</span>}
@@ -251,7 +260,7 @@ function BundleRow({ b, dl, soldOut, expired, onOpen }: { b: Bundle; dl: ReturnT
 }
 
 function BundlePage({ id }: { id: string }) {
-  const { lib, openBundle, openChoiceMonth } = useStore();
+  const { lib, openBundle, openChoiceMonth, steamBundles, wanted } = useStore();
   const [platform, setPlatform] = useRemembered(`bundle.${id}.platform`, "");
   const b = lib.bundles.find((x) => x.gamekey === id);
   const info = useOrderInfo(b);
@@ -290,6 +299,7 @@ function BundlePage({ id }: { id: string }) {
               .filter(Boolean)
               .join(" · ")}
           </p>
+          <BundleSteamLine gamekey={b.gamekey} keys={keys} steam={steamBundles} wanted={wanted} />
           {!!b.diskDirs?.length && (
             <p className="on-disk">
               {b.fileCount ? `${b.filesOnDisk ?? 0} of ${b.fileCount} files on disk${b.olderOnDisk ? ` (+${b.olderOnDisk} older version${b.olderOnDisk === 1 ? "" : "s"})` : ""} in ` : "On disk in "}
@@ -339,6 +349,7 @@ function BundlePage({ id }: { id: string }) {
                   <div className="hb-keyline-title">
                     <h4>{k.name}</h4>
                     <HumbleLink of={k} />
+                    <Marks title={k.name} appid={k.steamAppId} keys={[k]} />
                   </div>
                   <div className="hb-keyline-field">
                     <KeyField k={k} />
@@ -378,6 +389,7 @@ function BundlePage({ id }: { id: string }) {
                     <div className="hb-dlrow-title">
                       <h4>{title}</h4>
                       <p>{[...new Set(fs.map((f) => PLATFORM_LABELS[f.platform] || f.platform))].join(" · ")}</p>
+                      <Marks title={title} keys={keys.filter((k) => k.name === title)} />
                       <HumbleLink of={fs[0]} />
                     </div>
                     <div className="hb-dlrow-files">
@@ -414,5 +426,24 @@ function BundlePage({ id }: { id: string }) {
         )}
       </div>
     </div>
+  );
+}
+
+/** A bundle page's line about your Steam account and wishlists. */
+function BundleSteamLine({ gamekey, keys, steam, wanted }: { gamekey: string; keys: KeyEntry[]; steam: ReturnType<typeof useStore>["steamBundles"]; wanted: ReturnType<typeof useStore>["wanted"] }) {
+  const s = steam.get(gamekey);
+  const want = keys.filter((k) => wanted.has(k.id));
+  if (!s && !want.length) return null;
+  return (
+    <p className="marks hb-steamline">
+      {s && (
+        <span className={`mark ${s.pct === 100 ? "owned" : ""}`} title={`${s.on} of ${plural(s.keys.length, "Steam key")} are for games or DLC on your Steam account${s.likely ? ` (${s.likely} by a likely title)` : ""}`}>
+          {s.pct === 100 ? "✓ " : ""}
+          {s.on} of {plural(s.keys.length, "Steam key")} on your Steam account ({s.likely && s.pct ? "~" : ""}
+          {s.pct}%)
+        </span>
+      )}
+      {want.length > 0 && <span className="mark wanted">♥ {plural(want.length, "spare key")} on someone&apos;s wishlist</span>}
+    </p>
   );
 }

@@ -12,6 +12,7 @@ import { ChoiceTab } from "./tabs/ChoiceTab";
 import { DownloadsTab } from "./tabs/DownloadsTab";
 import { KeysTab } from "./tabs/KeysTab";
 import { LibraryTab } from "./tabs/LibraryTab";
+import { OnSaleTab } from "./tabs/OnSaleTab";
 import { ScoutTab } from "./tabs/ScoutTab";
 import { SteamTab } from "./tabs/SteamTab";
 import { WishlistsTab } from "./tabs/WishlistsTab";
@@ -34,6 +35,7 @@ export function App() {
     // Clicking the tab you're on returns Bundles/Choice to their lists.
     if (t === tab && t === "bundles") s.openBundle(null);
     if (t === tab && t === "choice") s.openChoiceMonth(null);
+    if (t === tab && t === "onsale") s.openSale(null);
     setTab(t);
   };
 
@@ -74,6 +76,7 @@ export function App() {
     { id: "files", label: "Downloads", count: lib.files.length ? `${pending} to get / ${lib.files.length}` : "", render: () => <DownloadsTab /> },
     { id: "library", label: "Library", count: lib.products.length ? String(lib.products.length) : "", render: () => <LibraryTab /> },
     { id: "wishlists", label: "Wishlists", count: s.wishlists.length ? `${toGive} to give` : "", render: () => <WishlistsTab /> },
+    { id: "onsale", label: "On Sale", count: s.storeInfo?.bundles.length ? String(s.storeInfo.bundles.length) : "", hb: true, render: () => <OnSaleTab /> },
     { id: "steam", label: "My Steam", count: s.steam?.apps.length ? `${steamRedeemed} redeemed` : "", render: () => <SteamTab /> },
     { id: "log", label: "Scout & Log", render: () => <ScoutTab /> },
   ];

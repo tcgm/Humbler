@@ -182,6 +182,7 @@ export interface LibraryIndex {
 export type Naming = "original" | "title";
 export type Theme = "dark" | "light";
 export type Busy = "sync" | "reveal" | null;
+export type NotifyNew = "off" | "wishlist" | "all";
 
 export interface Status {
   loggedIn: boolean;
@@ -191,6 +192,12 @@ export interface Status {
   markOwned: boolean;
   liveScout: boolean;
   theme: Theme;
+  monitorMode: boolean;
+  startAtLogin: boolean;
+  /** false: this copy can't register itself to start with the computer (running from source) */
+  canStartAtLogin: boolean;
+  notifyNew: NotifyNew;
+  notifyWatched: boolean;
   live: { endpoints: number; samples: number };
   busy: Busy;
   /** what the busy job is doing right now, e.g. "download links 120/3834" */
@@ -222,6 +229,10 @@ export interface SettingsPatch {
   markOwned?: boolean;
   liveScout?: boolean;
   theme?: Theme;
+  monitorMode?: boolean;
+  startAtLogin?: boolean;
+  notifyNew?: NotifyNew;
+  notifyWatched?: boolean;
 }
 
 export type DownloadState = "queued" | "downloading" | "done" | "error" | "cancelled";
@@ -333,6 +344,67 @@ export interface SteamAccountInfo {
   packages: number;
   /** games and DLC on the account; name null: no store page (removed, unlisted) */
   apps: { appid: number; name: string | null }[];
+  /** your wishlist, in your order (read signed in, so a private one too) */
+  wishlist: { appid: number; name: string | null }[];
+}
+
+/** One thing in a bundle Humble is selling now. */
+export interface StoreItem {
+  id: string;
+  title: string;
+  /** the tier that adds it (0 = the lowest) */
+  tier: number;
+  /** how it's delivered: steam, other_key, ... */
+  delivery: string[];
+  platforms: string[];
+  msrp: number | null;
+  image: string | null;
+  steamRating: number | null;
+  /** Humble has run out of keys for it */
+  outOfKeys?: boolean;
+}
+
+export interface StoreTier {
+  price: number | null;
+  currency: string | null;
+  /** what everything up to this tier would cost separately */
+  msrpTotal: number | null;
+}
+
+/** A bundle on humblebundle.com/bundles right now (lib/store-bundles). */
+export interface StoreBundle {
+  id: string;
+  slug: string;
+  url: string;
+  title: string;
+  /** games | books | software */
+  category: string;
+  image: string | null;
+  endDate: string | null;
+  startDate: string | null;
+  /** the "from" price */
+  price: Money | null;
+  itemsCount: number | null;
+  keyExpiration: string | null;
+  /** the first titles, from the bundle list (until its page is read) */
+  preview: string[];
+  tiers: StoreTier[];
+  /** null: its page hasn't been read yet */
+  items: StoreItem[] | null;
+  fetchedAt: string | null;
+  error: string | null;
+}
+
+export interface StoreInfo {
+  fetchedAt: string | null;
+  error: string | null;
+  /** reading bundle pages: how far along */
+  refreshing: { done: number; total: number } | null;
+  bundles: StoreBundle[];
+  /** ids of the bundles you watch */
+  watched: string[];
+  /** games you starred: notified when one is in a bundle on sale */
+  watchedGames: { title: string; addedAt: string }[];
 }
 
 export interface OkResult {

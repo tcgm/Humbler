@@ -2,7 +2,7 @@
 // main process) and display preferences (remembered in this window).
 import { useEffect, useRef, useState } from "react";
 import { LuX } from "react-icons/lu";
-import type { Naming } from "@shared/types";
+import type { Naming, NotifyNew } from "@shared/types";
 import { PREFS, usePref } from "../remember";
 import { api, useStore } from "../store";
 
@@ -87,6 +87,62 @@ export function SettingsDialog({ onClose, onFolders }: { onClose: () => void; on
             <option value="original">Humble&apos;s file names</option>
             <option value="title">Product - Publisher.ext</option>
           </select>
+        </div>
+
+        <h4>Notifications &amp; Monitor Mode</h4>
+        <div className="settings-row">
+          <span>
+            New bundles on Humble
+            <small>Checked every 30 minutes while Humbler runs. Click a notification to open the bundle.</small>
+          </span>
+          <select value={status?.notifyNew ?? "wishlist"} onChange={(e) => api.setSettings({ notifyNew: e.target.value as NotifyNew })}>
+            <option value="wishlist">Only with a wishlisted game</option>
+            <option value="all">Every new bundle</option>
+            <option value="off">Never</option>
+          </select>
+        </div>
+        <label className="settings-row">
+          <input type="checkbox" checked={!!status?.notifyWatched} onChange={(e) => api.setSettings({ notifyWatched: e.target.checked })} />
+          <span>
+            Bundles and games you watch
+            <small>24 h, 3 h, 1 h and 10 min before a watched bundle (☆ on the On Sale tab) ends, when it adds items, and when a starred game turns up in a bundle.</small>
+          </span>
+        </label>
+        <label className="settings-row">
+          <input type="checkbox" checked={!!status?.monitorMode} onChange={(e) => api.setSettings({ monitorMode: e.target.checked })} />
+          <span>
+            Monitor Mode
+            <small>Closing the window keeps Humbler running in the notification area (system tray), watching Humble and finishing downloads. Quit from its icon&apos;s menu.</small>
+          </span>
+        </label>
+        <label className={`settings-row${status?.canStartAtLogin ? "" : " disabled"}`}>
+          <input
+            type="checkbox"
+            disabled={!status?.canStartAtLogin}
+            checked={!!status?.startAtLogin}
+            onChange={(e) => api.setSettings({ startAtLogin: e.target.checked })}
+          />
+          <span>
+            Start with your computer
+            <small>
+              {status?.canStartAtLogin
+                ? status?.monitorMode
+                  ? "Starts hidden in the notification area when you sign in."
+                  : "Opens Humbler when you sign in (turn on Monitor Mode to start it hidden)."
+                : "Only for an installed Humbler (this copy is running from source)."}
+            </small>
+          </span>
+        </label>
+        <div className="settings-row">
+          <span>
+            Try it
+            <small>Shows a sample notification. If none appears, check that notifications are allowed for Humbler in Windows&apos; settings.</small>
+          </span>
+          <div className="settings-actions">
+            <button className="hb-btn ghost small" onClick={() => void api.testNotification()}>
+              Test notification
+            </button>
+          </div>
         </div>
 
         <h4>Humble pane</h4>

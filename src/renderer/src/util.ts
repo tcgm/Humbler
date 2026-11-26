@@ -16,13 +16,7 @@ export const PLATFORM_LABELS: Record<string, string> = {
 };
 
 /** Same normalisation as lib/library normTitle, for matching titles across sources. */
-export const normTitle = (s: unknown): string =>
-  String(s ?? "")
-    .toLowerCase()
-    .replace(/[™®©]/g, "")
-    .replace(/&amp;/g, "&")
-    .replace(/[^a-z0-9&]+/g, " ")
-    .trim();
+export { normTitle } from "@shared/titles";
 
 export function fmtBytes(n: number | null | undefined): string {
   if (!n) return "";

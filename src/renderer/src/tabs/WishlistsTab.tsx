@@ -4,6 +4,7 @@
 import { useMemo, useState } from "react";
 import type { KeyEntry, WishlistProfile } from "@shared/types";
 import { ExportButton } from "../components/ExportDialog";
+import { SteamMark } from "../components/Marks";
 import { byNumber, byText, useTable, type Col } from "../components/Table";
 import { ArmButton, ExtLink, HumbleLink, PlatformBadge, ResetButton } from "../components/ui";
 import { usePref, useRemembered } from "../remember";
@@ -30,7 +31,7 @@ function sinceText(iso: string | null): string {
 }
 
 export function WishlistsTab() {
-  const { lib, wishlists, ownIndex, openBundle } = useStore();
+  const { lib, wishlists, ownIndex, openBundle, steamIdx } = useStore();
   const [input, setInput] = useState("");
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
@@ -209,7 +210,8 @@ export function WishlistsTab() {
                     )}
                     <td className="grow wl-have">
                       <div className="tags">
-                        {r.matches.length ? r.matches.slice(0, 6).map((m, i) => <MatchTag key={i} m={m} onOpen={openBundle} />) : <span className="tag">-</span>}
+                        {steamIdx.byAppid.has(r.appid) && <SteamMark on={{ app: steamIdx.byAppid.get(r.appid)!, how: "appid" }} />}
+                        {r.matches.length ? r.matches.slice(0, 6).map((m, i) => <MatchTag key={i} m={m} onOpen={openBundle} />) : !steamIdx.byAppid.has(r.appid) && <span className="tag">-</span>}
                         {r.matches.length > 6 && <span className="tag">+{r.matches.length - 6}</span>}
                       </div>
                     </td>

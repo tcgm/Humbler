@@ -57,6 +57,12 @@ const api: HumblerApi = {
   signInToSteam: () => ipcRenderer.invoke("steam:sign-in"),
   refreshSteamAccount: () => ipcRenderer.invoke("steam:refresh"),
   signOutOfSteam: () => ipcRenderer.invoke("steam:sign-out"),
+  getStore: () => ipcRenderer.invoke("store:get"),
+  refreshStore: (full) => ipcRenderer.invoke("store:refresh", { full }),
+  watchBundle: (id, on) => ipcRenderer.invoke("store:watch", { id, on }),
+  watchGame: (title, on) => ipcRenderer.invoke("store:watch-game", { title, on }),
+  addToSteamWishlist: (title, appid) => ipcRenderer.invoke("steam:wishlist-add", { title, appid }),
+  testNotification: () => ipcRenderer.invoke("notify:test"),
   onLog: on("log"),
   onStatus: on("status"),
   onLibraryUpdated: on("library-updated"),
@@ -68,6 +74,8 @@ const api: HumblerApi = {
   onFoldersUpdated: on("folders-updated"),
   onWishlistsUpdated: on("wishlists-updated"),
   onSteamUpdated: on("steam-updated"),
+  onStoreUpdated: on("store-updated"),
+  onOpenSale: on("open-sale"),
 };
 
 contextBridge.exposeInMainWorld("humbler", api);

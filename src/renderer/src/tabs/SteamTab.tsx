@@ -3,6 +3,7 @@
 // bundles you've most likely redeemed all of (how much of each is on it).
 import { useMemo } from "react";
 import { ExportButton } from "../components/ExportDialog";
+import { Marks } from "../components/Marks";
 import { byNumber, byText, useTable, type Col } from "../components/Table";
 import { ArmButton, BundleIcon, ExtLink, HumbleLink, ResetButton } from "../components/ui";
 import { useRemembered } from "../remember";
@@ -287,6 +288,7 @@ function KeysView() {
                       {s.key.bundle}
                     </a>
                   </span>
+                  <Marks title={s.key.name} appid={s.key.steamAppId} noSteam />
                 </td>
                 <td className="grow" title={s.on ? `${s.on.app.name} (app ${s.on.app.appid})${s.on.how === "likely" ? "\nLikely the same game: the titles differ only by edition words" : ""}` : ""}>
                   {s.on ? (

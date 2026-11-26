@@ -8,7 +8,7 @@
 //           "LEGO® DC Super-Villains (DELUXE EDITION)" finds "LEGO DC Super-Villains"
 // Keys and products that do carry a Steam app id (older orders) match by id.
 import type { KeyEntry, LibraryIndex, Product, WishlistGame, WishlistProfile } from "@shared/types";
-import { normTitle } from "./util";
+import { exactTitle, looseTitle } from "@shared/titles";
 
 export type MatchHow = "appid" | "exact" | "likely";
 
@@ -35,27 +35,7 @@ export interface WishRow {
   spare: KeyEntry[];
 }
 
-const strip = (s: string) =>
-  String(s || "")
-    .replace(/\((?:tm|r|c)\)/gi, " ")
-    .replace(/\s*[([]\s*steam(?:\s+key)?\s*[)\]]\s*$/i, "")
-    .replace(/\s+[-–—:]\s*steam(?:\s+key)?\s*$/i, "");
-
-/** exact-match form */
-export const exactTitle = (s: string): string => normTitle(strip(s));
-
-const EDITION_WORD =
-  /\s(?:(?:digital\s)?(?:super\s)?deluxe|ultimate|complete|definitive|premium|gold|goty|game of the year|enhanced|special|collectors?|anniversary|standard|legendary|deluxe|awesome|first month|director s cut)(?:\s(?:edition|collection|version|pack))?$/;
-
-/** likely-match form: edition words and leading articles dropped */
-export function looseTitle(s: string): string {
-  let t = exactTitle(s).replace(/(?:^|\s)(?:the\s)?(?:complete\s)?(?:edition|collection)$/, "").trim();
-  for (let prev = ""; prev !== t; ) {
-    prev = t;
-    t = t.replace(EDITION_WORD, "").trim();
-  }
-  return t.replace(/^(?:the|a)\s/, "");
-}
+export { exactTitle, looseTitle };
 
 export function keyUse(k: KeyEntry): KeyUse {
   if (k.gift || k.giftState === "gifted" || k.giftState === "claimed" || k.expired || k.soldOut) return "gone";
@@ -94,7 +74,8 @@ export function indexOwned(lib: LibraryIndex): OwnIndex {
   return idx;
 }
 
-function matchesFor(idx: OwnIndex, appid: number, name: string | null): OwnedMatch[] {
+/** What you own for a game (by Steam app id, 0 for none, and title). */
+export function matchesFor(idx: OwnIndex, appid: number, name: string | null): OwnedMatch[] {
   const out: OwnedMatch[] = [];
   const seen = new Set<unknown>();
   const take = (list: OwnedMatch[] | undefined, how: MatchHow) => {

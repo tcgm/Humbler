@@ -1,5 +1,6 @@
 // Small shared UI pieces.
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { Countdown, exactEnd } from "./Countdown";
 import { LuRotateCcw } from "react-icons/lu";
 import type { Bundle, KeyEntry } from "@shared/types";
 import { PREFS, usePref } from "../remember";
@@ -170,9 +171,10 @@ export function DeadlineBadge({ dl, keepSpace = true }: { dl: Deadline | null; k
   if (!dl) return keepSpace ? <div className="hb-deadline none" /> : null;
   const cls = dl.days < 0 ? "past" : dl.days <= 30 ? "soon" : "";
   const when = dl.days < 0 ? "Deadline passed" : dl.days === 0 ? "Redeem today" : `Redeem by ${formatDate(dl.date)}`;
-  const left = dl.days < 0 ? formatDate(dl.date) : `${dl.days} day${dl.days === 1 ? "" : "s"} left`;
+  // the last week counts down to the exact moment
+  const left = dl.days < 0 ? formatDate(dl.date) : dl.days < 7 ? <Countdown end={dl.date} /> : `${dl.days} day${dl.days === 1 ? "" : "s"} left`;
   return (
-    <div className={`hb-deadline ${cls}`} title={`${plural(dl.count, "unrevealed key")} must be redeemed by ${formatDate(dl.date)}`}>
+    <div className={`hb-deadline ${cls}`} title={`${plural(dl.count, "unrevealed key")} must be redeemed by ${exactEnd(dl.date)}`}>
       <strong>{when}</strong>
       <small>{left}</small>
     </div>

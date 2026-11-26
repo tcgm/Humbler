@@ -205,6 +205,68 @@
      your library**, or **the whole wishlist**; **Everyone** puts every
      wishlist together, with who wants each game. **Export…** exports the
      spare keys shown.
+10. **On Sale tab**: every bundle Humble is selling right now, with what
+   you already have marked, like Humble Librarian did.
+   - Each item is **green** when it's already yours: in your Humble library
+     (a key you still hold, or a download), or on your Steam account (My
+     Steam). **♥** marks one on a Steam wishlist (yours first, then
+     friends'; click to see it there), and the rest are **new to you**.
+     Keys you gifted, or that expired or sold out, don't count as having it.
+   - Laid out like Humble's own bundles page: **Games / Books / Software**
+     (or All) along the top, and a grid of bundle tiles, each with its time
+     left, price, how many items are new to you, yours, and wishlisted, and
+     a bar for how much is already yours (a bundle that's all yours is
+     outlined green). Click one for its page: each tier's price and items,
+     and how much is new to you up to that tier; back/forward work as on
+     the other pages. **Out of keys** marks items Humble has run out of.
+   - Filter by what's in it (something new to you, on a wishlist, on your
+     own wishlist, something you have);
+     sort by **most new to you** (the default: bundles with games on your
+     wishlist first), share new, ending soonest, newest or A-Z.
+   - Every bundle counts down to its **exact** end, to the second ("2d
+     04:12:09 left"; red in its last 3 days); its page gives the end date
+     and time in your time zone. Key deadlines on your own bundles count
+     down the same way in their last week.
+   - **☆ Watch** a bundle (the star on its tile, by its price and item
+     count, or on its page) to be notified 24 h, 3 h, 1 h and 10 min before
+     it ends, and when it adds items.
+   - **☆ Star a game** (the star by its name on a bundle's page) to be
+     notified when it turns up in a bundle on sale, once per bundle (the
+     bundles it's in when you star it don't count). Bundles with starred
+     games say so ("★ 2 starred").
+   - **★ Watching** lists your starred games, each with the bundles on sale
+     that have it (tier and price) or "not in a bundle on sale now", then
+     the bundles you watch or that have a starred game.
+   - **♡ Add to Steam wishlist** on a Steam game you don't have puts it on
+     your Steam wishlist (needs the Steam sign-in from My Steam; the game is
+     found on Steam by its title, and nothing is added when no title
+     matches). Your own wishlist is read from that sign-in too, so the ♥
+     marks show it even when it's private.
+   - **Notifications** (Settings → Notifications & Monitor Mode): Humbler
+     checks Humble every 30 minutes while it runs and tells you about new
+     bundles (only ones with a wishlisted game, by default; or all, or
+     none), about bundles you watch, and about starred games turning up in
+     a bundle. Click one to open the bundle.
+     **Test notification** shows a sample. Windows shows them for an
+     installed Humbler; running from source they may not appear.
+   - **Monitor Mode**: closing the window keeps Humbler in the notification
+     area (system tray), still checking Humble and finishing downloads.
+     Click its icon to open it; its menu has Check Humble now, Monitor Mode
+     and Quit. **Start with your computer** (installed copies) starts it
+     there, hidden, when you sign in. Starting Humbler again shows the one
+     already running.
+   - Humbler reads Humble's public pages (`humblebundle.com/bundles` and
+     each bundle's page, a second or so apart): at startup when older than
+     12 hours, and with **Refresh** (bundle pages read in the last day are
+     kept). Matching is by title, exactly or likely (`~`).
+   - The Humble pane's own green marking (Settings → mark owned items) now
+     marks games on your Steam account too.
+   - The same marks show everywhere else a game does: **✓ on your Steam
+     account** and **♥ on someone's wishlist** (click for their wishlist)
+     under keys (Keys tab, bundle pages, Choice months), in the Library,
+     and in the Wishlists tab. The Bundles list and Choice months show how
+     much is on your Steam account ("80% on Steam") and how many spare keys
+     someone wants; a bundle page says it at the top.
 9. **My Steam tab**: your own Steam account next to your keys: which Steam
    keys you've redeemed there, and which bundles you've most likely
    redeemed all of.
@@ -235,7 +297,7 @@
      else by title, exactly or **likely** (`~`, edition words ignored). A
      game on your account doesn't prove *this* key put it there (you may
      have bought it on Steam, or redeemed another copy).
-10. **Back and forward** work like a browser: your **mouse's back/forward
+11. **Back and forward** work like a browser: your **mouse's back/forward
    buttons** (or Alt+← / Alt+→) step through tabs, bundle pages and Choice
    months you've visited. Every list remembers its search, sort, filters
    and page (and the Bundles and Choice lists their scroll position): open
@@ -247,7 +309,7 @@
    table scrolls sideways when the columns are wider than the window, and
    a double-click on an edge goes back to the automatic widths. Both are
    remembered.
-11. **Dark mode** is the default everywhere. The ☀ button in the top bar
+12. **Dark mode** is the default everywhere. The ☀ button in the top bar
    switches to light mode (☾ switches back), and the choice is remembered.
    **Settings** (☰ menu) gathers the options: theme, tab counts, whether
    changing pages scrolls the list back to the top (on by default),

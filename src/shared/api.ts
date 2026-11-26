@@ -13,6 +13,7 @@ import type {
   SettingsPatch,
   Status,
   SteamAccountInfo,
+  StoreInfo,
   WishlistProfile,
 } from "./types";
 
@@ -60,6 +61,12 @@ export interface InvokeChannels {
   "steam:sign-in": [[], void];
   "steam:refresh": [[], OkResult];
   "steam:sign-out": [[], void];
+  "store:get": [[], StoreInfo];
+  "store:refresh": [[{ full: boolean }], OkResult];
+  "store:watch": [[{ id: string; on: boolean }], void];
+  "store:watch-game": [[{ title: string; on: boolean }], void];
+  "steam:wishlist-add": [[{ title: string; appid?: number | null }], OkResult & { appid?: number; name?: string }];
+  "notify:test": [[], void];
 }
 
 /** main -> UI events: name -> payload */
@@ -75,6 +82,9 @@ export interface EventChannels {
   "folders-updated": void;
   "wishlists-updated": void;
   "steam-updated": void;
+  "store-updated": void;
+  /** a notification was clicked: show this On Sale bundle */
+  "open-sale": string;
 }
 
 type Unsubscribe = () => void;
@@ -140,6 +150,18 @@ export interface HumblerApi {
   refreshSteamAccount(): Promise<OkResult>;
   /** sign out of Steam in Humbler and forget the account's games */
   signOutOfSteam(): Promise<void>;
+  /** the bundles Humble is selling now, and what's in them */
+  getStore(): Promise<StoreInfo>;
+  /** fetch the bundle list again, and bundle pages older than a day (`full`: every page) */
+  refreshStore(full: boolean): Promise<OkResult>;
+  /** watch a bundle on sale (notifications as it nears its end), or stop */
+  watchBundle(id: string, on: boolean): Promise<void>;
+  /** star a game (notified when it turns up in a bundle on sale), or unstar it */
+  watchGame(title: string, on: boolean): Promise<void>;
+  /** add a game to your Steam wishlist (signed in on My Steam), found by title */
+  addToSteamWishlist(title: string, appid?: number | null): Promise<InvokeChannels["steam:wishlist-add"][1]>;
+  /** show a sample notification */
+  testNotification(): Promise<void>;
   onLog: On<"log">;
   onStatus: On<"status">;
   onLibraryUpdated: On<"library-updated">;
@@ -151,4 +173,6 @@ export interface HumblerApi {
   onFoldersUpdated: On<"folders-updated">;
   onWishlistsUpdated: On<"wishlists-updated">;
   onSteamUpdated: On<"steam-updated">;
+  onStoreUpdated: On<"store-updated">;
+  onOpenSale: On<"open-sale">;
 }

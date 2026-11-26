@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { SETTINGS_PATH, DEFAULT_DOWNLOAD_DIR } from "./paths";
-import type { Naming, Theme } from "../../shared/types";
+import type { Naming, NotifyNew, Theme } from "../../shared/types";
 
 export const NAMING: Naming[] = ["original", "title"];
 
@@ -18,6 +18,14 @@ export interface Settings {
   /** access token for a release feed that needs signing in (a private Gitea),
    *  sealed (secret-store); "" = none */
   updateToken: string;
+  /** Monitor Mode: closing the window keeps Humbler in the notification area, watching Humble */
+  monitorMode: boolean;
+  /** start with your computer (hidden in the notification area when Monitor Mode is on) */
+  startAtLogin: boolean;
+  /** notify about new bundles: all, only with a wishlisted game, or none */
+  notifyNew: NotifyNew;
+  /** notify as watched bundles near their end, and when they add items */
+  notifyWatched: boolean;
 }
 
 export function load(): Settings {
@@ -41,6 +49,10 @@ export function load(): Settings {
     folderLinks: saved.folderLinks && typeof saved.folderLinks === "object" ? saved.folderLinks : {},
     // stays sealed here: opened only when an update check uses it
     updateToken: typeof saved.updateToken === "string" ? saved.updateToken : "",
+    monitorMode: saved.monitorMode === true,
+    startAtLogin: saved.startAtLogin === true,
+    notifyNew: saved.notifyNew === "all" || saved.notifyNew === "off" ? saved.notifyNew : "wishlist",
+    notifyWatched: saved.notifyWatched !== false,
   };
 }
 

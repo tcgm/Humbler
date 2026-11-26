@@ -49,6 +49,12 @@ what's stored and how keys are protected.
 - **Wishlists**: compare Steam wishlists (yours or friends') with your
   library: which spare keys someone wants, and which wishlisted games you
   already have.
+- **On Sale**: every bundle Humble is selling now, each item marked green
+  when you already have it (Humble library or Steam account), ♥ when it's
+  on a wishlist, and how much of each bundle and tier is new to you. Exact
+  countdowns, ☆ watch a bundle, add its games to your Steam wishlist, and
+  notifications (new bundles with wishlisted games, watched ones ending),
+  with an optional Monitor Mode in the notification area.
 - **My Steam**: sign in to Steam in the side pane to see which Steam keys
   are redeemed on your account, and which bundles you've redeemed all of
   (the % of each bundle on your account).

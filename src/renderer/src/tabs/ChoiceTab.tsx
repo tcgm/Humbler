@@ -5,6 +5,7 @@ import type { Bundle, ChoiceMonth, FileEntry, KeyEntry, LibraryIndex, Product } 
 import { ExportButton } from "../components/ExportDialog";
 import { FileButton } from "../components/FileButton";
 import { KeyField } from "../components/KeyField";
+import { Marks } from "../components/Marks";
 import { KeyCheck, RevealSelected, selectedOr, useKeySelection } from "../components/KeySelect";
 import { BackLink, DeadlineBadge, ExtLink, HumbleLink, ResetButton, Tile } from "../components/ui";
 import { useRemembered, useRememberedScroll } from "../remember";
@@ -200,20 +201,31 @@ function MonthIndex({ months }: { months: Month[] }) {
 }
 
 function MonthCard({ s, matches }: { s: MonthSummary; matches: string[] }) {
-  const { openChoiceMonth } = useStore();
+  const { openChoiceMonth, steamByKey, wanted } = useStore();
   const { m, games, unrevealed, soldOut, expired, notInLib, dl } = s;
+  const keys = games.flatMap((g) => g.keys);
+  const onSteam = keys.map((k) => steamByKey.get(k.id)).filter(Boolean);
+  const steamPct = onSteam.length ? Math.round((onSteam.filter((x) => x!.on).length / onSteam.length) * 100) : null;
+  const wantedKeys = keys.filter((k) => wanted.has(k.id)).length;
   return (
     <button className="hb-card month-card" onClick={() => openChoiceMonth(m.month)}>
       <div className="hb-card-body">
         <h4>{monthLabel(m.month)}</h4>
         <p>{games.length ? plural(games.length, "game") : m.group ? "No games from this month in your library" : "No games yet"}</p>
         {matches.length > 0 && <p className="month-matches">{matches.join(" · ")}</p>}
-        {(unrevealed > 0 || notInLib > 0 || soldOut > 0 || expired > 0) && (
+        {(unrevealed > 0 || notInLib > 0 || soldOut > 0 || expired > 0 || steamPct != null || wantedKeys > 0) && (
           <div className="hb-flags">
             {unrevealed > 0 && <span className="hb-flag">{unrevealed} unrevealed</span>}
             {soldOut > 0 && <span className="hb-flag red">⚠ {soldOut} sold out</span>}
             {expired > 0 && <span className="hb-flag muted" title="Expired before they were revealed">{expired} expired</span>}
             {notInLib > 0 && <span className="hb-flag amber">{notInLib} not in library</span>}
+            {steamPct != null && (
+              <span className={`hb-flag${steamPct === 100 ? " green" : " muted"}`} title="Of this month's Steam keys, how many are for games on your Steam account">
+                {steamPct === 100 ? "✓ " : ""}
+                {steamPct}% on Steam
+              </span>
+            )}
+            {wantedKeys > 0 && <span className="hb-flag pink">♥ {wantedKeys} wanted</span>}
           </div>
         )}
       </div>
@@ -260,6 +272,7 @@ function MonthPage({ m }: { m: Month }) {
               {g.image ? <img className="choice-art" src={g.image} alt="" loading="lazy" /> : <Tile title={g.title} size="art" />}
               <div className="choice-body">
                 <h4>{g.title}</h4>
+                <Marks title={g.title} appid={g.product?.steamAppId} keys={g.keys} />
                 {g.product && (
                   <div className="row-links">
                     <HumbleLink of={g.product} />

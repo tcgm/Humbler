@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import type { Product } from "@shared/types";
 import { ExportButton } from "../components/ExportDialog";
 import { byNumber, byText, useTable, type Col } from "../components/Table";
+import { Marks } from "../components/Marks";
 import { ExtLink, HumbleLink, ResetButton } from "../components/ui";
 import { useRemembered } from "../remember";
 import { api, useStore } from "../store";
@@ -121,6 +122,7 @@ export function LibraryTab() {
                   <td className="grow" title={p.title}>
                     {p.title}
                     <span className="sub">{p.publisher || ""}</span>
+                    <Marks title={p.title} appid={p.steamAppId} />
                   </td>
                   <td className="grow" title={p.bundle}>
                     {p.bundle}

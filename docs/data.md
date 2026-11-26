@@ -14,7 +14,8 @@ Linux. Set `HUMBLER_DATA_DIR` to use another folder.
 | `data/revealed-keys.jsonl` | Append-only record of every key Humbler revealed, written the moment it comes back. A revealed key can't be lost to a crash. Key values are **encrypted**. |
 | `data/downloaded.jsonl` | Files Humbler has completed. |
 | `data/wishlists.json` | Steam profiles you compare wishlists with (SteamID, name, avatar), their wishlisted app ids, and cached game names and art. |
-| `data/steam-account.json` | Your own Steam account (My Steam): SteamID, name, avatar, the app ids of the games and DLC on it, and cached names. The Steam sign-in itself is a cookie in `electron-userdata/`, encrypted like your Humble login. |
+| `data/steam-account.json` | Your own Steam account (My Steam): SteamID, name, avatar, the app ids of the games and DLC on it and on your wishlist, and cached names. The Steam sign-in itself is a cookie in `electron-userdata/`, encrypted like your Humble login. |
+| `data/store-bundles.json` | The bundles Humble is selling now (On Sale): titles, tiers and prices, and each bundle's items, from Humble's public pages; the bundles you watch (and which ending notifications went out); the games you starred (and the bundles each was already announced in); every bundle seen so far (so a new one is announced once). |
 | `data/settings.json` | Download folder, file naming, and owned-marking setting. |
 | `data/choice.json` | Harvested Choice months: games, claimed or not. A game marked claimed never reverts to unclaimed. |
 | `data/harvest/` | Raw page harvests behind `choice.json`. |
