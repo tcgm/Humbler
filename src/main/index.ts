@@ -2322,7 +2322,7 @@ app.on("window-all-closed", () => app.quit());
 const DEV_RESTART_CODE = 75; // must match scripts/dev.mjs
 let devRestartNow = false;
 let devRestartTimer: ReturnType<typeof setInterval> | undefined;
-const appIdle = () => !busy && downloader.summary().active === 0 && downloader.summary().queued === 0;
+const appIdle = () => !busy && !storeBundles.isRefreshing() && downloader.summary().active === 0 && downloader.summary().queued === 0;
 function devRestartWhenIdle() {
   if (devRestartNow) return;
   if (appIdle()) {
@@ -2333,7 +2333,8 @@ function devRestartWhenIdle() {
     return;
   }
   if (!devRestartTimer) {
-    log(`Main-process code updated; restarting once the current ${busy || "downloads"} finish${busy ? "es" : ""}.`);
+    const what = busy ? `${busy} finishes` : storeBundles.isRefreshing() ? "reading of Humble's bundles finishes" : "downloads finish";
+    log(`Main-process code updated; restarting once the current ${what}.`);
     devRestartTimer = setInterval(devRestartWhenIdle, 1000);
   }
 }

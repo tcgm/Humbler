@@ -328,8 +328,18 @@ export class StoreBundles {
     }
   }
 
+  /** At startup: refresh when stale, or when a refresh was cut short (bundle pages not read yet). */
   async refreshIfStale(): Promise<void> {
     const at = this.data.fetchedAt ? Date.parse(this.data.fetchedAt) : 0;
-    if (Date.now() - at > STALE_MS) await this.refresh();
+    const unread = this.data.bundles.filter((b) => !b.items).length;
+    if (Date.now() - at > STALE_MS || unread) {
+      if (unread && Date.now() - at <= STALE_MS) this.opts.log(`On sale: ${unread} bundle page(s) not read yet (the last refresh was cut short); reading them now.`);
+      await this.refresh();
+    }
+  }
+
+  /** Reading Humble's bundles right now (a restart would cut it short). */
+  isRefreshing(): boolean {
+    return !!this.progress;
   }
 }
